@@ -1,0 +1,46 @@
+# CINEHEIGHT.media — single-flow v2
+
+Fresh, standalone rebuild of the CINEHEIGHT.media website. The original project
+(`../cineheight_design_2/`) is the read-only source of truth for all content and
+client media; nothing in it is ever modified.
+
+## Run
+
+```bash
+npm install
+npm run dev        # http://localhost:3100
+```
+
+`npm run build` / `npm run start` for production. `npx tsc --noEmit` and
+`npm run lint` must stay clean.
+
+## Status
+
+**Phase 2 complete (hero system):** project scaffold, locked design tokens (§5),
+fonts (Bebas Neue / Satoshi / Poppins, self-hosted), content audit + media
+manifest, Higgsfield hero cloud generation (24 credits), hero with 3-depth cloud
+parallax, navbar reveal, brand statement handoff — browser-tested (desktop,
+mobile, reduced-motion; no console errors, no overflow).
+
+Phases 3–7 (ContinuityStage, showreel, trusted logos, featured work, reels,
+posts, services, process, about, testimonials, contact, footer, signal path,
+case-study detail pages, QA) are **not started yet** — build order in the spec's
+§38, section slots marked in `app/page.tsx`.
+
+## Key docs
+
+- `docs/EXISTING-CONTENT-MAP.md` — full audit of the original project's usable content
+- `docs/HIGGSFIELD-GENERATION-LOG.md` — every generation, prompt, credit, decision
+- `docs/HERO-CLOUD-SYSTEM.md` — hero layer/compositing/choreography architecture
+- `content/mediaManifest.ts` — every media item (real vs placeholder) with paths/ratios
+
+## Structure
+
+```
+app/            layout (fonts/tokens), page (section order), globals.css (tokens, masks)
+components/     Navbar, BrandStatement, hero/HeroSection
+content/        mediaManifest.ts (caseStudies.ts arrives in Phase 4)
+lib/            gsap setup, heroProgress store, media-preference hooks
+public/         copied real client media + generated/hero-v2 atmosphere
+scripts/        process-hero-clouds.mjs (master → layer slices, local only)
+```

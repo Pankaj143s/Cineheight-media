@@ -1,0 +1,164 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   CINEHEIGHT single-flow v2 — locked design tokens (spec §5)
+   ============================================================ */
+:root {
+  /* Primary accent */
+  --blue-500: #0089ff;
+
+  /* Blue scale */
+  --blue-050: #e6f3ff;
+  --blue-200: #99cfff;
+  --blue-400: #33a7ff;
+  --blue-600: #006fd1;
+  --blue-700: #0057a3;
+
+  /* Transparent blue */
+  --blue-alpha-08: rgba(0, 137, 255, 0.08);
+  --blue-alpha-16: rgba(0, 137, 255, 0.16);
+  --blue-alpha-24: rgba(0, 137, 255, 0.24);
+  --blue-alpha-40: rgba(0, 137, 255, 0.4);
+
+  /* Background */
+  --bg-950: #020306;
+  --bg-900: #050609;
+  --bg-800: #0a0c11;
+  --bg-700: #12151c;
+
+  /* Text */
+  --text-100: #f5f7fa;
+  --text-200: #dde2e8;
+  --text-300: #b8bfc9;
+  --text-500: #7c838f;
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  /* Project accents — used ONLY inside their case study */
+  --accent-sapale: #204497;
+  --accent-ses: #334fa2;
+  --accent-divija: #0092cb;
+}
+
+html {
+  background: var(--bg-950);
+  color-scheme: dark;
+  /* Native scroll is the source of truth; Lenis (when active) wraps it. */
+  scroll-behavior: auto;
+}
+
+body {
+  background: var(--bg-950);
+  color: var(--text-100);
+  font-family: var(--font-poppins), system-ui, sans-serif;
+  overflow-x: clip;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--blue-alpha-40);
+  color: var(--text-100);
+}
+
+/* Visible focus for keyboard users (spec §36) */
+:focus-visible {
+  outline: 2px solid var(--blue-500);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* ============================================================
+   Hero title — live HTML, Bebas Neue, vertical tone transition
+   (spec §6: 400 weight, ~82–92vw, lh 0.78–0.84, no chrome/bevel)
+   ============================================================ */
+.hero-title {
+  font-family: var(--font-bebas), 'League Gothic', 'Arial Narrow', sans-serif;
+  font-weight: 400;
+  line-height: 0.8;
+  letter-spacing: 0.012em;
+  background-image: linear-gradient(to bottom, #f5f7fa 42%, #dde2e8 74%, #b8bfc9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  user-select: none;
+}
+
+/* Cloud video layers composited with screen blending over near-black —
+   black background in the media disappears, white clouds remain. */
+.cloud-screen {
+  mix-blend-mode: screen;
+}
+
+/* Soft edge fades so cloud plates never show rectangular bounds.
+   Plates are crops with mid-gray content — screen blending alone only
+   removes pure black, so every plate edge must be masked away. */
+.cloud-feather-box {
+  -webkit-mask-image: radial-gradient(ellipse 58% 52% at 50% 50%, black 30%, transparent 74%);
+  mask-image: radial-gradient(ellipse 58% 52% at 50% 50%, black 30%, transparent 74%);
+}
+
+.cloud-feather-band {
+  /* Single vertical gradient — multiple mask images default to
+     mask-composite:add (union) in Chromium, which re-hardens the edges. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 56%, transparent 86%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 56%, transparent 86%);
+}
+
+/* Brand statement overlaps the hero's final phase (spec §12 60–100%):
+   it approaches from below while the departing stage is still pinned. */
+.brand-overlap {
+  position: relative;
+  z-index: 10;
+  margin-top: -72vh;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-overlap {
+    margin-top: 0;
+  }
+}
+
+/* Idle drift for image-based cloud layers (GPU transform only).
+   Durations set inline per layer; paused under reduced motion. */
+@keyframes cloud-drift-x {
+  from { transform: translate3d(var(--drift-from, -2.5%), 0, 0); }
+  to   { transform: translate3d(var(--drift-to, 2.5%), 0, 0); }
+}
+
+.cloud-drift {
+  animation: cloud-drift-x var(--drift-duration, 70s) ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cloud-drift {
+    animation: none;
+  }
+}
+
+/* Film grain — inline SVG turbulence, extremely low opacity */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Screen-reader-only utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cineheight-v2",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "D:\\Coding\\01 Projects\\06 Cineheight\\01 Code\\cineheight-single-flow-v2",
+      "port": 3100
+    }
+  ]
+}
