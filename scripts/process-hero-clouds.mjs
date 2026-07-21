@@ -145,4 +145,56 @@ await alphaWisp(sharp(g2).extract({ left: 620, top: 660, width: 1940, height: 52
   resizeOpts: { width: 2000, height: 360, fit: 'fill' }, brightness: 0.72, saturation: 0.4, aSlope: 1.5, aLift: -12, aBlur: 1.1,
 })
 
-console.log([...report, '--- hero-v3 ---', ...v3].join('\n'))
+// ============================================================
+// hero-v4 — NATURAL rounded low-profile clouds (G4 master)
+// ============================================================
+// The v3 wisps (sliced from the G2 cirrus master) read as smoke / torn fog
+// and `cloud-wisp-moving` had an EMPTY alpha channel (all zero → invisible).
+// v4 uses a fresh Higgsfield source (g4-clouds-master.png): four separated
+// natural rounded cumulus puffs on pure black. Same luminance→alpha pipeline
+// as alphaWisp(), tuned gentler to preserve the soft cloud edges. Each crop
+// keeps black margin → alpha reaches 0 before the edge, no straight edges.
+const g4 = path.join(scratch, 'g4-clouds-master.png')
+const outV4 = path.resolve('public/generated/hero-v4')
+fs.mkdirSync(outV4, { recursive: true })
+const v4 = []
+
+async function alphaCloud(src, name, { resizeOpts, brightness, saturation, aSlope, aLift, aBlur }) {
+  const inter = await src.resize(resizeOpts).removeAlpha().toColourspace('srgb').raw().toBuffer({ resolveWithObject: true })
+  const { width: w, height: h } = inter.info
+  const rgb = await sharp(inter.data, { raw: inter.info }).modulate({ brightness, saturation }).raw().toBuffer()
+  const alpha = await sharp(inter.data, { raw: inter.info }).greyscale().linear(aSlope, aLift).blur(aBlur).raw().toBuffer()
+  const file = path.join(outV4, name)
+  await sharp(rgb, { raw: { width: w, height: h, channels: 3 } })
+    .joinChannel(alpha, { raw: { width: w, height: h, channels: 1 } })
+    .webp({ quality: 84, alphaQuality: 94 })
+    .toFile(file)
+  // Alpha verification (spec §5): dims, mode, alpha min/max, %non-transparent, size.
+  const a = await sharp(file).ensureAlpha().extractChannel(3).raw().toBuffer()
+  let min = 255, max = 0, nz = 0
+  for (let i = 0; i < a.length; i++) { const v = a[i]; if (v < min) min = v; if (v > max) max = v; if (v > 12) nz++ }
+  const meta = await sharp(file).metadata()
+  v4.push(`${name}\t${meta.width}x${meta.height}\t${meta.channels}ch\taMin=${min} aMax=${max} nonTransp=${(100 * nz / a.length).toFixed(1)}%\t${Math.round(fs.statSync(file).size / 1024)} KB`)
+}
+
+// Front-left cloud — G4 cloud #1 (leftmost rounded puff).
+await alphaCloud(sharp(g4).extract({ left: 40, top: 430, width: 700, height: 580 }), 'cloud-front-left.webp', {
+  resizeOpts: { width: 700 }, brightness: 0.9, saturation: 0.6, aSlope: 1.5, aLift: -12, aBlur: 0.8,
+})
+
+// Front-right cloud — G4 cloud #4 (rightmost, distinct shape → natural asymmetry).
+await alphaCloud(sharp(g4).extract({ left: 2010, top: 430, width: 730, height: 560 }), 'cloud-front-right.webp', {
+  resizeOpts: { width: 730 }, brightness: 0.88, saturation: 0.6, aSlope: 1.5, aLift: -12, aBlur: 0.8,
+})
+
+// Travelling cloud — G4 cloud #2 (compact); rendered small on-screen.
+await alphaCloud(sharp(g4).extract({ left: 700, top: 450, width: 660, height: 540 }), 'cloud-traveller.webp', {
+  resizeOpts: { width: 560 }, brightness: 0.9, saturation: 0.6, aSlope: 1.6, aLift: -12, aBlur: 0.7,
+})
+
+// Soft background haze — wide crop of the centre clouds, stretched low & faint.
+await alphaCloud(sharp(g4).extract({ left: 660, top: 470, width: 1400, height: 520 }), 'cloud-back-soft.webp', {
+  resizeOpts: { width: 2000, height: 320, fit: 'fill' }, brightness: 0.66, saturation: 0.5, aSlope: 1.2, aLift: -8, aBlur: 1.5,
+})
+
+console.log([...report, '--- hero-v3 ---', ...v3, '--- hero-v4 (active) ---', ...v4].join('\n'))

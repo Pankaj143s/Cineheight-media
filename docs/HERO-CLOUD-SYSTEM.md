@@ -1,6 +1,62 @@
 # HERO-CLOUD-SYSTEM — cineheight-single-flow-v2
 
-> ## hero-v3 (current) — restrained transparent wisps
+> ## hero-v4 (CURRENT) — natural clouds + labelled master timeline
+>
+> hero-v3 (below) fixed the plate/pedestal problem with true-alpha wisps, but the
+> wisps were sliced from a **cirrus** master and read as smoke / torn fog, and
+> `cloud-wisp-moving` shipped with an **empty alpha channel** (invisible). hero-v4
+> replaces the sources with a fresh Higgsfield sheet of **four separated rounded
+> low-profile cumulus clouds** on pure black (see HIGGSFIELD-GENERATION-LOG.md
+> "G4"), and rebuilds the intro as one **named-label master timeline**.
+>
+> ### Assets — `public/generated/hero-v4/` (alpha-clean, `alphaCloud()` in `scripts/process-hero-clouds.mjs`)
+> All verified: 4-channel, alpha min 0, ~29–33% non-transparent (traveller **32.9%**,
+> no longer empty). front-left 700×580·45 KB, front-right 730×560·47 KB,
+> traveller 560×458·30 KB, back-soft 2000×320·69 KB. Luminance→alpha, gentle curve
+> (`linear ~1.5, -12`, blur ~0.8) to preserve soft cloud edges; RGB toned
+> (brightness 0.66–0.9, saturation 0.5–0.6 → neutral, not blue, no blown whites).
+> Composited normally over #020306 — no screen-blend, no radial masks.
+>
+> ### Live layers (`HeroIntroSequence.tsx`)
+> | z | Layer | Asset | Opening placement (desktop) | Opacity |
+> |---|---|---|---|---|
+> | 0 | back haze | cloud-back-soft | left 20% w 60%, top 50%, h 9vh | 0.12 |
+> | 1 | title | Bebas Neue ~72vw | centred, −1vh | 1 |
+> | 3 | front-left | cloud-front-left | left −14vw w 54vw, top 47%, h 11vh | 0.46 |
+> | 3 | front-right | cloud-front-right (distinct cloud) | left 60vw w 56vw, top 50%, h 12.5vh | 0.42 |
+> | 4 | traveller | cloud-traveller | full width, top 43%, w 11vw | 0.24 |
+>
+> Drift: seamless two-copy marquees for back/front clouds (no yoyo/snap), one
+> offscreen traversal for the traveller — durations 110 / 78 / 90 / 72 s.
+>
+> ### Master timeline — named labels (one shared progress, `ease: 'none'`, scrub 1.0)
+> `opening 0.00 · depthStart 0.16 · heroExit 0.42 · statementApproach 0.52 ·
+> statementReveal 0.62 · navbarReveal 0.68 · introSettled 0.84`. Every element
+> is tied to these labels (no per-element guesses). Beats: 0–0.16 hold · 0.16–0.42
+> clouds lift, title rises slowly to −4vh scale 1.03 · 0.42–0.60 title → −10vh
+> scale 1.05 opacity → 0.28, foreground clouds rise faster (−18/−20vh) · **0.60
+> crossover** title 0.28 · 0.60–0.68 title CLEARS to −26vh opacity 0 (visibly
+> departed before the statement reveals) · 0.62 statement line-1 clip reveal,
+> 0.665 line-2, 0.72 support copy · 0.68 navbar reveals (Navbar subscribes to
+> `heroProgress`, threshold 0.68 == the `navbarReveal` label) · 0.84 settled,
+> statement stable, faint cloud remnants at upper edges · 0.84–1.0 barely-there
+> upward drift so the lower edge is ready for the showreel, no dead pause.
+> Reverse scroll restores the opening cleanly.
+>
+> ### Title / statement crossover
+> Title departs (up + fade) and is gone by ~0.68; the statement reveals from 0.62.
+> There is only a brief intended coexistence (title subordinate, moving away) —
+> never equal competition. #0089FF appears only as the faint title-base light,
+> the ≤0.10 transition illumination, `BRANDS.`, and navbar hover/focus/CTA.
+>
+> ### Mobile / reduced motion
+> Mobile: back haze + ONE front cloud (left, widened) + traveller; no right cloud,
+> reduced parallax, no clipping. Reduced motion: static composition, statement as
+> a normal block below, navbar via threshold.
+>
+> ---
+>
+> ## hero-v3 (superseded — rollback only) — restrained transparent wisps
 >
 > The hero-v2 system below used opaque cloud crops + `mix-blend-mode: screen` +
 > radial masks. Even black-crushed, those read as pasted cloud **plates** with

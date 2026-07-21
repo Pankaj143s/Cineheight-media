@@ -52,11 +52,44 @@ slices if possible. Posters extracted locally (zero credits).
 
 | | |
 |---|---|
-| Credits spent (this project) | **24** (2 + 2 + 20) |
+| Credits spent (through hero-v3) | **24** (2 + 2 + 20) |
 | Balance at session start | 492.52 |
-| Balance after generation | **468.52** |
 | Budget cap / remaining headroom | 420 cap → 396 unused |
 | Attempts / rejections | 3 generations, 0 rejected, 0 retries |
 
 Priorities D (mobile video), E (transition remnant), F (footer remnant): **not generated** —
 posters + slices cover mobile; remnant decisions deferred to post-hero phases per plan.
+
+## G4 — hero-v4 natural clouds source (2026-07-21)
+
+The hero-v3 wisps (sliced from the G2 cirrus master) read as smoke / torn fog and
+`cloud-wisp-moving` had an **empty alpha channel** (all-zero → invisible), verified
+by an alpha probe. One controlled generation was authorised to get a clean natural
+cloud source.
+
+- **Attempt 1 (failed, refunded):** `nano_banana_2` @ 21:9 2K → job `21c54cc6…`
+  returned `status: failed` (transient). Charged −2, **auto-refunded +2 (net 0)**.
+- **Attempt 2 (accepted):** `nano_banana_2` @ 16:9 2K → job `4fe01171-40f4-4e8d-9bb6-8efde9b47036`,
+  2752×1536, **2 credits**. Prompt: "Several separated natural white cloud
+  formations floating against a pure black night sky, three or four distinct
+  isolated soft rounded low-profile cumulus cloud puffs … generous empty
+  pure-black space between … no smoke, no fog streaks, no vapor trails, no storm,
+  no landscape, no horizon, no text, locked static camera." Result: four cleanly
+  separated rounded low-profile cumulus puffs on pure black — accepted first try.
+- **Processed locally (zero credits)** via `scripts/process-hero-clouds.mjs`
+  `alphaCloud()` (luminance→alpha) into `public/generated/hero-v4/`:
+
+  | Asset | Dims | Alpha | Non-transparent | Size |
+  |---|---|---|---|---|
+  | cloud-front-left.webp | 700×580 | 0–255 | 28.9% | 45 KB |
+  | cloud-front-right.webp | 730×560 | 0–255 | 30.0% | 47 KB |
+  | cloud-traveller.webp | 560×458 | 0–255 | **32.9%** (confirmed non-empty) | 30 KB |
+  | cloud-back-soft.webp | 2000×320 | 0–250 | 31.6% | 69 KB |
+
+## Totals
+
+| | |
+|---|---|
+| Credits spent (this project, cumulative) | **26** (24 + 2; one −2 failed attempt refunded) |
+| Balance after G4 | **≈466.52** |
+| Budget cap / remaining headroom | 420 cap → 394 unused |
