@@ -16,11 +16,15 @@ npm run dev        # http://localhost:3100
 
 ## Status
 
-**Phase 2 complete (hero system):** project scaffold, locked design tokens (§5),
-fonts (Bebas Neue / Satoshi / Poppins, self-hosted), content audit + media
-manifest, Higgsfield hero cloud generation (24 credits), hero with 3-depth cloud
-parallax, navbar reveal, brand statement handoff — browser-tested (desktop,
-mobile, reduced-motion; no console errors, no overflow).
+**Phase 2 complete (hero system + cloud-balance correction):** project scaffold,
+locked design tokens (§5), fonts (Bebas Neue / Satoshi / Poppins, self-hosted),
+content audit + media manifest, Higgsfield hero cloud generation (24 credits).
+The hero is now one **unified pinned intro** (`components/hero/HeroIntroSequence.tsx`):
+restrained left/right cloud groups + moving wisps over ~70–80% negative space,
+continuous linear GSAP drift, one-progress depth parallax, and the brand
+statement + navbar reveal folded into the same timeline (the old `HeroSection`,
+`BrandStatement` and `.brand-overlap` margin hack are gone). Browser-tested at
+7 viewports (390→2560 wide) incl. reduced-motion; no console errors, no overflow.
 
 Phases 3–7 (ContinuityStage, showreel, trusted logos, featured work, reels,
 posts, services, process, about, testimonials, contact, footer, signal path,
@@ -37,8 +41,8 @@ case-study detail pages, QA) are **not started yet** — build order in the spec
 ## Structure
 
 ```
-app/            layout (fonts/tokens), page (section order), globals.css (tokens, masks)
-components/     Navbar, BrandStatement, hero/HeroSection
+app/            layout (fonts/tokens), page (section order), globals.css (tokens, cloud masks)
+components/     Navbar, hero/HeroIntroSequence (title + clouds + statement + navbar state)
 content/        mediaManifest.ts (caseStudies.ts arrives in Phase 4)
 lib/            gsap setup, heroProgress store, media-preference hooks
 public/         copied real client media + generated/hero-v2 atmosphere

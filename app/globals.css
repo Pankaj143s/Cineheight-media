@@ -93,51 +93,30 @@ body {
   mix-blend-mode: screen;
 }
 
-/* Soft edge fades so cloud plates never show rectangular bounds.
-   Plates are crops with mid-gray content — screen blending alone only
-   removes pure black, so every plate edge must be masked away. */
-.cloud-feather-box {
-  -webkit-mask-image: radial-gradient(ellipse 58% 52% at 50% 50%, black 30%, transparent 74%);
-  mask-image: radial-gradient(ellipse 58% 52% at 50% 50%, black 30%, transparent 74%);
+/* Cloud plate masks — plates are crops with mid-gray content, so screen
+   blending alone only removes pure black; every edge must be masked away.
+   IMPORTANT: exactly ONE mask-image per element — Chromium composites
+   multiple mask images with `add` (union), which re-hardens the edges.
+
+   Groups keep density at their outer side and fade toward centre/top/bottom. */
+.mask-group-left {
+  -webkit-mask-image: radial-gradient(ellipse 100% 58% at 10% 42%, black 30%, transparent 78%);
+  mask-image: radial-gradient(ellipse 100% 58% at 10% 42%, black 30%, transparent 78%);
 }
 
-.cloud-feather-band {
-  /* Single vertical gradient — multiple mask images default to
-     mask-composite:add (union) in Chromium, which re-hardens the edges. */
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 56%, transparent 86%);
-  mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 56%, transparent 86%);
+.mask-group-right {
+  -webkit-mask-image: radial-gradient(ellipse 98% 60% at 92% 44%, black 30%, transparent 78%);
+  mask-image: radial-gradient(ellipse 98% 60% at 92% 44%, black 30%, transparent 78%);
 }
 
-/* Brand statement overlaps the hero's final phase (spec §12 60–100%):
-   it approaches from below while the departing stage is still pinned. */
-.brand-overlap {
-  position: relative;
-  z-index: 10;
-  margin-top: -72vh;
+.mask-center-soft {
+  -webkit-mask-image: radial-gradient(ellipse 56% 50% at 50% 50%, black 26%, transparent 72%);
+  mask-image: radial-gradient(ellipse 56% 50% at 50% 50%, black 26%, transparent 72%);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .brand-overlap {
-    margin-top: 0;
-  }
-}
-
-/* Idle drift for image-based cloud layers (GPU transform only).
-   Durations set inline per layer; paused under reduced motion. */
-@keyframes cloud-drift-x {
-  from { transform: translate3d(var(--drift-from, -2.5%), 0, 0); }
-  to   { transform: translate3d(var(--drift-to, 2.5%), 0, 0); }
-}
-
-.cloud-drift {
-  animation: cloud-drift-x var(--drift-duration, 70s) ease-in-out infinite alternate;
-  will-change: transform;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cloud-drift {
-    animation: none;
-  }
+.mask-haze {
+  -webkit-mask-image: radial-gradient(ellipse 52% 40% at 50% 52%, black 18%, transparent 64%);
+  mask-image: radial-gradient(ellipse 52% 40% at 50% 52%, black 18%, transparent 64%);
 }
 
 /* Film grain — inline SVG turbulence, extremely low opacity */

@@ -14,10 +14,10 @@ const NAV_ITEMS = [
 ]
 
 /**
- * Hidden on the initial hero (spec §10/§13). Reveals with a soft fade +
- * small vertical move once hero progress passes ~62%, hides again below
- * ~55% (hysteresis so it never flickers). Reduced motion: simple state
- * change, no transform animation.
+ * Hidden on the initial hero. Reveals with a soft fade + small vertical
+ * move once intro progress passes ~68%, hides again below ~60%
+ * (hysteresis so it never flickers). Reduced motion: simple state change,
+ * no transform animation.
  */
 export default function Navbar() {
   const [visible, setVisible] = useState(false)
@@ -27,7 +27,7 @@ export default function Navbar() {
 
   useEffect(() => {
     return subscribeHeroProgress((p) => {
-      const next = visibleRef.current ? p > 0.55 : p > 0.62
+      const next = visibleRef.current ? p > 0.6 : p > 0.68
       if (next !== visibleRef.current) {
         visibleRef.current = next
         setVisible(next)
@@ -41,14 +41,14 @@ export default function Navbar() {
       className="fixed inset-x-0 top-0 z-50"
       style={{
         opacity: visible ? 1 : 0,
-        transform: reduced ? 'none' : visible ? 'translateY(0)' : 'translateY(-14px)',
+        transform: reduced ? 'none' : visible ? 'translateY(0)' : 'translateY(-12px)',
         transition: reduced
           ? 'opacity 0.2s linear'
-          : 'opacity 0.45s cubic-bezier(0.22,1,0.36,1), transform 0.45s cubic-bezier(0.22,1,0.36,1)',
+          : 'opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1)',
         pointerEvents: visible ? 'auto' : 'none',
         visibility: visible ? 'visible' : 'hidden',
         background:
-          'linear-gradient(to bottom, rgba(2,3,6,0.72), rgba(2,3,6,0.28) 70%, transparent)',
+          'linear-gradient(to bottom, rgba(2,3,6,0.9), rgba(2,3,6,0.4) 72%, transparent)',
       }}
       aria-hidden={!visible}
     >
@@ -75,7 +75,7 @@ export default function Navbar() {
             <a
               key={item.label}
               href={item.href}
-              className="text-[11px] font-medium uppercase text-text-200 transition-colors duration-200 hover:text-text-100"
+              className="text-[11px] font-medium uppercase text-text-200 transition-colors duration-200 hover:text-[var(--blue-400)] focus-visible:text-[var(--blue-400)]"
               style={{ letterSpacing: '0.24em' }}
             >
               {item.label}

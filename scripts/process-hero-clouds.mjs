@@ -54,4 +54,25 @@ await save(sharp(g1).extract({ left: 1580, top: 440, width: 1172, height: 920 })
 // 6. Wisp accent — the distinct upper-left wisp from G2 (slow front accent)
 await save(sharp(g2).extract({ left: 240, top: 260, width: 760, height: 380 }), 'cloud-wisp-accent.webp', { q: 82 })
 
+// ---- Correction pass (cloud-balance refinement): smaller, sparser slices ----
+
+// 7. Left group — crest-only crop of G1's left bank (lower-left accent, ~32vw)
+await save(
+  sharp(g1).extract({ left: 30, top: 470, width: 990, height: 560 }).resize(900),
+  'cloud-group-left.webp',
+  { q: 82 }
+)
+
+// 8. Right group — crest-only crop of G1's right bank (slightly wider)
+await save(
+  sharp(g1).extract({ left: 1690, top: 470, width: 1030, height: 580 }).resize(940),
+  'cloud-group-right.webp',
+  { q: 82 }
+)
+
+// 9-10. Two small low-density wisps from G2's lower chain (centre connectors
+// and moving foreground wisps)
+await save(sharp(g2).extract({ left: 880, top: 890, width: 740, height: 330 }), 'wisp-mid-1.webp', { q: 82 })
+await save(sharp(g2).extract({ left: 1860, top: 900, width: 820, height: 400 }), 'wisp-mid-2.webp', { q: 82 })
+
 console.log(report.join('\n'))

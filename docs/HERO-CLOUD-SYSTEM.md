@@ -1,73 +1,116 @@
 # HERO-CLOUD-SYSTEM — cineheight-single-flow-v2
 
-Approved reference: monumental condensed CINEHEIGHT on near-black, white cloud
-banks crossing the lower letters from the left and right, sparse wisps in front,
-generous black negative space. Title is **live HTML** (Bebas Neue 400) — never
-baked into media.
+Correction pass (2026-07-21): cloud density rebalanced to the approved reference,
+drift made continuous/linear, parallax unified on one progress value, and the
+hero + brand statement merged into a single pinned sequence.
+
+Reference target: monumental CINEHEIGHT (live Bebas Neue HTML) on near-black,
+**~70–80% clean negative space**, a small cloud group crossing the lower-left
+letters, a slightly wider group crossing the lower-right letters, 1–2 faint
+centre wisps, and near-invisible haze behind. Clouds cover ≤12–20% of the word
+at rest. No cloud wall, no storm, no Hollywood framing.
+
+## Component
+
+`components/hero/HeroIntroSequence.tsx` — ONE section (desktop 220vh, mobile
+175vh, reduced-motion: auto/no pin) with a sticky 100vh stage containing every
+layer AND the brand statement. `HeroSection.tsx`, `BrandStatement.tsx` and the
+`.brand-overlap` negative-margin hack are **removed**.
 
 ## Layer stack (back → front)
 
-| # | Layer | Element | Asset | Motion |
-|---|---|---|---|---|
-| 0 | Base | stage div | `--bg-950` + faint navy radial | none |
-| 1 | Back deck | `[data-cloud="back"]` — band container (top 26%, height 62%) with `.cloud-feather-band` vertical mask | `cloud-back-desktop.mp4` (1920×1080 · 10 s · 376 KB, screen-blended). Mobile/reduced: posters | video's own drift; scroll y → −14vh, fade → 0.22 |
-| 2 | Middle haze | `[data-cloud="middle"]` (top 40%, h 34%, opacity 0.38) | `cloud-middle-desktop.webp` (20 KB) | CSS drift 72 s alternate; scroll y → −24vh, fade → 0.1 |
-| 3 | **Title** | `[data-hero="title"]` — one semantic `<h1>`, sr-only expansion "Cineheight Media — Branding and Digital Growth Agency" | Bebas Neue 400 · clamp(64px, 18.6vw, 21.5rem) · lh 0.8 · gradient #F5F7FA→#B8BFC9 | scroll y → −46vh, scale ≤1.10, fades 68–92% |
-| 4 | Front-left bank | `[data-cloud="front-left"]` (left −10%, top 44%) | `cloud-front-left.webp` (27 KB) | drift 38 s; scroll y → −46vh, fades 38–62% |
-| 5 | Wisp accent | `[data-cloud="wisp"]` (left 16%, top 32%, opacity 0.55 — crosses C-I-N) | `cloud-wisp-accent.webp` (8 KB) | drift 30 s (fastest); scroll y → −58vh |
-| 6 | Front-right bank | `[data-cloud="front-right"]` (right −11%, top 47%) | `cloud-front-right.webp` (27 KB) | drift 46 s, opposite direction; scroll y → −52vh |
+| Layer | Element | Asset | Placement (desktop 1440) |
+|---|---|---|---|
+| L1 base | two radials | — | navy depth + #0089FF title-base light at effective ~0.05 opacity |
+| L2 haze | `[data-layer="haze"]` | `cloud-back-desktop.mp4` (376 KB, screen-blend) · mobile/reduced: poster | left 15%, w 70%, top 47%, h 24%, **opacity 0.18** (mobile 0.16), `.mask-haze` |
+| L3 title | `[data-hero]` h1 | Bebas Neue 400, clamp(64px, 18.6vw, 21.5rem) ≈ 72–74vw word, gradient #F5F7FA→#B8BFC9 | centred, −1vh |
+| L4 groups | `[data-layer="group-left/right"]` | `cloud-group-left.webp` (16 KB) / `cloud-group-right.webp` (16 KB) — crest-only slices of the G1 master | left: max(−3vw, calc(50% − 1045px)), top 45%, w min(40vw, 620px) · right: max(−5vw, calc(50% − 1080px)), top 44%, w min(46vw, 700px); `aspect-ratio` boxes so mask == image at every viewport |
+| L5 wisps | `[data-drift="wisp-1..3"]` | `cloud-wisp-accent.webp`, `wisp-mid-2.webp`, `wisp-mid-1.webp` (8–9 KB) | tops 41% / 53% / 34%, widths min(14vw, 260px) / min(10vw, 190px) / min(8vw, 150px), opacities 0.38 / 0.28 / 0.24 |
+| Transition light | `[data-layer="transition-light"]` | — | #0089FF radial, opacity 0 → 0.10 (55–72%) → 0.05 |
+| Statement | `[data-layer="statement"]` | — | absolute inset-0, enters via the same timeline |
 
-**Compositing:** every plate/video is `mix-blend-mode: screen` over the near-black
-stage — black media pixels vanish, white clouds remain. Since crops contain
-mid-gray, every layer also carries a feather mask (`.cloud-feather-band` vertical
-gradient for the deck, `.cloud-feather-box` radial for plates). NOTE: never stack
-two mask-images on one element — Chromium composites them with `add` (union),
-which re-hardens the edges (this bug was hit and fixed in browser testing).
+Assets no longer in the live composition (kept on disk):
+`cloud-middle-desktop.webp`, `cloud-front-left.webp`, `cloud-front-right.webp`.
 
-## Idle motion (§11)
+## Masks (`app/globals.css`)
 
-Back = video's internal drift (~10 s loop, seam diff 0.39/255). Middle/front =
-`cloud-drift` CSS keyframes (translate3d, alternate) at 72 s / 46 s / 38 s / 30 s
-with alternating directions. Paused automatically under reduced motion
-(CSS media query) and when the tab is hidden / hero offscreen (IntersectionObserver
-+ visibilitychange pause the video; CSS animations are compositor-managed).
+One mask-image per element (Chromium composites multiple masks with `add`,
+re-hardening edges): `.mask-group-left` (dense far-left, fades centre/top/bottom),
+`.mask-group-right` (mirrored), `.mask-center-soft` (wisps, mobile group),
+`.mask-haze`. All single radial gradients. Poster == video first frame (both from
+the G1 master), so no start flash.
 
-## Scroll choreography (§12)
+## Continuous drift (no `alternate` easing)
 
-One GSAP timeline, `scrub: 0.6`, trigger = hero section (210vh desktop / 160vh
-mobile), sticky 100vh stage. Progress → `lib/heroProgress.ts` store.
+All GSAP, created in `HeroIntroSequence`, stored in `driftTweens`:
 
-| Progress | What happens |
-|---|---|
-| 0–15% | Hold — idle drift only |
-| 15–38% | Depth separation: front banks/wisp rise fastest, middle medium, deck least; title lifts −8vh, scale 1.04 |
-| 38–62% | Front layers fade **while** crossing the letters (veil, not whiteout); title −18vh scale 1.08 |
-| 50–70% | Middle haze fades to 0.1; deck thins to 0.22 and rises −14vh |
-| 62% | Navbar reveals (hysteresis: shows >0.62, hides <0.55) |
-| 68–92% | Title departs: −46vh, scale 1.10 (spec cap 1.15), fades to 0 |
-| 72%+ | Brand statement (`.brand-overlap`, margin-top −72vh, z-10) rises over the pinned stage's dark lower half — no visible section cut |
+| Element | Method | Direction | Duration |
+|---|---|---|---|
+| wisp-1 | linear traversal −30vw → 130vw, `repeat: -1` (loop jump happens fully offscreen) | L → R | 55 s |
+| wisp-2 | same | R → L | 65 s |
+| wisp-3 (desktop only) | same | L → R | 82 s |
+| group-left | ±1.5vw sine sway | starts leftward | 84 s |
+| group-right | ±1.3vw sine sway | opposite | 96 s |
+| haze video | its own internal motion only | — | 10 s loop (seam 0.39/255) |
 
-Reverse scrolling reverses everything (scrubbed timeline; verified in browser).
+Drift + video pause via IntersectionObserver (threshold 0.02) and
+`visibilitychange`. The old CSS `cloud-drift` keyframes
+(`ease-in-out infinite alternate`) are deleted.
 
-## Tiers
+## One-progress parallax physics
 
-- **Desktop fine-pointer:** full stack as above.
-- **Mobile / coarse pointer:** 160vh range, reduced travel distances, **no video**
-  (9:16 poster crop `hero-cloud-mobile-poster.webp`, 18 KB), same plate drift.
-- **Reduced motion:** 100vh static composition, no pin, no drift, no video, no
-  timeline; navbar appears once past the fold via a passive progress tracker;
-  brand statement margin reset to 0.
+Single timeline, `scrub: 1.2`, `invalidateOnRefresh`, progress published to
+`lib/heroProgress.ts`. Every movement tween runs `ease: 'none'` over the same
+**0.15 → 1.0** window, so layer ratios hold at any scroll position
+(0–15% = hold, idle drift only). Base travel 60vh:
 
-## Assets & weights
+| Layer | y | x | scale |
+|---|---|---|---|
+| Haze | −9vh (0.15) | 0 | 1.01 |
+| Groups | −27vh (0.45) | outward ±8vw | 1.025 |
+| Wisps | −45vh (0.75, mobile −30vh) | drift continues | 1.04 |
+| Title | −19vh (0.32, mobile −14vh) | 0 | **1.07 max** (mobile 1.05) |
 
-All in `public/generated/hero-v2/` — see HIGGSFIELD-GENERATION-LOG.md for
-provenance. Essential desktop payload: video 376 KB + plates 82 KB ≈ **458 KB**
-(target was ≤2 MB/layer). Mobile: 26 KB images total, no video. Posters extracted
-locally (sharp) — zero credits. Regeneration sources kept in session scratchpad
-only; masters are reproducible from the logged prompts.
+Opacity happens only after movement (§9): title fades 58–86%, wisps 60–78%,
+haze dims to 0.12 from 60%, groups drop to 0.12/0.14 residuals at 72–88% —
+by then they've risen into the upper corners (residual handoff clouds behind
+the statement's upper edges; they never cover its text).
 
-## Cleanup
+Timeline beats: 0–15 hold · 15–55 depth/main parallax · 55–72 title fade
+starts, statement enters (y 55vh→0, opacity, scale 0.985→1), blue transition
+light to 0.10 · 62–78 line-clip reveals (two lines, staggered) · 74–88 support
+copy · 88–100 stable statement, light settles to 0.05, pin releases. Reverse
+scroll restores the opening state exactly (verified pixel-identical).
 
-`gsap.context` + revert on unmount; IntersectionObserver and visibilitychange
-listeners removed; no per-frame React state (progress store is subscription-based;
-Navbar re-renders only on visibility flips).
+## Navbar
+
+Hidden at first paint. Subscribes to `heroProgress`; shows > **0.68**, hides
+< **0.60** (hysteresis, no flicker), 0.6 s fade + −12px→0 translate. #0089FF on
+link hover/focus and the CTA border. Backing: gradient rgba(2,3,6,0.9)→0.4→
+transparent so released content never reads through the bar.
+
+## #0089FF usage (complete list)
+
+1. Title-base light (~0.05 effective) · 2. transition illumination (≤0.10) ·
+3. navbar hover/focus/CTA border · 4. `BRANDS.` in the statement. Nothing else.
+No #3B82F6 anywhere in the project.
+
+## Mobile (≤767px / coarse pointer)
+
+175vh sequence, no video (poster haze at 0.16), **one** centred lower cloud
+group (min(78vw, 330px), opacity 0.85), **one** moving wisp pair (wisp-1/2 only,
+no wisp-3), no left/right walls, first/last letters never cropped, same unified
+statement handoff and navbar timing.
+
+## Reduced motion
+
+No pin (section height auto): static 100vh hero composition (poster haze,
+static groups, no drift, no video), statement rendered as a normal block below,
+navbar via simple scroll threshold. All content accessible without animation.
+
+## Performance safeguards
+
+One video max; webp layers 8–34 KB; transform/opacity only; no per-frame React
+state (heroProgress is a subscription store); drift + video pause offscreen and
+on hidden tab; `gsap.context` revert on unmount; `will-change` only on animated
+layers; no WebGL; no autoplay audio.
