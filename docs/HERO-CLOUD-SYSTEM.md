@@ -24,21 +24,37 @@ layer AND the brand statement. `HeroSection.tsx`, `BrandStatement.tsx` and the
 | L1 base | two radials | — | navy depth + #0089FF title-base light at effective ~0.05 opacity |
 | L2 haze | `[data-layer="haze"]` | `cloud-back-desktop.mp4` (376 KB, screen-blend) · mobile/reduced: poster | left 15%, w 70%, top 47%, h 24%, **opacity 0.18** (mobile 0.16), `.mask-haze` |
 | L3 title | `[data-hero]` h1 | Bebas Neue 400, clamp(64px, 18.6vw, 21.5rem) ≈ 72–74vw word, gradient #F5F7FA→#B8BFC9 | centred, −1vh |
-| L4 groups | `[data-layer="group-left/right"]` | `cloud-group-left.webp` (16 KB) / `cloud-group-right.webp` (16 KB) — crest-only slices of the G1 master | left: max(−3vw, calc(50% − 1045px)), top 45%, w min(40vw, 620px) · right: max(−5vw, calc(50% − 1080px)), top 44%, w min(46vw, 700px); `aspect-ratio` boxes so mask == image at every viewport |
-| L5 wisps | `[data-drift="wisp-1..3"]` | `cloud-wisp-accent.webp`, `wisp-mid-2.webp`, `wisp-mid-1.webp` (8–9 KB) | tops 41% / 53% / 34%, widths min(14vw, 260px) / min(10vw, 190px) / min(8vw, 150px), opacities 0.38 / 0.28 / 0.24 |
+| L4 groups (z-3, **in front** of title) | `[data-layer="group-left/right"]` | `cloud-group-left.webp` (19 KB) / `cloud-group-right.webp` (17 KB) — crest-only slices of the G1 master, **black-crushed** (see below) | left: `calc(50% − min(48vw, 900px))`, right symmetric — anchors to the **wordmark edge** at every width (word half-width caps ~860px, so on ultrawide they stay on the C/T instead of drifting into the margin); top 40%, w min(31vw, 460px) / min(33vw, 500px); `aspect-ratio` boxes so mask == image |
+| L5 wisps (z-4) | `[data-drift="wisp-1..3"]` | `cloud-wisp-accent.webp`, `wisp-mid-2.webp`, `wisp-mid-1.webp` (9–11 KB, black-crushed) | tops 43% / 54% / 37%, widths min(13vw, 240px) / min(9vw, 175px) / min(7vw, 135px), opacities 0.34 / 0.26 / 0.20 |
 | Transition light | `[data-layer="transition-light"]` | — | #0089FF radial, opacity 0 → 0.10 (55–72%) → 0.05 |
 | Statement | `[data-layer="statement"]` | — | absolute inset-0, enters via the same timeline |
 
 Assets no longer in the live composition (kept on disk):
 `cloud-middle-desktop.webp`, `cloud-front-left.webp`, `cloud-front-right.webp`.
 
-## Masks (`app/globals.css`)
+## Compositing — black-crush + masks
+
+Cloud plates are `mix-blend-mode: screen` over the near-black stage, so pure-black
+pixels vanish and only the cloud shows. The G1/G2 crops carried a faint dark-navy
+pedestal, which screen-blend lightened into a visible **rectangular sprite box**.
+Fix (`scripts/process-hero-clouds.mjs`): every group/wisp slice is run through a
+`linear()` curve that maps the pedestal to pure black before export — groups
+`linear(1.4, -26)`, wisps `linear(1.28, -16)`. The box is gone at the source; the
+radial masks then only soften the cloud's own edges.
 
 One mask-image per element (Chromium composites multiple masks with `add`,
 re-hardening edges): `.mask-group-left` (dense far-left, fades centre/top/bottom),
 `.mask-group-right` (mirrored), `.mask-center-soft` (wisps, mobile group),
-`.mask-haze`. All single radial gradients. Poster == video first frame (both from
-the G1 master), so no start flash.
+`.mask-haze` (tight, opacity 0.085 desktop — a near-invisible base glow, not a
+central cloud bridge). All single radial gradients. Poster == video first frame
+(both from the G1 master), so no start flash.
+
+## Z-order (in-front reading)
+
+`haze z-0` (behind title) → `title z-1` → `transition-light z-2` →
+`groups z-3` → `wisps z-4` → `statement z-5`. Groups and wisps sit **above** the
+title so they pass in front of the outer letters (C-I-N / G-H-T), giving the
+"clouds crossing the wordmark" reading rather than a backdrop.
 
 ## Continuous drift (no `alternate` easing)
 

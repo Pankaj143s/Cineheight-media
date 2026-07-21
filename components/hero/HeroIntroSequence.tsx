@@ -235,11 +235,11 @@ export default function HeroIntroSequence() {
         <div
           data-layer="haze"
           aria-hidden="true"
-          className="mask-haze absolute will-change-transform"
+          className="mask-haze absolute z-0 will-change-transform"
           style={
             mobile
-              ? { left: '-4%', width: '108%', top: '47%', height: '26%', opacity: 0.16 }
-              : { left: '15%', width: '70%', top: '47%', height: '24%', opacity: 0.18 }
+              ? { left: '-4%', width: '108%', top: '48%', height: '24%', opacity: 0.12 }
+              : { left: '22%', width: '56%', top: '49%', height: '20%', opacity: 0.085 }
           }
         >
           {mobile || reduced ? (
@@ -271,7 +271,7 @@ export default function HeroIntroSequence() {
         {/* L3 — CINEHEIGHT (live HTML, the page's only h1) */}
         <div
           data-layer="title"
-          className="absolute inset-0 flex items-center justify-center will-change-transform"
+          className="absolute inset-0 z-[1] flex items-center justify-center will-change-transform"
           style={{ transform: 'translateY(-1vh)' }}
         >
           <h1 className="m-0 text-center">
@@ -282,13 +282,18 @@ export default function HeroIntroSequence() {
           </h1>
         </div>
 
-        {/* L4 — anchored cloud groups (lower-left over C-I-N, lower-right over G-H-T) */}
+        {/* L4 — cloud groups IN FRONT of the title (z above title): a smaller
+            group anchored to the word's left edge crossing the C-I-N bottoms,
+            a slightly wider one at the right edge crossing G-H-T. Anchored via
+            calc(50% − wordHalf) so they track the wordmark at every width
+            (the word caps at ~860px half-width; on ultrawide they stay on the
+            letters instead of drifting into the black margin). */}
         {!mobile && (
           <div
             data-layer="group-left"
             aria-hidden="true"
-            className="absolute will-change-transform"
-            style={{ left: 'max(-3vw, calc(50% - 1045px))', top: '45%', width: 'min(40vw, 620px)', aspectRatio: '900 / 509' }}
+            className="absolute z-[3] will-change-transform"
+            style={{ left: 'calc(50% - min(48vw, 900px))', top: '40%', width: 'min(31vw, 460px)', aspectRatio: '900 / 509' }}
           >
             <div data-drift="group-left" className="h-full w-full">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -304,11 +309,11 @@ export default function HeroIntroSequence() {
         <div
           data-layer="group-right"
           aria-hidden="true"
-          className="absolute will-change-transform"
+          className="absolute z-[3] will-change-transform"
           style={
             mobile
-              ? { left: '12%', top: '51%', width: 'min(78vw, 330px)', aspectRatio: '940 / 529', opacity: 0.85 }
-              : { right: 'max(-5vw, calc(50% - 1080px))', top: '44%', width: 'min(46vw, 700px)', aspectRatio: '940 / 529' }
+              ? { left: '50%', marginLeft: 'min(-39vw, -165px)', top: '52%', width: 'min(78vw, 330px)', aspectRatio: '940 / 529', opacity: 0.82 }
+              : { right: 'calc(50% - min(48vw, 900px))', top: '40%', width: 'min(33vw, 500px)', aspectRatio: '940 / 529' }
           }
         >
           <div data-drift="group-right" className="h-full w-full">
@@ -322,22 +327,24 @@ export default function HeroIntroSequence() {
           </div>
         </div>
 
-        {/* L5 — moving foreground wisps (continuous linear traversal) */}
-        <div data-layer="wisp" aria-hidden="true" className="absolute will-change-transform" style={{ top: '41%', left: 0, width: '100%', height: '12%' }}>
-          <div data-drift="wisp-1" className="absolute" style={{ width: mobile ? '34vw' : 'min(14vw, 260px)', opacity: 0.38 }}>
+        {/* L5 — moving foreground wisps (continuous linear traversal), z above
+            the title so they graze across the letters for the "passing in
+            front" feel. */}
+        <div data-layer="wisp" aria-hidden="true" className="absolute z-[4] will-change-transform" style={{ top: '43%', left: 0, width: '100%', height: '12%' }}>
+          <div data-drift="wisp-1" className="absolute" style={{ width: mobile ? '32vw' : 'min(13vw, 240px)', opacity: 0.34 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={ASSETS.wisp1} alt="" draggable={false} className="cloud-screen mask-center-soft w-full" />
           </div>
         </div>
-        <div data-layer="wisp" aria-hidden="true" className="absolute will-change-transform" style={{ top: '53%', left: 0, width: '100%', height: '10%' }}>
-          <div data-drift="wisp-2" className="absolute" style={{ width: mobile ? '26vw' : 'min(10vw, 190px)', opacity: 0.28 }}>
+        <div data-layer="wisp" aria-hidden="true" className="absolute z-[4] will-change-transform" style={{ top: '54%', left: 0, width: '100%', height: '10%' }}>
+          <div data-drift="wisp-2" className="absolute" style={{ width: mobile ? '24vw' : 'min(9vw, 175px)', opacity: 0.26 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={ASSETS.wisp2} alt="" draggable={false} className="cloud-screen mask-center-soft w-full" />
           </div>
         </div>
         {!mobile && (
-          <div data-layer="wisp" aria-hidden="true" className="absolute will-change-transform" style={{ top: '34%', left: 0, width: '100%', height: '8%' }}>
-            <div data-drift="wisp-3" className="absolute" style={{ width: 'min(8vw, 150px)', opacity: 0.24 }}>
+          <div data-layer="wisp" aria-hidden="true" className="absolute z-[4] will-change-transform" style={{ top: '37%', left: 0, width: '100%', height: '8%' }}>
+            <div data-drift="wisp-3" className="absolute" style={{ width: 'min(7vw, 135px)', opacity: 0.2 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={ASSETS.wisp3} alt="" draggable={false} className="cloud-screen mask-center-soft w-full" />
             </div>

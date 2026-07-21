@@ -51,28 +51,35 @@ await save(sharp(g1).extract({ left: 0, top: 430, width: 1150, height: 920 }).re
 // 5. Front-right bank — crest + body of the right cumulus mass
 await save(sharp(g1).extract({ left: 1580, top: 440, width: 1172, height: 920 }).resize(1150), 'cloud-front-right.webp', { q: 82 })
 
-// 6. Wisp accent — the distinct upper-left wisp from G2 (slow front accent)
-await save(sharp(g2).extract({ left: 240, top: 260, width: 760, height: 380 }), 'cloud-wisp-accent.webp', { q: 82 })
+// crush(): map near-black background to PURE black so `mix-blend-mode: screen`
+// shows only the actual cloud, with no faint rectangular sprite box. G1 crops
+// carry more ambient dark-navy than the G2 wisps, so they get a stronger curve.
+// linear(a, b): out = a*in + b (clamped) — subtracts the pedestal, lifts clouds.
+const crushGroup = (p) => p.linear(1.4, -26)
+const crushWisp = (p) => p.linear(1.28, -16)
+
+// 6. Wisp accent — the distinct upper-left wisp from G2 (primary moving wisp)
+await save(crushWisp(sharp(g2).extract({ left: 240, top: 260, width: 760, height: 380 })), 'cloud-wisp-accent.webp', { q: 82 })
 
 // ---- Correction pass (cloud-balance refinement): smaller, sparser slices ----
 
-// 7. Left group — crest-only crop of G1's left bank (lower-left accent, ~32vw)
+// 7. Left group — crest-only crop of G1's left bank (lower-left accent)
 await save(
-  sharp(g1).extract({ left: 30, top: 470, width: 990, height: 560 }).resize(900),
+  crushGroup(sharp(g1).extract({ left: 30, top: 470, width: 990, height: 560 }).resize(900)),
   'cloud-group-left.webp',
   { q: 82 }
 )
 
-// 8. Right group — crest-only crop of G1's right bank (slightly wider)
+// 8. Right group — crest-only crop of G1's right bank
 await save(
-  sharp(g1).extract({ left: 1690, top: 470, width: 1030, height: 580 }).resize(940),
+  crushGroup(sharp(g1).extract({ left: 1690, top: 470, width: 1030, height: 580 }).resize(940)),
   'cloud-group-right.webp',
   { q: 82 }
 )
 
 // 9-10. Two small low-density wisps from G2's lower chain (centre connectors
 // and moving foreground wisps)
-await save(sharp(g2).extract({ left: 880, top: 890, width: 740, height: 330 }), 'wisp-mid-1.webp', { q: 82 })
-await save(sharp(g2).extract({ left: 1860, top: 900, width: 820, height: 400 }), 'wisp-mid-2.webp', { q: 82 })
+await save(crushWisp(sharp(g2).extract({ left: 880, top: 890, width: 740, height: 330 })), 'wisp-mid-1.webp', { q: 82 })
+await save(crushWisp(sharp(g2).extract({ left: 1860, top: 900, width: 820, height: 400 })), 'wisp-mid-2.webp', { q: 82 })
 
 console.log(report.join('\n'))
