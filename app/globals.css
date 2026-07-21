@@ -87,37 +87,11 @@ body {
   user-select: none;
 }
 
-/* Cloud video layers composited with screen blending over near-black —
-   black background in the media disappears, white clouds remain. */
-.cloud-screen {
-  mix-blend-mode: screen;
-}
-
-/* Cloud plate masks — plates are crops with mid-gray content, so screen
-   blending alone only removes pure black; every edge must be masked away.
-   IMPORTANT: exactly ONE mask-image per element — Chromium composites
-   multiple mask images with `add` (union), which re-hardens the edges.
-
-   Groups keep density at their outer side and fade toward centre/top/bottom. */
-.mask-group-left {
-  -webkit-mask-image: radial-gradient(ellipse 100% 58% at 10% 42%, black 30%, transparent 78%);
-  mask-image: radial-gradient(ellipse 100% 58% at 10% 42%, black 30%, transparent 78%);
-}
-
-.mask-group-right {
-  -webkit-mask-image: radial-gradient(ellipse 98% 60% at 92% 44%, black 30%, transparent 78%);
-  mask-image: radial-gradient(ellipse 98% 60% at 92% 44%, black 30%, transparent 78%);
-}
-
-.mask-center-soft {
-  -webkit-mask-image: radial-gradient(ellipse 56% 50% at 50% 50%, black 26%, transparent 72%);
-  mask-image: radial-gradient(ellipse 56% 50% at 50% 50%, black 26%, transparent 72%);
-}
-
-.mask-haze {
-  -webkit-mask-image: radial-gradient(ellipse 52% 40% at 50% 52%, black 18%, transparent 64%);
-  mask-image: radial-gradient(ellipse 52% 40% at 50% 52%, black 18%, transparent 64%);
-}
+/* NOTE: the hero-v2 cloud compositing helpers (.cloud-screen mix-blend + the
+   .mask-group-* / .mask-center-soft / .mask-haze radial masks) were removed in
+   the hero-v3 pass. v3 wisps carry true baked alpha (see HERO-CLOUD-SYSTEM.md),
+   so they composite normally with no screen-blend and no radial masks — which
+   is exactly what eliminated the visible plate/pedestal look. */
 
 /* Film grain — inline SVG turbulence, extremely low opacity */
 .grain-overlay {

@@ -5,127 +5,126 @@ import { gsap, ScrollTrigger } from '@/lib/gsap'
 import { setHeroProgress } from '@/lib/heroProgress'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 
+// hero-v3 — alpha-clean transparent wisps (no screen-blend, no radial masks).
 const ASSETS = {
-  backVideo: '/generated/hero-v2/cloud-back-desktop.mp4',
-  desktopPoster: '/generated/hero-v2/hero-cloud-desktop-poster.webp',
-  groupLeft: '/generated/hero-v2/cloud-group-left.webp',
-  groupRight: '/generated/hero-v2/cloud-group-right.webp',
-  wisp1: '/generated/hero-v2/cloud-wisp-accent.webp',
-  wisp2: '/generated/hero-v2/wisp-mid-2.webp',
-  wisp3: '/generated/hero-v2/wisp-mid-1.webp',
+  ribbon: '/generated/hero-v3/cloud-ribbon-back.webp',
+  wispLeft: '/generated/hero-v3/cloud-wisp-left.webp',
+  wispRight: '/generated/hero-v3/cloud-wisp-right.webp',
+  wispMoving: '/generated/hero-v3/cloud-wisp-moving.webp',
 }
 
 /**
- * Unified pinned intro (spec §10–§12 of the correction brief):
- * hero title + restrained cloud accents + brand statement + navbar state in
- * ONE ScrollTrigger timeline. No `.brand-overlap` hacks — the statement is a
- * layer of the same stage and enters while the clouds are still rising.
- *
- * Composition target (reference): ~70–80% dark negative space, clouds cover
- * ≤12–20% of the word — a lower-left group (C-I-N), a lower-right group
- * (G-H-T), 1–2 faint centre wisps, subtle haze video behind. No cloud wall.
- *
- * Physics: one progress value; every movement tween runs linear over the
- * same 0.15→1 window so depth ratios hold at every scroll position.
- * Multipliers (base travel 60vh): haze 0.15 · groups 0.45 · wisps 0.75 ·
- * title 0.32 (scale ≤1.07). Drift is continuous and linear (GSAP wrap
- * traversal) — never `alternate` easing.
+ * A seamless two-copy marquee. The track width == `periodVw`, and copy-2 sits
+ * exactly one period away, so animating the track `xPercent` by ±100 (= one
+ * period) lands copy-2 where copy-1 was — continuous drift, NO reversal, NO
+ * snap. `reverse` drifts rightward instead of leftward.
+ * The scroll parallax animates the OUTER wrapper (x/y/scale); this inner track
+ * only ever animates xPercent, so the two transforms never collide.
+ */
+function Marquee({
+  src,
+  periodVw,
+  wispWidthVw,
+  dur,
+  phase,
+  reverse = false,
+}: {
+  src: string
+  periodVw: number
+  wispWidthVw: number
+  dur: number
+  phase: number
+  reverse?: boolean
+}) {
+  return (
+    <div
+      data-marquee
+      data-dur={dur}
+      data-phase={phase}
+      data-reverse={reverse ? 1 : 0}
+      className="absolute top-0 h-full will-change-transform"
+      style={{ left: 0, width: `${periodVw}vw` }}
+    >
+      {[0, 1].map((i) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={i}
+          src={src}
+          alt=""
+          draggable={false}
+          className="absolute top-0 h-full"
+          style={{ left: `${(reverse ? -i : i) * periodVw}vw`, width: `${wispWidthVw}vw` }}
+        />
+      ))}
+    </div>
+  )
+}
+
+/**
+ * Unified pinned intro. Cloud system (spec: restrained transparent wisps):
+ * a faint wide background ribbon behind the word, two ASYMMETRIC front wisps
+ * crossing the lower C-I-N and G-H-T, and one small travelling centre wisp —
+ * all TRUE-ALPHA WebPs composited normally over #020306 (no mix-blend screen,
+ * no radial ellipse masks → no plates, pedestals or rectangles). Parallax is
+ * one shared scrubbed timeline with reduced distances (ribbon −6vh, wisps
+ * −17vh, moving −25vh, title −12vh, scale ≤1.05).
  */
 export default function HeroIntroSequence() {
   const rootRef = useRef<HTMLElement>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
   const driftTweens = useRef<gsap.core.Tween[]>([])
   const reduced = useReducedMotion()
   const mobile = useIsMobileTier()
 
-  // --- Media + drift lifecycle: pause when offscreen or tab hidden -------
+  // Pause drift when the hero is offscreen or the tab is hidden.
   useLayoutEffect(() => {
     const root = rootRef.current
     if (!root) return
-
-    const setActive = (active: boolean) => {
-      const video = videoRef.current
-      if (video) {
-        if (active) video.play().catch(() => {})
-        else video.pause()
-      }
+    const setActive = (active: boolean) =>
       driftTweens.current.forEach((t) => (active ? t.play() : t.pause()))
-    }
-
-    const io = new IntersectionObserver(
-      ([entry]) => setActive(entry.isIntersecting && !document.hidden),
-      { threshold: 0.02 }
-    )
+    const io = new IntersectionObserver(([e]) => setActive(e.isIntersecting && !document.hidden), { threshold: 0.02 })
     io.observe(root)
-
-    const onVisibility = () =>
-      setActive(!document.hidden && root.getBoundingClientRect().bottom > 0)
-    document.addEventListener('visibilitychange', onVisibility)
+    const onVis = () => setActive(!document.hidden && root.getBoundingClientRect().bottom > 0)
+    document.addEventListener('visibilitychange', onVis)
     return () => {
       io.disconnect()
-      document.removeEventListener('visibilitychange', onVisibility)
+      document.removeEventListener('visibilitychange', onVis)
     }
   }, [reduced, mobile])
 
-  // --- Continuous linear drift (idle + during scroll) ---------------------
+  // Continuous drift (idle + during scroll).
   useLayoutEffect(() => {
     if (reduced) return
     const ctx = gsap.context((self) => {
       const q = self.selector!
       const tweens: gsap.core.Tween[] = []
 
-      // Traversal movers: enter fully offscreen on one side, exit the other,
-      // then repeat — the loop jump happens outside the viewport.
-      const mover = (sel: string, opts: { toRight: boolean; duration: number; phase: number }) => {
-        const el = q(sel)[0] as HTMLElement | undefined
-        if (!el) return
+      ;(q('[data-marquee]') as HTMLElement[]).forEach((el) => {
+        const dur = Number(el.dataset.dur) || 90
+        const rev = el.dataset.reverse === '1'
+        const t = gsap.fromTo(el, { xPercent: 0 }, { xPercent: rev ? 100 : -100, duration: dur, ease: 'none', repeat: -1 })
+        t.progress(Number(el.dataset.phase) || 0)
+        tweens.push(t)
+      })
+      ;(q('[data-traverse]') as HTMLElement[]).forEach((el) => {
+        const dur = Number(el.dataset.dur) || 66
         const vw = window.innerWidth
-        const from = opts.toRight ? -0.3 * vw : 1.3 * vw
-        const to = opts.toRight ? 1.3 * vw : -0.3 * vw
-        gsap.set(el, { x: from })
-        const t = gsap.to(el, { x: to, duration: opts.duration, ease: 'none', repeat: -1 })
-        t.progress(opts.phase)
+        gsap.set(el, { x: -0.3 * vw })
+        const t = gsap.to(el, { x: 1.3 * vw, duration: dur, ease: 'none', repeat: -1 })
+        t.progress(Number(el.dataset.phase) || 0)
         tweens.push(t)
-      }
-
-      mover('[data-drift="wisp-1"]', { toRight: true, duration: 55, phase: 0.35 })
-      mover('[data-drift="wisp-2"]', { toRight: false, duration: 65, phase: 0.6 })
-      if (!mobile) mover('[data-drift="wisp-3"]', { toRight: true, duration: 82, phase: 0.82 })
-
-      // Anchored groups: ±2–4vw sine sway, opposite directions — at this
-      // amplitude/speed the turnaround is imperceptible.
-      const sway = (sel: string, vwAmp: number, duration: number) => {
-        const el = q(sel)[0] as HTMLElement | undefined
-        if (!el) return
-        const t = gsap.fromTo(
-          el,
-          { x: () => -window.innerWidth * (vwAmp / 100) / 2 },
-          {
-            x: () => window.innerWidth * (vwAmp / 100) / 2,
-            duration,
-            ease: 'sine.inOut',
-            yoyo: true,
-            repeat: -1,
-          }
-        )
-        tweens.push(t)
-      }
-      sway('[data-drift="group-left"]', 3, 84)
-      sway('[data-drift="group-right"]', -2.6, 96)
+      })
 
       driftTweens.current = tweens
     }, rootRef)
-
     return () => {
       driftTweens.current = []
       ctx.revert()
     }
   }, [reduced, mobile])
 
-  // --- One-progress scroll choreography -----------------------------------
+  // One-progress scroll choreography.
   useLayoutEffect(() => {
     if (reduced) {
-      // Static tier: no pin. Publish a coarse progress for the navbar only.
       const st = ScrollTrigger.create({
         trigger: rootRef.current,
         start: 'top top',
@@ -138,10 +137,10 @@ export default function HeroIntroSequence() {
     const ctx = gsap.context((self) => {
       const q = self.selector!
       const title = q('[data-layer="title"]')
-      const haze = q('[data-layer="haze"]')
-      const groupL = q('[data-layer="group-left"]')
-      const groupR = q('[data-layer="group-right"]')
-      const wisps = q('[data-layer="wisp"]')
+      const ribbon = q('[data-layer="ribbon"]')
+      const wispL = q('[data-layer="wisp-left"]')
+      const wispR = q('[data-layer="wisp-right"]')
+      const wispM = q('[data-layer="wisp-moving"]')
       const blueLight = q('[data-layer="transition-light"]')
       const statement = q('[data-layer="statement"]')
       const stLines = q('[data-line-inner]')
@@ -156,44 +155,30 @@ export default function HeroIntroSequence() {
           trigger: rootRef.current,
           start: 'top top',
           end: 'bottom bottom',
-          scrub: 1.2,
+          scrub: 1.25,
           invalidateOnRefresh: true,
           onUpdate: (st) => setHeroProgress(st.progress),
         },
       })
 
-      // Movement — every layer shares the 0.15→1 window (linear), so the
-      // depth ratios (0.15 / 0.45 / 0.75 / title 0.32 of 60vh) hold at any
-      // progress. 0–15% is the hold: idle drift only.
-      const MOVE = { start: 0.15, dur: 0.85 }
-      tl.to(haze, { y: vh(-9), scale: 1.01, duration: MOVE.dur }, MOVE.start)
-        .to(groupL, { y: vh(-27), x: vw(mobile ? 0 : -8), scale: 1.025, duration: MOVE.dur }, MOVE.start)
-        .to(groupR, { y: vh(-27), x: vw(mobile ? 0 : 8), scale: 1.025, duration: MOVE.dur }, MOVE.start)
-        .to(wisps, { y: vh(mobile ? -30 : -45), scale: 1.04, duration: MOVE.dur }, MOVE.start)
-        .to(title, { y: vh(mobile ? -14 : -19), scale: mobile ? 1.05 : 1.07, duration: MOVE.dur }, MOVE.start)
+      // Reduced parallax for the smaller wisp system (spec §11). Movement
+      // shares the 0.15→1 window (linear) so depth ratios hold at any progress.
+      const S = { start: 0.15, dur: 0.85 }
+      tl.to(ribbon, { y: vh(-6), scale: 1.01, duration: S.dur }, S.start)
+        .to(wispL, { y: vh(mobile ? -12 : -17), x: vw(mobile ? 0 : -3), scale: 1.03, duration: S.dur }, S.start)
+        .to(wispR, { y: vh(mobile ? -12 : -17), x: vw(mobile ? 0 : 3), scale: 1.03, duration: S.dur }, S.start)
+        .to(wispM, { y: vh(mobile ? -18 : -25), scale: 1.04, duration: S.dur }, S.start)
+        .to(title, { y: vh(mobile ? -9 : -12), scale: mobile ? 1.04 : 1.05, duration: S.dur }, S.start)
 
-      // Opacity — movement first, fading later (§9: clouds must not fade
-      // before they have physically moved).
+      // Opacity after movement (clouds must move before they fade).
       tl.to(title, { autoAlpha: 0, duration: 0.28 }, 0.58)
-        .to(wisps, { autoAlpha: 0, duration: 0.18 }, 0.6)
-        .to(haze, { autoAlpha: 0.12, duration: 0.28 }, 0.6)
-        .to(groupL, { autoAlpha: 0.12, duration: 0.16 }, 0.72)
-        .to(groupR, { autoAlpha: 0.14, duration: 0.16 }, 0.72)
+        .to(wispM, { autoAlpha: 0, duration: 0.18 }, 0.6)
+        .to([...wispL, ...wispR], { autoAlpha: 0.1, duration: 0.18 }, 0.72)
+        .to(ribbon, { autoAlpha: 0.4, duration: 0.3 }, 0.66)
 
-      // Faint #0089FF transition illumination (≤0.10) during the handoff.
-      tl.to(blueLight, { autoAlpha: 0.1, duration: 0.17 }, 0.55).to(
-        blueLight,
-        { autoAlpha: 0.05, duration: 0.12 },
-        0.88
-      )
+      tl.to(blueLight, { autoAlpha: 0.1, duration: 0.17 }, 0.55).to(blueLight, { autoAlpha: 0.05, duration: 0.12 }, 0.88)
 
-      // Brand statement — enters from below while clouds still rise.
-      tl.fromTo(
-        statement,
-        { y: vh(55), autoAlpha: 0, scale: 0.985 },
-        { y: 0, autoAlpha: 1, scale: 1, duration: 0.33 },
-        0.55
-      )
+      tl.fromTo(statement, { y: vh(55), autoAlpha: 0, scale: 0.985 }, { y: 0, autoAlpha: 1, scale: 1, duration: 0.33 }, 0.55)
         .fromTo(stLines[0], { yPercent: 110 }, { yPercent: 0, duration: 0.12, ease: 'power2.out' }, 0.62)
         .fromTo(stLines[1], { yPercent: 110 }, { yPercent: 0, duration: 0.12, ease: 'power2.out' }, 0.66)
         .fromTo(stCopy, { y: 24, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.14, ease: 'power1.out' }, 0.74)
@@ -204,7 +189,6 @@ export default function HeroIntroSequence() {
     return () => ctx.revert()
   }, [reduced, mobile])
 
-  // ------------------------------------------------------------------ JSX
   const sectionHeight = reduced ? 'auto' : mobile ? '175vh' : '220vh'
 
   return (
@@ -217,55 +201,21 @@ export default function HeroIntroSequence() {
         <div
           aria-hidden="true"
           className="absolute inset-0"
-          style={{
-            background:
-              'radial-gradient(ellipse 85% 50% at 50% 54%, rgba(9,12,20,0.9), transparent 74%)',
-          }}
+          style={{ background: 'radial-gradient(ellipse 85% 50% at 50% 54%, rgba(9,12,20,0.9), transparent 74%)' }}
         />
         <div
           aria-hidden="true"
           className="absolute inset-0"
-          style={{
-            background: 'radial-gradient(ellipse 42% 13% at 50% 57%, rgba(0,137,255,0.55), transparent 72%)',
-            opacity: 0.09,
-          }}
+          style={{ background: 'radial-gradient(ellipse 42% 13% at 50% 57%, rgba(0,137,255,0.5), transparent 72%)', opacity: 0.08 }}
         />
 
-        {/* L2 — subtle haze: cloud video (desktop) / nothing heavy on mobile */}
-        <div
-          data-layer="haze"
-          aria-hidden="true"
-          className="mask-haze absolute z-0 will-change-transform"
-          style={
-            mobile
-              ? { left: '-4%', width: '108%', top: '48%', height: '24%', opacity: 0.12 }
-              : { left: '22%', width: '56%', top: '49%', height: '20%', opacity: 0.085 }
-          }
-        >
-          {mobile || reduced ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={ASSETS.desktopPoster}
-              alt=""
-              className="cloud-screen absolute inset-0 h-full w-full object-cover"
-              draggable={false}
-            />
-          ) : (
-            <video
-              ref={videoRef}
-              className="cloud-screen absolute inset-0 h-full w-full object-cover"
-              muted
-              loop
-              playsInline
-              autoPlay
-              preload="metadata"
-              poster={ASSETS.desktopPoster}
-              aria-hidden="true"
-              tabIndex={-1}
-            >
-              <source src={ASSETS.backVideo} type="video/mp4" />
-            </video>
-          )}
+        {/* L2 — faint wide background ribbon (behind the word), drifting R→L.
+            Outer div carries the static base opacity; the [data-layer] child is
+            the scroll target; the Marquee inside it is the drift track. */}
+        <div aria-hidden="true" className="absolute z-0" style={{ left: 0, width: '100%', top: '50%', height: '13vh', opacity: mobile ? 0.13 : 0.15 }}>
+          <div data-layer="ribbon" className="absolute inset-0 h-full w-full will-change-transform">
+            <Marquee src={ASSETS.ribbon} periodVw={62} wispWidthVw={62} dur={98} phase={0.2} />
+          </div>
         </div>
 
         {/* L3 — CINEHEIGHT (live HTML, the page's only h1) */}
@@ -282,80 +232,49 @@ export default function HeroIntroSequence() {
           </h1>
         </div>
 
-        {/* L4 — cloud groups IN FRONT of the title (z above title): a smaller
-            group anchored to the word's left edge crossing the C-I-N bottoms,
-            a slightly wider one at the right edge crossing G-H-T. Anchored via
-            calc(50% − wordHalf) so they track the wordmark at every width
-            (the word caps at ~860px half-width; on ultrawide they stay on the
-            letters instead of drifting into the black margin). */}
-        {!mobile && (
-          <div
-            data-layer="group-left"
-            aria-hidden="true"
-            className="absolute z-[3] will-change-transform"
-            style={{ left: 'calc(50% - min(48vw, 900px))', top: '40%', width: 'min(31vw, 460px)', aspectRatio: '900 / 509' }}
-          >
-            <div data-drift="group-left" className="h-full w-full">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={ASSETS.groupLeft}
-                alt=""
-                draggable={false}
-                className="cloud-screen mask-group-left h-full w-full"
-              />
-            </div>
-          </div>
-        )}
+        {/* L4 — front-left wisp IN FRONT of the title (z-3), over lower C-I-N.
+            The [data-layer] wrapper is the positioned box AND the scroll target;
+            the Marquee inside drifts. Stays in the left region. */}
         <div
-          data-layer="group-right"
+          data-layer="wisp-left"
           aria-hidden="true"
           className="absolute z-[3] will-change-transform"
-          style={
-            mobile
-              ? { left: '50%', marginLeft: 'min(-39vw, -165px)', top: '52%', width: 'min(78vw, 330px)', aspectRatio: '940 / 529', opacity: 0.82 }
-              : { right: 'calc(50% - min(48vw, 900px))', top: '40%', width: 'min(33vw, 500px)', aspectRatio: '940 / 529' }
-          }
+          style={{ left: mobile ? '-8vw' : '-16vw', width: mobile ? '86vw' : '58vw', top: mobile ? '52%' : '46%', height: '13vh' }}
         >
-          <div data-drift="group-right" className="h-full w-full">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={ASSETS.groupRight}
-              alt=""
-              draggable={false}
-              className={`cloud-screen h-full w-full ${mobile ? 'mask-center-soft' : 'mask-group-right'}`}
-            />
-          </div>
+          <Marquee src={ASSETS.wispLeft} periodVw={mobile ? 86 : 58} wispWidthVw={mobile ? 42 : 22} dur={86} phase={0.15} />
         </div>
 
-        {/* L5 — moving foreground wisps (continuous linear traversal), z above
-            the title so they graze across the letters for the "passing in
-            front" feel. */}
-        <div data-layer="wisp" aria-hidden="true" className="absolute z-[4] will-change-transform" style={{ top: '43%', left: 0, width: '100%', height: '12%' }}>
-          <div data-drift="wisp-1" className="absolute" style={{ width: mobile ? '32vw' : 'min(13vw, 240px)', opacity: 0.34 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={ASSETS.wisp1} alt="" draggable={false} className="cloud-screen mask-center-soft w-full" />
-          </div>
-        </div>
-        <div data-layer="wisp" aria-hidden="true" className="absolute z-[4] will-change-transform" style={{ top: '54%', left: 0, width: '100%', height: '10%' }}>
-          <div data-drift="wisp-2" className="absolute" style={{ width: mobile ? '24vw' : 'min(9vw, 175px)', opacity: 0.26 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={ASSETS.wisp2} alt="" draggable={false} className="cloud-screen mask-center-soft w-full" />
-          </div>
-        </div>
+        {/* L4 — front-right wisp (z-3), over lower G-H-T. Asymmetric: flopped
+            asset, different height/width/phase, drifts the OPPOSITE way. Desktop only. */}
         {!mobile && (
-          <div data-layer="wisp" aria-hidden="true" className="absolute z-[4] will-change-transform" style={{ top: '37%', left: 0, width: '100%', height: '8%' }}>
-            <div data-drift="wisp-3" className="absolute" style={{ width: 'min(7vw, 135px)', opacity: 0.2 }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={ASSETS.wisp3} alt="" draggable={false} className="cloud-screen mask-center-soft w-full" />
-            </div>
+          <div
+            data-layer="wisp-right"
+            aria-hidden="true"
+            className="absolute z-[3] will-change-transform"
+            style={{ left: '58vw', width: '58vw', top: '50%', height: '14vh' }}
+          >
+            <Marquee src={ASSETS.wispRight} periodVw={58} wispWidthVw={24} dur={78} phase={0.55} reverse />
           </div>
         )}
+
+        {/* L5 — small travelling centre wisp (z-4), crosses letters occasionally */}
+        <div
+          data-layer="wisp-moving"
+          aria-hidden="true"
+          className="absolute z-[4] will-change-transform"
+          style={{ top: mobile ? '44%' : '41%', left: 0, width: '100%', height: '11vh', opacity: mobile ? 0.24 : 0.28 }}
+        >
+          <div data-traverse data-dur={mobile ? 60 : 66} data-phase={0.4} className="absolute top-0 h-full will-change-transform" style={{ width: mobile ? '30vw' : '12vw' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={ASSETS.wispMoving} alt="" draggable={false} className="h-full w-full" />
+          </div>
+        </div>
 
         {/* Transition illumination — #0089FF, ≤0.10, scroll-controlled */}
         <div
           data-layer="transition-light"
           aria-hidden="true"
-          className="absolute inset-0"
+          className="absolute inset-0 z-[2]"
           style={{
             background: 'radial-gradient(ellipse 55% 34% at 50% 66%, rgba(0,137,255,0.5), transparent 74%)',
             opacity: 0,
@@ -363,12 +282,11 @@ export default function HeroIntroSequence() {
           }}
         />
 
-        {/* Brand statement — same stage, same timeline (spec §12).
-            Reduced motion renders it below the stage instead. */}
+        {/* Brand statement — same stage, same timeline. */}
         {!reduced && (
           <div
             data-layer="statement"
-            className="absolute inset-0 flex items-center will-change-transform"
+            className="absolute inset-0 z-[5] flex items-center will-change-transform"
             style={{ opacity: 0, visibility: 'hidden' }}
           >
             <div className="mx-auto w-full max-w-[1500px] px-6 sm:px-10 lg:px-14">

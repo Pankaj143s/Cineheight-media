@@ -1,5 +1,83 @@
 # HERO-CLOUD-SYSTEM — cineheight-single-flow-v2
 
+> ## hero-v3 (current) — restrained transparent wisps
+>
+> The hero-v2 system below used opaque cloud crops + `mix-blend-mode: screen` +
+> radial masks. Even black-crushed, those read as pasted cloud **plates** with
+> soft-oval pedestals sitting beside the word. **hero-v3 replaces them entirely**
+> with true-alpha wisps and a thin-ribbon composition. The v2 section is kept
+> below for history; its assets remain on disk for rollback but are **not**
+> referenced by the live hero.
+>
+> ### Target (v3)
+> Monumental CINEHEIGHT on near-black, **~80–85% clean negative space**. A faint
+> wide background ribbon behind the word, two ASYMMETRIC front wisps crossing the
+> lower C-I-N and G-H-T, one small travelling centre wisp. Clouds cover ~8–15% of
+> the word. No plates, no ovals, no rectangles, no straight edges, no cloud wall.
+>
+> ### Assets — `public/generated/hero-v3/` (alpha-clean WebP)
+> Built from the **G2 wisp master** (already sparse thin wisps on near-black) via
+> `scripts/process-hero-clouds.mjs` → `alphaWisp()`. Zero Higgsfield credits.
+>
+> | Asset | Dims | Size | Role |
+> |---|---|---|---|
+> | `cloud-ribbon-back.webp` | 2000×360 | 61 KB | faint wide background ribbon (stretched thin, toned dark) |
+> | `cloud-wisp-left.webp` | 760×389 | 36 KB | front-left wisp (over C-I-N) |
+> | `cloud-wisp-right.webp` | 800×436 | 46 KB | front-right wisp (over G-H-T), **flopped** for asymmetry |
+> | `cloud-wisp-moving.webp` | 440×300 | 1 KB | small travelling centre wisp |
+>
+> ### Alpha extraction (the key fix)
+> Each asset's alpha is derived from the source **luminance**, so black / dark-navy
+> background → 0 alpha and cloud → opaque. Per asset: resize → `removeAlpha` →
+> build alpha = `greyscale().linear(aSlope, aLift).blur(aBlur)` (maps the dark
+> pedestal to zero, feathers edges) → tone RGB with `modulate({brightness<1,
+> saturation~0.45})` (no blown whites, blue cast neutralised) → `joinChannel(alpha)`
+> → transparent WebP. Every crop keeps black margin so alpha reaches 0 before the
+> edge → **no straight edges, no rectangle**. Transparency lives in the asset;
+> **no `mix-blend-mode: screen`, no radial CSS masks** are used.
+>
+> ### Layers (`HeroIntroSequence.tsx`)
+> | z | Layer | Element | Placement (desktop) | Opacity |
+> |---|---|---|---|---|
+> | 0 | ribbon | `[data-layer="ribbon"]` | full width, top 50%, h 13vh | 0.15 (0.13 mobile) |
+> | 1 | title | `[data-layer="title"]` | Bebas Neue, ~72vw word | 1 |
+> | 3 | front-left wisp | `[data-layer="wisp-left"]` | left −16vw, w 58vw, top 46%, h 13vh | asset alpha |
+> | 3 | front-right wisp | `[data-layer="wisp-right"]` (desktop only) | left 58vw, w 58vw, top 50%, h 14vh (asymmetric) | asset alpha |
+> | 4 | moving wisp | `[data-layer="wisp-moving"]` | full width, top 41%, w 12vw | 0.28 (0.24 mobile) |
+> | 2 / 5 | transition light / statement | — | as before |
+>
+> ### Live drift (`Marquee`, no yoyo/alternate)
+> Ribbon + both front wisps are **seamless two-copy marquees**: a track of width
+> `periodVw` holds copy-2 one period away, and `xPercent` 0→±100 (= one period)
+> lands copy-2 where copy-1 was — continuous, NO reversal, NO snap. The moving
+> wisp is a single **offscreen traversal** (−30vw→130vw). Durations: ribbon 98 s
+> (R→L), left wisp 86 s, right wisp 78 s (opposite dir via `reverse`), moving
+> 66 s. Drift pauses via IntersectionObserver + `visibilitychange`. Scroll
+> parallax animates the OUTER wrapper (x/y/scale) while the marquee animates the
+> INNER track (xPercent) — separate elements, no transform collision.
+>
+> ### Parallax (v3, reduced distances) — `scrub: 1.25`, shared 0.15→1 window
+> ribbon y −6vh scale 1.01 · front wisps y −17vh (mobile −12) x ±3vw scale 1.03 ·
+> moving y −25vh (mobile −18) scale 1.04 · title y −12vh (mobile −9) scale ≤1.05.
+> Opacity after movement: title fades from 58%, moving wisp from 60%, front wisps
+> settle to 0.1 residual at 72%, ribbon stays visible longest (autoAlpha 0.4 at
+> 66%) then dissolves — the statement enters at 55% while wisps are still up.
+>
+> ### Mobile / reduced motion
+> Mobile: ribbon + ONE front wisp (left, widened) + moving wisp; no right wisp, no
+> video, no clipping. Reduced motion: static composition (ribbon + wisps rendered,
+> no drift, no pin), statement as a normal block below.
+>
+> ### Colour / brightness
+> Highlights land ~#E8EDF2–#F5F7FA (brightness modulate 0.72–0.9, no pure-white
+> areas), saturation ~0.4–0.45 (neutral grey, no blue cloud wash). #0089FF only in
+> the base title-light (~0.04), the transition illumination (≤0.10), navbar
+> hover/focus/CTA and `BRANDS.`.
+>
+> ---
+>
+> ## hero-v2 (superseded — rollback only)
+
 Correction pass (2026-07-21): cloud density rebalanced to the approved reference,
 drift made continuous/linear, parallax unified on one progress value, and the
 hero + brand statement merged into a single pinned sequence.
