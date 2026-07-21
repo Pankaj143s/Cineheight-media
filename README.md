@@ -26,10 +26,15 @@ statement + navbar reveal folded into the same timeline (the old `HeroSection`,
 `BrandStatement` and `.brand-overlap` margin hack are gone). Browser-tested at
 7 viewports (390→2560 wide) incl. reduced-motion; no console errors, no overflow.
 
-Phases 3–7 (ContinuityStage, showreel, trusted logos, featured work, reels,
-posts, services, process, about, testimonials, contact, footer, signal path,
-case-study detail pages, QA) are **not started yet** — build order in the spec's
-§38, section slots marked in `app/page.tsx`.
+**Showreel section (done):** `components/showreel/ShowreelSection.tsx` plays the
+real 32 s film (`public/media/showreel/showreel.mp4`, copied from the old
+project) with a real extracted poster, poster-first playback, scrub expansion
+(no pin) in continuous flow after the hero, restrained pointer depth, accessible
+controls. See `docs/SHOWREEL-SYSTEM.md`.
+
+Remaining phases (trusted logos, featured work, reels, posts, services, process,
+about, testimonials, contact, footer, signal path, case-study detail pages, QA)
+are **not started yet** — section slot marked in `app/page.tsx`.
 
 ## Key docs
 

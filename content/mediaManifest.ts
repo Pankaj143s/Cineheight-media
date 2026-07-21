@@ -78,7 +78,7 @@ export const mediaManifest: ManifestItem[] = [
     height: 1080,
     aspect: '16:9',
     format: 'mp4/h264',
-    notes: 'Copy of about-us-video-2-horizontal.mp4 (old site used the same file). Replace with dedicated showreel cut when the client supplies one.',
+    notes: 'Real showreel: copied verbatim from the old project public/about/about-us-video-2-horizontal.mp4 (1920×1080, 32.04s, H.264 High 24fps, AAC 48k stereo, 14.7 MB). Poster is a REAL frame extracted at t=6.4s (~20%) → showreel-poster.webp 1600×900, 178 KB (no longer the generated placeholder card). Replace with a dedicated showreel cut if the client supplies one.',
   },
 
   // ---- Sapale Yamaha ----
