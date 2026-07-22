@@ -52,8 +52,9 @@ function Marquee({
           src={src}
           alt=""
           draggable={false}
-          className="absolute top-0 h-full"
-          style={{ left: `${(reverse ? -i : i) * periodVw}vw`, width: `${cloudWidthVw}vw` }}
+          className="absolute top-0"
+          // NATURAL aspect (width-driven, height auto) — never stretched.
+          style={{ left: `${(reverse ? -i : i) * periodVw}vw`, width: `${cloudWidthVw}vw`, height: 'auto' }}
         />
       ))}
     </div>
@@ -214,9 +215,10 @@ export default function HeroIntroSequence() {
 
   return (
     <section ref={rootRef} aria-label="Cineheight Media introduction" style={{ height: sectionHeight }} className="relative">
+      {/* Transparent stage (body bg is the same #020306) so the fixed
+          background signal route shows through the hero's dark negative space. */}
       <div
         className={reduced ? 'relative h-screen overflow-hidden' : 'sticky top-0 h-screen overflow-hidden'}
-        style={{ background: 'var(--bg-950)' }}
       >
         {/* L1 — base atmosphere: faint navy depth + near-invisible blue title-base light */}
         <div
@@ -231,9 +233,9 @@ export default function HeroIntroSequence() {
         />
 
         {/* L2 — soft background haze behind the word (barely noticeable) */}
-        <div aria-hidden="true" className="absolute z-0" style={{ left: '20%', width: '60%', top: '50%', height: '9vh', opacity: mobile ? 0.1 : 0.12 }}>
+        <div aria-hidden="true" className="absolute z-0" style={{ left: '18%', width: '64%', top: '52%', height: '12vh', opacity: mobile ? 0.1 : 0.12 }}>
           <div data-layer="back" className="absolute inset-0 h-full w-full will-change-transform">
-            <Marquee src={ASSETS.back} periodVw={mobile ? 90 : 60} cloudWidthVw={mobile ? 90 : 60} dur={110} phase={0.3} />
+            <Marquee src={ASSETS.back} periodVw={mobile ? 96 : 64} cloudWidthVw={mobile ? 96 : 64} dur={110} phase={0.3} />
           </div>
         </div>
 
@@ -256,9 +258,9 @@ export default function HeroIntroSequence() {
           data-layer="front-left"
           aria-hidden="true"
           className="absolute z-[3] will-change-transform"
-          style={{ left: mobile ? '-10vw' : '-14vw', width: mobile ? '90vw' : '52vw', top: mobile ? '52%' : '48%', height: mobile ? '12vh' : '13vh', opacity: mobile ? 0.62 : 0.68 }}
+          style={{ left: mobile ? '-10vw' : '-14vw', width: mobile ? '90vw' : '52vw', top: mobile ? '56%' : '53%', opacity: mobile ? 0.62 : 0.66 }}
         >
-          <Marquee src={ASSETS.frontLeft} periodVw={mobile ? 90 : 52} cloudWidthVw={mobile ? 46 : 21} dur={78} phase={0.18} />
+          <Marquee src={ASSETS.frontLeft} periodVw={mobile ? 90 : 52} cloudWidthVw={mobile ? 44 : 20} dur={78} phase={0.18} />
         </div>
 
         {/* L4 — front-right natural cloud (z-3), over G-H-T. Different form/height
@@ -268,9 +270,9 @@ export default function HeroIntroSequence() {
             data-layer="front-right"
             aria-hidden="true"
             className="absolute z-[3] will-change-transform"
-            style={{ left: '62vw', width: '52vw', top: '49.5%', height: '13.5vh', opacity: 0.64 }}
+            style={{ left: '62vw', width: '52vw', top: '54.5%', opacity: 0.62 }}
           >
-            <Marquee src={ASSETS.frontRight} periodVw={52} cloudWidthVw={23} dur={90} phase={0.5} reverse />
+            <Marquee src={ASSETS.frontRight} periodVw={52} cloudWidthVw={22} dur={90} phase={0.5} reverse />
           </div>
         )}
 
@@ -279,11 +281,12 @@ export default function HeroIntroSequence() {
           data-layer="traveller"
           aria-hidden="true"
           className="absolute z-[4] will-change-transform"
-          style={{ top: mobile ? '46%' : '44%', left: 0, width: '100%', height: mobile ? '10vh' : '11vh', opacity: mobile ? 0.34 : 0.4 }}
+          style={{ top: mobile ? '55%' : '54%', left: 0, width: '100%', opacity: mobile ? 0.34 : 0.4 }}
         >
-          <div data-traverse data-dur={mobile ? 64 : 72} data-phase={0.42} className="absolute top-0 h-full will-change-transform" style={{ width: mobile ? '26vw' : '11vw' }}>
+          <div data-traverse data-dur={mobile ? 64 : 72} data-phase={0.42} className="absolute top-0 will-change-transform" style={{ width: mobile ? '24vw' : '12vw' }}>
+            {/* natural aspect, no stretch */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={ASSETS.traveller} alt="" draggable={false} className="h-full w-full" />
+            <img src={ASSETS.traveller} alt="" draggable={false} className="w-full" style={{ height: 'auto' }} />
           </div>
         </div>
 

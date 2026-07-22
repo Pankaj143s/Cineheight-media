@@ -17,21 +17,27 @@
 > (brightness 0.66–0.9, saturation 0.5–0.6 → neutral, not blue, no blown whites).
 > Composited normally over #020306 — no screen-blend, no radial masks.
 >
-> ### Clouds read IN FRONT (not behind)
-> Front clouds are reprocessed **brighter** (`modulate brightness 1.0`, keeping the
-> soft shadow underside via the gentle alpha curve — that shadow is what registers
-> over the white letters) and set at higher layer opacity, so a bright cloud clearly
-> crosses the lower third of the letters (full brightness in the black gaps + soft
-> shadow over the letter = "passing in front"). Still small/restrained (~80% black).
+> ### Clouds read IN FRONT, at the BASELINE, and NOT stretched
+> Front clouds are **bright** (`modulate brightness 1.0`, shadow underside kept via
+> the gentle alpha curve — that shadow is what registers over the white letters) so
+> they clearly pass in front. They are cropped **low-profile (~2:1)** from the g4
+> master and rendered at **natural aspect** (`Marquee` imgs are `width:{n}vw;
+> height:auto` — no `h-full`), so they never distort. They sit at the letter
+> **baseline** (`top ~53–55%`) crossing only the lower band of the letters, so the
+> text above the cloud line stays crisp (no "mixing" through the letter middles).
 >
 > ### Live layers (`HeroIntroSequence.tsx`)
-> | z | Layer | Asset | Opening placement (desktop) | Opacity |
+> | z | Layer | Asset (low-profile) | Opening placement (desktop) | Opacity |
 > |---|---|---|---|---|
-> | 0 | back haze | cloud-back-soft | left 20% w 60%, top 50%, h 9vh | 0.12 |
+> | 0 | back haze | cloud-back-soft (natural, no fit:fill) | left 18% w 64%, top 52% | 0.12 |
 > | 1 | title | Bebas Neue ~72vw | centred, −1vh | 1 |
-> | 3 | front-left | cloud-front-left (bright) | left −14vw w 52vw, top 48%, h 13vh | **0.68** |
-> | 3 | front-right | cloud-front-right (bright, distinct) | left 62vw w 52vw, top 49.5%, h 13.5vh | **0.64** |
-> | 4 | traveller | cloud-traveller (bright) | full width, top 44%, w 11vw | **0.40** |
+> | 3 | front-left | cloud-front-left (720×360) | left −14vw w 52vw, **top 53%** | 0.66 |
+> | 3 | front-right | cloud-front-right (740×360, distinct) | left 62vw w 52vw, **top 54.5%** | 0.62 |
+> | 4 | traveller | cloud-traveller (620×329) | full width, **top 54%**, w 12vw | 0.40 |
+>
+> The hero sticky **stage background is transparent** (body bg is the same #020306)
+> so the fixed background **signal route** (`components/signal/SignalField.tsx`, see
+> `docs/SIGNAL-PATH.md`) shows through the hero's dark negative space.
 >
 > Drift: seamless two-copy marquees for back/front clouds (no yoyo/snap), one
 > offscreen traversal for the traveller — durations 110 / 78 / 90 / 72 s.

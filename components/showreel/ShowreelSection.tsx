@@ -40,13 +40,13 @@ export default function ShowreelSection() {
       if (!frame) return
       gsap.fromTo(
         frame,
-        { scale: mobile ? 0.94 : 0.72, autoAlpha: 0.72, clipPath: 'inset(10% 0% 10% 0% round 4px)' },
+        { scale: mobile ? 0.96 : 0.78, autoAlpha: 0.72, clipPath: 'inset(9% 0% 9% 0%)' },
         {
           scale: 1,
           autoAlpha: 1,
-          clipPath: 'inset(0% 0% 0% 0% round 4px)',
+          clipPath: 'inset(0% 0% 0% 0%)',
           ease: 'none',
-          scrollTrigger: { trigger: sectionRef.current, start: 'top 80%', end: mobile ? 'top 45%' : 'top 30%', scrub: 1 },
+          scrollTrigger: { trigger: sectionRef.current, start: 'top 82%', end: mobile ? 'top 48%' : 'top 34%', scrub: 1 },
         }
       )
       if (video && !mobile) {
@@ -96,9 +96,12 @@ export default function ShowreelSection() {
     }
   }, [reduced])
 
-  // ---- Restrained pointer depth (fine-pointer desktop only) ------------
+  // ---- Restrained pointer depth — DISABLED for the full-bleed (100vw) frame
+  // (a tilt/translate would reveal black edges). Kept behind a flag so the
+  // subtle internal video-scale parallax is the only depth cue.
+  const tiltEnabled = false
   useEffect(() => {
-    if (reduced || mobile) return
+    if (reduced || mobile || !tiltEnabled) return
     const tilt = tiltRef.current
     const frame = frameRef.current
     if (!tilt || !frame) return
@@ -126,7 +129,7 @@ export default function ShowreelSection() {
       frame.removeEventListener('pointerleave', onLeave)
       cancelAnimationFrame(rafRef.current)
     }
-  }, [reduced, mobile])
+  }, [reduced, mobile, tiltEnabled])
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current
@@ -163,8 +166,8 @@ export default function ShowreelSection() {
         style={{ background: 'radial-gradient(ellipse 60% 42% at 50% 46%, rgba(0,137,255,0.05), transparent 72%)' }}
       />
 
-      {/* Editorial label + microcopy */}
-      <div className="relative z-10 mb-5 flex w-full max-w-[94vw] items-baseline gap-4 px-1 sm:mb-6">
+      {/* Editorial label + microcopy — aligned to the full-bleed frame edge */}
+      <div className="relative z-10 mb-5 flex w-full flex-wrap items-baseline gap-x-4 gap-y-1 px-5 sm:mb-6 sm:px-8 lg:px-10">
         <span className="font-display text-[11px] font-medium uppercase" style={{ letterSpacing: '0.32em', color: 'var(--blue-400)' }}>
           Showreel
         </span>
@@ -173,17 +176,19 @@ export default function ShowreelSection() {
         </span>
       </div>
 
-      {/* Frame */}
+      {/* Frame — full-bleed 100vw, 16:9, capped to the viewport height. Video
+          stays object-cover so it never distorts; ≤16:9 screens fill, ultrawide
+          cover-crops a little, mobile is a natural full-width band. */}
       <div
         ref={frameRef}
         className="relative z-10 will-change-transform"
-        style={{ width: mobile ? 'calc(100vw - 28px)' : '94vw', maxWidth: 1760, aspectRatio: '16 / 9' }}
+        style={{ width: '100vw', aspectRatio: '16 / 9', maxHeight: '100dvh' }}
       >
-        <div ref={tiltRef} className="relative h-full w-full will-change-transform" style={{ transformStyle: 'preserve-3d' }}>
+        <div ref={tiltRef} className="relative h-full w-full will-change-transform">
           <video
             ref={videoRef}
             className="absolute inset-0 h-full w-full object-cover will-change-transform"
-            style={{ borderRadius: 4, backgroundColor: 'var(--bg-900)' }}
+            style={{ backgroundColor: 'var(--bg-900)' }}
             poster={POSTER}
             muted
             loop
@@ -195,9 +200,9 @@ export default function ShowreelSection() {
             <source src={SRC} type="video/mp4" />
           </video>
 
-          {/* Top/bottom edge feather so the frame never reads as a pasted rectangle */}
-          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-14" style={{ background: 'linear-gradient(to bottom, var(--bg-950), transparent)', borderRadius: '4px 4px 0 0' }} />
-          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-16" style={{ background: 'linear-gradient(to top, var(--bg-950), transparent)', borderRadius: '0 0 4px 4px' }} />
+          {/* Subtle top/bottom feather so any letterbox space blends into black */}
+          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-12" style={{ background: 'linear-gradient(to bottom, var(--bg-950), transparent)' }} />
+          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-14" style={{ background: 'linear-gradient(to top, var(--bg-950), transparent)' }} />
 
           {/* Controls */}
           <div className="absolute bottom-3 left-3 z-10 flex items-center gap-2 sm:bottom-4 sm:left-4">

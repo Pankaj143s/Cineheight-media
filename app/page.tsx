@@ -1,13 +1,17 @@
 import Navbar from '@/components/Navbar'
 import HeroIntroSequence from '@/components/hero/HeroIntroSequence'
 import ShowreelSection from '@/components/showreel/ShowreelSection'
+import SignalField from '@/components/signal/SignalField'
 
 export default function Home() {
   return (
     <>
       <span id="top" />
+      {/* Continuous background signal route — fixed, behind all content (z-0). */}
+      <SignalField />
       <Navbar />
-      <main>
+      {/* Content sits above the signal (z-10). */}
+      <main className="relative z-10">
         <HeroIntroSequence />
         <ShowreelSection />
 

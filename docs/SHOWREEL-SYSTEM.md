@@ -32,6 +32,17 @@ with no section container, no divider and no hard boundary. As the brand
 statement scrolls up and out, the SHOWREEL label + frame enter from below and the
 frame expands into the primary focus.
 
+## Full-bleed (update)
+
+The frame is now **full-bleed**: `width:100vw; aspect-ratio:16/9; max-height:100dvh`,
+centred, **no max-width cap, no border radius, no framed card**. The video stays
+`object-cover` so it never distorts — on ≤16:9 viewports 100vw fills the screen, on
+ultrawide `max-height` caps it and cover-crops a little, on mobile it is a natural
+full-width 16:9 band. The pointer tilt is **disabled** (a tilt on a 100vw frame
+would reveal black edges); the subtle internal `video scale 1.06→1` parallax + a
+faint blue light behind + minimal top/bottom letterbox feather remain. A device-
+specific cut can replace the source later without code changes.
+
 ## Scroll behaviour
 
 Scrub ScrollTrigger (no pin), `trigger: section`, `start: top 80%`,

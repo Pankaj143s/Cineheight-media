@@ -177,26 +177,31 @@ async function alphaCloud(src, name, { resizeOpts, brightness, saturation, aSlop
   v4.push(`${name}\t${meta.width}x${meta.height}\t${meta.channels}ch\taMin=${min} aMax=${max} nonTransp=${(100 * nz / a.length).toFixed(1)}%\t${Math.round(fs.statSync(file).size / 1024)} KB`)
 }
 
-// Front-left cloud — G4 cloud #1 (leftmost rounded puff). Brightened so it
-// reads clearly IN FRONT of the white letters (keeps shadow underside via the
-// gentle alpha curve — that soft shadow is what shows over the letters).
-await alphaCloud(sharp(g4).extract({ left: 40, top: 430, width: 700, height: 580 }), 'cloud-front-left.webp', {
-  resizeOpts: { width: 700 }, brightness: 1.0, saturation: 0.62, aSlope: 1.5, aLift: -12, aBlur: 0.8,
+// LOW-PROFILE crops (~2:1, wider than tall) so the natural on-screen aspect is
+// a low cloud band that sits at the letter baseline — no vertical stretch, and
+// crossing only the lower letters (not muddying the middle). Brightened so they
+// read IN FRONT of the white letters (soft shadow underside survives the gentle
+// alpha curve). Rendered at NATURAL aspect in the component (no h-full).
+
+// Front-left cloud — G4 cloud #1 (leftmost), low band.
+await alphaCloud(sharp(g4).extract({ left: 20, top: 620, width: 720, height: 360 }), 'cloud-front-left.webp', {
+  resizeOpts: { width: 720 }, brightness: 1.0, saturation: 0.62, aSlope: 1.5, aLift: -12, aBlur: 0.8,
 })
 
-// Front-right cloud — G4 cloud #4 (rightmost, distinct shape → natural asymmetry).
-await alphaCloud(sharp(g4).extract({ left: 2010, top: 430, width: 730, height: 560 }), 'cloud-front-right.webp', {
-  resizeOpts: { width: 730 }, brightness: 1.0, saturation: 0.62, aSlope: 1.5, aLift: -12, aBlur: 0.8,
+// Front-right cloud — G4 cloud #4 (rightmost, distinct shape → asymmetry), low band.
+await alphaCloud(sharp(g4).extract({ left: 2000, top: 610, width: 740, height: 360 }), 'cloud-front-right.webp', {
+  resizeOpts: { width: 740 }, brightness: 1.0, saturation: 0.62, aSlope: 1.5, aLift: -12, aBlur: 0.8,
 })
 
-// Travelling cloud — G4 cloud #2 (compact); rendered small on-screen.
-await alphaCloud(sharp(g4).extract({ left: 700, top: 450, width: 660, height: 540 }), 'cloud-traveller.webp', {
-  resizeOpts: { width: 560 }, brightness: 1.0, saturation: 0.62, aSlope: 1.6, aLift: -12, aBlur: 0.7,
+// Travelling cloud — G4 cloud #2 (compact), low band; rendered small on-screen.
+await alphaCloud(sharp(g4).extract({ left: 700, top: 640, width: 640, height: 340 }), 'cloud-traveller.webp', {
+  resizeOpts: { width: 620 }, brightness: 1.0, saturation: 0.62, aSlope: 1.6, aLift: -12, aBlur: 0.7,
 })
 
-// Soft background haze — wide crop of the centre clouds, stretched low & faint.
-await alphaCloud(sharp(g4).extract({ left: 660, top: 470, width: 1400, height: 520 }), 'cloud-back-soft.webp', {
-  resizeOpts: { width: 2000, height: 320, fit: 'fill' }, brightness: 0.66, saturation: 0.5, aSlope: 1.2, aLift: -8, aBlur: 1.5,
+// Soft background haze — wide NATURAL crop of the centre clouds (NO fit:'fill'
+// stretch), toned dark & faint; a barely-there depth layer behind the word.
+await alphaCloud(sharp(g4).extract({ left: 640, top: 600, width: 1420, height: 400 }), 'cloud-back-soft.webp', {
+  resizeOpts: { width: 1600 }, brightness: 0.66, saturation: 0.5, aSlope: 1.2, aLift: -8, aBlur: 1.4,
 })
 
 console.log([...report, '--- hero-v3 ---', ...v3, '--- hero-v4 (active) ---', ...v4].join('\n'))
