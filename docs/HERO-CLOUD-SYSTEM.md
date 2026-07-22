@@ -17,37 +17,47 @@
 > (brightness 0.66–0.9, saturation 0.5–0.6 → neutral, not blue, no blown whites).
 > Composited normally over #020306 — no screen-blend, no radial masks.
 >
+> ### Clouds read IN FRONT (not behind)
+> Front clouds are reprocessed **brighter** (`modulate brightness 1.0`, keeping the
+> soft shadow underside via the gentle alpha curve — that shadow is what registers
+> over the white letters) and set at higher layer opacity, so a bright cloud clearly
+> crosses the lower third of the letters (full brightness in the black gaps + soft
+> shadow over the letter = "passing in front"). Still small/restrained (~80% black).
+>
 > ### Live layers (`HeroIntroSequence.tsx`)
 > | z | Layer | Asset | Opening placement (desktop) | Opacity |
 > |---|---|---|---|---|
 > | 0 | back haze | cloud-back-soft | left 20% w 60%, top 50%, h 9vh | 0.12 |
 > | 1 | title | Bebas Neue ~72vw | centred, −1vh | 1 |
-> | 3 | front-left | cloud-front-left | left −14vw w 54vw, top 47%, h 11vh | 0.46 |
-> | 3 | front-right | cloud-front-right (distinct cloud) | left 60vw w 56vw, top 50%, h 12.5vh | 0.42 |
-> | 4 | traveller | cloud-traveller | full width, top 43%, w 11vw | 0.24 |
+> | 3 | front-left | cloud-front-left (bright) | left −14vw w 52vw, top 48%, h 13vh | **0.68** |
+> | 3 | front-right | cloud-front-right (bright, distinct) | left 62vw w 52vw, top 49.5%, h 13.5vh | **0.64** |
+> | 4 | traveller | cloud-traveller (bright) | full width, top 44%, w 11vw | **0.40** |
 >
 > Drift: seamless two-copy marquees for back/front clouds (no yoyo/snap), one
 > offscreen traversal for the traveller — durations 110 / 78 / 90 / 72 s.
 >
-> ### Master timeline — named labels (one shared progress, `ease: 'none'`, scrub 1.0)
-> `opening 0.00 · depthStart 0.16 · heroExit 0.42 · statementApproach 0.52 ·
-> statementReveal 0.62 · navbarReveal 0.68 · introSettled 0.84`. Every element
-> is tied to these labels (no per-element guesses). Beats: 0–0.16 hold · 0.16–0.42
-> clouds lift, title rises slowly to −4vh scale 1.03 · 0.42–0.60 title → −10vh
-> scale 1.05 opacity → 0.28, foreground clouds rise faster (−18/−20vh) · **0.60
-> crossover** title 0.28 · 0.60–0.68 title CLEARS to −26vh opacity 0 (visibly
-> departed before the statement reveals) · 0.62 statement line-1 clip reveal,
-> 0.665 line-2, 0.72 support copy · 0.68 navbar reveals (Navbar subscribes to
-> `heroProgress`, threshold 0.68 == the `navbarReveal` label) · 0.84 settled,
-> statement stable, faint cloud remnants at upper edges · 0.84–1.0 barely-there
-> upward drift so the lower edge is ready for the showreel, no dead pause.
-> Reverse scroll restores the opening cleanly.
+> ### Smooth parallax timeline (one continuous pass, `ease: 'none'`, scrub 1.05)
+> The staged "master-label / title clear-out" version was replaced: it snapped the
+> title (a 0.08-duration −26vh jump) and read as staged, not smooth. Now every
+> position tween runs `ease:'none'` over a **long, overlapping** window so the hero
+> is one scroll-linked camera rise through the cloud layer into the statement — no
+> snaps. **Parallax = per-layer travel distance** (all start at 0.12):
+> traveller −48vh (closest, fastest) · front clouds −40/−42vh · title −30vh
+> scale→1.06 (medium) · back haze −8vh (slowest, lingers). Opacity crossfades
+> gently, always after the layer starts moving: traveller fades [0.34→0.56];
+> **title fades gradually [0.44→0.76]** as it rises (no snap); front clouds →0.08
+> upper remnants [0.6→0.84]; back haze →0.4 then dissolves last [0.7→0.92].
+> Statement rises `y 42vh→0` [0.44→0.86] with two staggered line clip-reveals
+> [0.58/0.62→~0.78] and support copy [0.7→0.86]; #0089FF transition light
+> 0→0.10 [0.5→0.7]. Navbar reveals ~**0.66** (Navbar subscribes to `heroProgress`,
+> hysteresis 0.66/0.58). 0.86→1.0: a barely-there upward drift so the lower edge is
+> ready for the showreel. Reverse scroll restores the opening cleanly.
 >
 > ### Title / statement crossover
-> Title departs (up + fade) and is gone by ~0.68; the statement reveals from 0.62.
-> There is only a brief intended coexistence (title subordinate, moving away) —
-> never equal competition. #0089FF appears only as the faint title-base light,
-> the ≤0.10 transition illumination, `BRANDS.`, and navbar hover/focus/CTA.
+> Title rises and fades **gradually** across the whole scroll; the statement
+> crossfades in from below as the title thins — a continuous parallax handoff, not
+> a staged swap. #0089FF appears only as the faint title-base light, the ≤0.10
+> transition illumination, `BRANDS.`, and navbar hover/focus/CTA.
 >
 > ### Mobile / reduced motion
 > Mobile: back haze + ONE front cloud (left, widened) + traveller; no right cloud,

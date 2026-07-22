@@ -27,7 +27,7 @@ export default function Navbar() {
 
   useEffect(() => {
     return subscribeHeroProgress((p) => {
-      const next = visibleRef.current ? p > 0.6 : p > 0.68
+      const next = visibleRef.current ? p > 0.58 : p > 0.66
       if (next !== visibleRef.current) {
         visibleRef.current = next
         setVisible(next)

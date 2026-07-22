@@ -177,19 +177,21 @@ async function alphaCloud(src, name, { resizeOpts, brightness, saturation, aSlop
   v4.push(`${name}\t${meta.width}x${meta.height}\t${meta.channels}ch\taMin=${min} aMax=${max} nonTransp=${(100 * nz / a.length).toFixed(1)}%\t${Math.round(fs.statSync(file).size / 1024)} KB`)
 }
 
-// Front-left cloud — G4 cloud #1 (leftmost rounded puff).
+// Front-left cloud — G4 cloud #1 (leftmost rounded puff). Brightened so it
+// reads clearly IN FRONT of the white letters (keeps shadow underside via the
+// gentle alpha curve — that soft shadow is what shows over the letters).
 await alphaCloud(sharp(g4).extract({ left: 40, top: 430, width: 700, height: 580 }), 'cloud-front-left.webp', {
-  resizeOpts: { width: 700 }, brightness: 0.9, saturation: 0.6, aSlope: 1.5, aLift: -12, aBlur: 0.8,
+  resizeOpts: { width: 700 }, brightness: 1.0, saturation: 0.62, aSlope: 1.5, aLift: -12, aBlur: 0.8,
 })
 
 // Front-right cloud — G4 cloud #4 (rightmost, distinct shape → natural asymmetry).
 await alphaCloud(sharp(g4).extract({ left: 2010, top: 430, width: 730, height: 560 }), 'cloud-front-right.webp', {
-  resizeOpts: { width: 730 }, brightness: 0.88, saturation: 0.6, aSlope: 1.5, aLift: -12, aBlur: 0.8,
+  resizeOpts: { width: 730 }, brightness: 1.0, saturation: 0.62, aSlope: 1.5, aLift: -12, aBlur: 0.8,
 })
 
 // Travelling cloud — G4 cloud #2 (compact); rendered small on-screen.
 await alphaCloud(sharp(g4).extract({ left: 700, top: 450, width: 660, height: 540 }), 'cloud-traveller.webp', {
-  resizeOpts: { width: 560 }, brightness: 0.9, saturation: 0.6, aSlope: 1.6, aLift: -12, aBlur: 0.7,
+  resizeOpts: { width: 560 }, brightness: 1.0, saturation: 0.62, aSlope: 1.6, aLift: -12, aBlur: 0.7,
 })
 
 // Soft background haze — wide crop of the centre clouds, stretched low & faint.

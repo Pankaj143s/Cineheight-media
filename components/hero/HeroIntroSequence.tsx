@@ -151,64 +151,58 @@ export default function HeroIntroSequence() {
 
       const vh = (n: number) => () => (window.innerHeight * n) / 100
 
-      // Timeline duration is normalised to 1.0, so a label/position value is
-      // literally the scroll fraction it fires at (scrub maps scroll 0→1 to
-      // timeline 0→1). All positions below are those fractions.
+      // ONE smooth, continuous, parallax-differentiated pass. Every position
+      // tween runs `ease:'none'` over a LONG, OVERLAPPING window so the whole
+      // hero reads as a single scroll-linked camera rise through the cloud
+      // layer into the statement — no short "snap" tweens, no staged jumps.
+      // Timeline duration is normalised to 1.0 → a position value is the scroll
+      // fraction it fires at. Depth (parallax) = per-layer travel distance:
+      // traveller (closest) moves most, then front clouds, then title, then the
+      // background haze (slowest). Opacity crossfades gently, always AFTER the
+      // layer has begun moving.
       const tl = gsap.timeline({
         defaults: { ease: 'none' },
         scrollTrigger: {
           trigger: rootRef.current,
           start: 'top top',
           end: 'bottom bottom',
-          scrub: 1.0,
+          scrub: 1.05,
           invalidateOnRefresh: true,
           onUpdate: (st) => setHeroProgress(st.progress),
         },
       })
 
-      tl.addLabel('opening', 0)
-        .addLabel('depthStart', 0.16)
-        .addLabel('heroExit', 0.42)
-        .addLabel('statementApproach', 0.52)
-        .addLabel('statementReveal', 0.62)
-        .addLabel('navbarReveal', 0.68)
-        .addLabel('introSettled', 0.84)
+      // Helper: a tween placed at position `from` that lasts until `to`
+      // (positions/durations are scroll fractions of the 0→1 timeline).
+      const spanDur = (from: number, to: number) => ({ duration: to - from })
 
-      // ---- Clouds: begin lifting at depthStart; foreground faster than back.
-      // Movement first — opacity only reduces AFTER the clouds have moved.
-      tl.fromTo(fl, { y: 0 }, { y: vh(-18), duration: 0.68 }, 'depthStart')
-        .fromTo(fr, { y: 0 }, { y: vh(-20), duration: 0.68 }, 'depthStart')
-        .fromTo(trav, { y: 0 }, { y: vh(-26), duration: 0.6 }, 'depthStart')
-        .fromTo(back, { y: 0 }, { y: vh(-7), duration: 0.74 }, 'depthStart')
-        // foreground clouds settle to faint upper-edge residuals after they rise
-        .to([...fl, ...fr], { autoAlpha: 0.1, duration: 0.14 }, 0.72)
-        .to(trav, { autoAlpha: 0, duration: 0.16 }, 0.58)
-        // background haze stays visible longest, then dissolves
-        .to(back, { autoAlpha: 0.35, duration: 0.24 }, 0.7)
+      // ---- Parallax rise (all start together at 0.12, different distances) ----
+      const rise = 0.12
+      tl.fromTo(trav, { y: 0 }, { y: vh(-48), ...spanDur(rise, 0.85) }, rise) // fastest
+        .fromTo(fl, { y: 0 }, { y: vh(-40), ...spanDur(rise, 0.9) }, rise)
+        .fromTo(fr, { y: 0 }, { y: vh(-42), ...spanDur(rise, 0.9) }, rise)
+        .fromTo(title, { y: 0, scale: 1 }, { y: vh(-30), scale: 1.06, ...spanDur(rise, 0.9) }, rise) // medium
+        .fromTo(back, { y: 0 }, { y: vh(-8), ...spanDur(rise, 0.96) }, rise) // slowest
 
-      // ---- Title: slow rise (depthStart→heroExit); at ~0.60 it is at ~0.28
-      // opacity, then CLEARS UPWARD hard and fades to 0 by ~0.70 so it has
-      // visibly departed before the statement reveals — no competition.
-      tl.fromTo(title, { y: 0, scale: 1 }, { y: vh(-4), scale: 1.03, duration: 0.26 }, 'depthStart')
-        .to(title, { y: vh(-10), scale: 1.05, duration: 0.18 }, 'heroExit')
-        .to(title, { autoAlpha: 0.28, duration: 0.18 }, 'heroExit')
-        .to(title, { y: vh(-26), autoAlpha: 0, duration: 0.08 }, 0.6)
+      // ---- Opacity crossfades (gentle, gradual — no abrupt fades) ----
+      tl.to(trav, { autoAlpha: 0, ...spanDur(0.34, 0.56) }, 0.34)
+        .to(title, { autoAlpha: 0, ...spanDur(0.44, 0.76) }, 0.44) // title fades slowly as it rises
+        .to([...fl, ...fr], { autoAlpha: 0.08, ...spanDur(0.6, 0.84) }, 0.6) // become faint upper remnants
+        .to(back, { autoAlpha: 0.4, ...spanDur(0.7, 0.92) }, 0.7) // haze lingers, dissolves last
 
       // ---- #0089FF transition illumination (≤0.10) bridging the two states.
-      tl.fromTo(blue, { autoAlpha: 0 }, { autoAlpha: 0.1, duration: 0.16 }, 0.5).to(blue, { autoAlpha: 0.05, duration: 0.14 }, 'introSettled')
+      tl.fromTo(blue, { autoAlpha: 0 }, { autoAlpha: 0.1, ...spanDur(0.5, 0.7) }, 0.5)
+        .to(blue, { autoAlpha: 0.05, ...spanDur(0.84, 1.0) }, 0.84)
 
-      // ---- Statement: approaches from below while the title is still up and
-      // dominant; reveals only after the title has visibly departed.
-      tl.fromTo(statement, { y: vh(34), autoAlpha: 0 }, { y: vh(6), autoAlpha: 0.5, duration: 0.1 }, 'statementApproach')
-        .to(statement, { y: 0, autoAlpha: 1, duration: 0.16 }, 'statementReveal')
-        .fromTo(stLines[0], { yPercent: 112 }, { yPercent: 0, duration: 0.1 }, 'statementReveal')
-        .fromTo(stLines[1], { yPercent: 112 }, { yPercent: 0, duration: 0.1 }, 0.665)
-        .fromTo(stCopy, { autoAlpha: 0, y: vh(2.4) }, { autoAlpha: 1, y: 0, duration: 0.1 }, 0.72)
+      // ---- Statement rises from below and crossfades in as the title thins.
+      tl.fromTo(statement, { y: vh(42), autoAlpha: 0 }, { y: 0, autoAlpha: 1, ...spanDur(0.44, 0.86) }, 0.44)
+        .fromTo(stLines[0], { yPercent: 112 }, { yPercent: 0, ...spanDur(0.58, 0.74) }, 0.58)
+        .fromTo(stLines[1], { yPercent: 112 }, { yPercent: 0, ...spanDur(0.62, 0.78) }, 0.62)
+        .fromTo(stCopy, { autoAlpha: 0, y: vh(2.4) }, { autoAlpha: 1, y: 0, ...spanDur(0.7, 0.86) }, 0.7)
 
-      // ---- 0.84→1.0: hold readable + a barely-there upward drift so there is
-      // no dead pause and the lower edge is ready for the showreel entrance.
-      tl.to(statement, { y: vh(-2), duration: 0.16 }, 'introSettled')
-        .to(back, { autoAlpha: 0.18, duration: 0.16 }, 'introSettled')
+      // ---- 0.86→1.0: a barely-there continued upward drift so the lower edge
+      // is ready for the showreel entrance — no dead pause.
+      tl.to(statement, { y: vh(-2), ...spanDur(0.86, 1.0) }, 0.86)
 
       return () => tl.scrollTrigger?.kill()
     }, rootRef)
@@ -262,9 +256,9 @@ export default function HeroIntroSequence() {
           data-layer="front-left"
           aria-hidden="true"
           className="absolute z-[3] will-change-transform"
-          style={{ left: mobile ? '-10vw' : '-14vw', width: mobile ? '90vw' : '54vw', top: mobile ? '52%' : '47%', height: mobile ? '11vh' : '11vh', opacity: mobile ? 0.42 : 0.46 }}
+          style={{ left: mobile ? '-10vw' : '-14vw', width: mobile ? '90vw' : '52vw', top: mobile ? '52%' : '48%', height: mobile ? '12vh' : '13vh', opacity: mobile ? 0.62 : 0.68 }}
         >
-          <Marquee src={ASSETS.frontLeft} periodVw={mobile ? 90 : 54} cloudWidthVw={mobile ? 46 : 21} dur={78} phase={0.18} />
+          <Marquee src={ASSETS.frontLeft} periodVw={mobile ? 90 : 52} cloudWidthVw={mobile ? 46 : 21} dur={78} phase={0.18} />
         </div>
 
         {/* L4 — front-right natural cloud (z-3), over G-H-T. Different form/height
@@ -274,9 +268,9 @@ export default function HeroIntroSequence() {
             data-layer="front-right"
             aria-hidden="true"
             className="absolute z-[3] will-change-transform"
-            style={{ left: '60vw', width: '56vw', top: '50%', height: '12.5vh', opacity: 0.42 }}
+            style={{ left: '62vw', width: '52vw', top: '49.5%', height: '13.5vh', opacity: 0.64 }}
           >
-            <Marquee src={ASSETS.frontRight} periodVw={56} cloudWidthVw={23} dur={90} phase={0.5} reverse />
+            <Marquee src={ASSETS.frontRight} periodVw={52} cloudWidthVw={23} dur={90} phase={0.5} reverse />
           </div>
         )}
 
@@ -285,7 +279,7 @@ export default function HeroIntroSequence() {
           data-layer="traveller"
           aria-hidden="true"
           className="absolute z-[4] will-change-transform"
-          style={{ top: mobile ? '45%' : '43%', left: 0, width: '100%', height: mobile ? '9vh' : '10vh', opacity: mobile ? 0.2 : 0.24 }}
+          style={{ top: mobile ? '46%' : '44%', left: 0, width: '100%', height: mobile ? '10vh' : '11vh', opacity: mobile ? 0.34 : 0.4 }}
         >
           <div data-traverse data-dur={mobile ? 64 : 72} data-phase={0.42} className="absolute top-0 h-full will-change-transform" style={{ width: mobile ? '26vw' : '11vw' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
