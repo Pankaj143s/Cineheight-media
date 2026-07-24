@@ -31,9 +31,38 @@ const poppins = localFont({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://cineheight.media'),
   title: 'CINEHEIGHT.media — Branding & Digital Growth Agency',
   description:
     'We turn businesses into brands. Strategy, design, content and campaigns built to grow visibility, trust and leads.',
+  keywords: ['digital agency', 'branding', 'social media', 'video production', 'content creation', 'brand strategy', 'performance marketing'],
+  authors: [{ name: 'Cineheight Media' }],
+  creator: 'Cineheight Media',
+  alternates: { canonical: '/' },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://cineheight.media',
+    siteName: 'CINEHEIGHT.media',
+    title: 'CINEHEIGHT.media — We Turn Businesses Into Brands',
+    description: 'Strategy, design, content and campaigns built to grow visibility, trust and leads.',
+    images: [
+      {
+        // Real frame from the actual showreel — no generated OG imagery.
+        url: '/media/showreel/showreel-poster.webp',
+        width: 1600,
+        height: 900,
+        alt: 'CINEHEIGHT.media — production still from the agency showreel',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'CINEHEIGHT.media — We Turn Businesses Into Brands',
+    description: 'Strategy, design, content and campaigns built to grow visibility, trust and leads.',
+    images: ['/media/showreel/showreel-poster.webp'],
+  },
+  robots: { index: true, follow: true },
 }
 
 export const viewport: Viewport = {
