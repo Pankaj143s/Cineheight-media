@@ -21,6 +21,12 @@ export function useReducedMotion(): boolean {
   return useMediaQuery('(prefers-reduced-motion: reduce)')
 }
 
+/** Width-only check — use for LAYOUT variants (a touch laptop still gets the
+ *  desktop layout; pointer-capture drag covers its touch input). */
+export function useIsNarrow(maxPx = 899): boolean {
+  return useMediaQuery(`(max-width: ${maxPx}px)`)
+}
+
 /** Coarse pointer OR narrow viewport — the "simplified motion" tier (spec §35). */
 export function useIsMobileTier(): boolean {
   return useMediaQuery('(max-width: 767px), (pointer: coarse)')
