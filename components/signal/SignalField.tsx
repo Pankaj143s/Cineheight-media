@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useReducedMotion } from '@/lib/useMediaPreferences'
+import { useIsNarrow, useReducedMotion } from '@/lib/useMediaPreferences'
 
 /**
  * SignalField — the continuous background "signal route" (master brief §31).
@@ -33,10 +33,20 @@ const PATH_D = [
   'S 74 98, 108 104',
 ].join(' ')
 
+// Simpler route for narrow viewports (spec §24) — fewer excursions, calmer.
+const PATH_D_NARROW = [
+  'M -10 8',
+  'C 30 16, 70 24, 60 38',
+  'S 20 54, 40 66',
+  'S 90 80, 70 92',
+  'S 40 100, 60 106',
+].join(' ')
+
 export default function SignalField() {
   const pathRef = useRef<SVGPathElement>(null)
   const dotRef = useRef<HTMLDivElement>(null)
   const reduced = useReducedMotion()
+  const narrow = useIsNarrow(767)
 
   useEffect(() => {
     const path = pathRef.current
@@ -84,7 +94,7 @@ export default function SignalField() {
       window.removeEventListener('resize', onScroll)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [reduced])
+  }, [reduced, narrow])
 
   return (
     <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
@@ -99,7 +109,7 @@ export default function SignalField() {
             constant pixel width despite the non-uniform viewBox stretch). */}
         <path
           ref={pathRef}
-          d={PATH_D}
+          d={narrow ? PATH_D_NARROW : PATH_D}
           fill="none"
           stroke="#0089FF"
           strokeWidth={1.4}

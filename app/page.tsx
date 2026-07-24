@@ -9,13 +9,18 @@ import ServicesGrid from '@/components/home/ServicesGrid'
 import ProcessFlow from '@/components/home/ProcessFlow'
 import AboutSection from '@/components/home/AboutSection'
 import Testimonials from '@/components/home/Testimonials'
+import ContactCTA from '@/components/home/ContactCTA'
+import Footer from '@/components/Footer'
+import SignalField from '@/components/signal/SignalField'
 
 export default function Home() {
   return (
     <>
       <span id="top" />
+      {/* Continuous background signal route — fixed, behind all content. */}
+      <SignalField />
       <Navbar />
-      <main>
+      <main className="relative z-10">
         <HeroIntroSequence />
         <ShowreelSection />
         <TrustedClients />
@@ -26,10 +31,9 @@ export default function Home() {
         <ProcessFlow />
         <AboutSection />
         <Testimonials />
-
-        {/* Phase 4 continues here: contact, footer — one continuous canvas. */}
-        <div aria-hidden="true" className="h-[30vh]" />
+        <ContactCTA />
       </main>
+      <Footer />
       <div className="grain-overlay" aria-hidden="true" />
     </>
   )
