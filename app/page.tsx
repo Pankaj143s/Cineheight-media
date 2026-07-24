@@ -5,6 +5,10 @@ import TrustedClients from '@/components/home/TrustedClients'
 import FeaturedWork from '@/components/home/FeaturedWork'
 import ReelsExperience from '@/components/home/ReelsExperience'
 import PostsGallery from '@/components/home/PostsGallery'
+import ServicesGrid from '@/components/home/ServicesGrid'
+import ProcessFlow from '@/components/home/ProcessFlow'
+import AboutSection from '@/components/home/AboutSection'
+import Testimonials from '@/components/home/Testimonials'
 
 export default function Home() {
   return (
@@ -18,9 +22,12 @@ export default function Home() {
         <FeaturedWork />
         <ReelsExperience />
         <PostsGallery />
+        <ServicesGrid />
+        <ProcessFlow />
+        <AboutSection />
+        <Testimonials />
 
-        {/* Phases 3–4 continue here: services, process, about, testimonials,
-            contact, footer — one continuous canvas. */}
+        {/* Phase 4 continues here: contact, footer — one continuous canvas. */}
         <div aria-hidden="true" className="h-[30vh]" />
       </main>
       <div className="grain-overlay" aria-hidden="true" />
