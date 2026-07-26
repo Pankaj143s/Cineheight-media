@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import FlowDirector from '@/components/flow/FlowDirector'
 import ServicesPage from '@/components/pages/ServicesPage'
 
 export const metadata: Metadata = {
@@ -14,6 +15,7 @@ export default function Page() {
   return (
     <>
       <span id="top" />
+      <FlowDirector />
       <Navbar />
       <ServicesPage />
       <Footer />

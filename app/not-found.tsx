@@ -1,11 +1,13 @@
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import FlowDirector from '@/components/flow/FlowDirector'
 
 export default function NotFound() {
   return (
     <>
       <span id="top" />
+      <FlowDirector />
       <Navbar />
       <main className="relative flex min-h-[70vh] items-center">
         <div className="mx-auto w-full max-w-[1500px] px-6 py-32 sm:px-10 lg:px-14">

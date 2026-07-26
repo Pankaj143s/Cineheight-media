@@ -1,143 +1,234 @@
 'use client'
 
-import Link from 'next/link'
-import Reveal from '@/components/ui/Reveal'
+import { useRef } from 'react'
+import { gsap } from '@/lib/gsap'
+import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
+import { about, services, processSteps, showreel, closing, contact } from '@/content/siteContent'
 import InlineVideo from '@/components/media/InlineVideo'
-import { about, services, processSteps, closing, contact } from '@/content/siteContent'
-import { showreel } from '@/content/siteContent'
+import KineticLabel from '@/components/motion/KineticLabel'
+import SplitLineReveal from '@/components/motion/SplitLineReveal'
+import ScrollHeadline from '@/components/motion/ScrollHeadline'
+import MagneticLink from '@/components/ui/MagneticLink'
+import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 
 /**
- * About page (spec §28) — verified positioning only, typography-led, with the
- * real showreel film as the single piece of about media (the old live site
- * used the same film for its about section; no team stock imagery exists).
+ * A manifesto, not a second homepage.
+ *
+ * Large typography carries the whole page; capabilities are a kinetic word
+ * field rather than a bordered list; the real production film arrives through a
+ * scrolling mask rather than sitting in its own rectangle; and the six
+ * disciplines and four process beats are stated at editorial scale in one
+ * connected column.
+ *
+ * The film is the same footage the old live site used for its About section —
+ * the only agency media that exists. No stock, no generated team imagery.
  */
 export default function AboutPage() {
+  const rootRef = useRef<HTMLElement>(null)
+  const reduced = useReducedMotion()
+  const mobile = useIsMobileTier()
+
+  useIsomorphicLayoutEffect(() => {
+    if (reduced) return
+    const ctx = gsap.context((self) => {
+      // The film unmasks from a slit as it enters — it emerges from the page
+      // rather than appearing on it.
+      const frame = self.selector!('[data-film]')[0]
+      if (frame) {
+        gsap.fromTo(
+          frame,
+          { clipPath: 'inset(38% 22% 38% 22%)' },
+          {
+            clipPath: 'inset(0% 0% 0% 0%)',
+            ease: 'none',
+            scrollTrigger: { trigger: frame, start: 'top 96%', end: 'top 34%', scrub: 0.8 },
+          }
+        )
+      }
+
+      // Capability words travel at four different rates and depths.
+      const words = self.selector!('[data-cap-word]') as HTMLElement[]
+      words.forEach((word, i) => {
+        gsap.fromTo(
+          word,
+          { xPercent: i % 2 ? 18 : -18, autoAlpha: 0.5 },
+          {
+            xPercent: i % 2 ? -14 : 14,
+            autoAlpha: 1,
+            ease: 'none',
+            scrollTrigger: { trigger: word, start: 'top bottom', end: 'bottom top', scrub: 1 + i * 0.4 },
+          }
+        )
+      })
+
+      const rows = self.selector!('[data-row]') as HTMLElement[]
+      gsap.fromTo(
+        rows,
+        { autoAlpha: 0, y: 30 },
+        {
+          autoAlpha: 1,
+          y: 0,
+          duration: 0.85,
+          stagger: 0.06,
+          ease: 'power3.out',
+          scrollTrigger: { trigger: rows[0], start: 'top 78%' },
+        }
+      )
+    }, rootRef)
+    return () => ctx.revert()
+  }, [reduced])
+
   return (
-    <main className="relative">
-      <header className="mx-auto w-full max-w-[1500px] px-6 pb-[8vh] pt-32 sm:px-10 lg:px-14 lg:pt-40">
-        <Reveal variant="fade-up">
-          <span className="font-display text-[11px] font-medium uppercase" style={{ letterSpacing: '0.32em', color: 'var(--blue-400)' }}>
-            About
-          </span>
-          <h1
-            className="font-display mt-6 max-w-4xl font-bold text-text-100"
-            style={{ fontSize: 'clamp(2.2rem, 5vw, 4.8rem)', lineHeight: 1.04, letterSpacing: '-0.015em' }}
-          >
-            Everything a brand needs.
-            <br />
-            <span style={{ color: 'var(--blue-500)' }}>One team.</span>
-          </h1>
-          <p className="font-body mt-7 max-w-xl text-base leading-relaxed text-text-300 sm:text-lg">{about.supporting}</p>
-        </Reveal>
+    <main ref={rootRef} className="relative z-10">
+      <header className="flow-gutter relative pb-[6vh] pt-32 lg:pt-40">
+        <KineticLabel text="WHO WE ARE" />
+        <SplitLineReveal
+          as="h1"
+          lines={[
+            'Everything a',
+            'brand needs.',
+            <span key="ot" style={{ color: 'var(--blue-500)' }}>One team.</span>,
+          ]}
+          srLabel={about.headline}
+          className="font-display mt-6 font-bold text-text-100"
+          style={{ fontSize: 'clamp(2.6rem, 9vw, 8.4rem)', lineHeight: 0.9, letterSpacing: '-0.04em' }}
+        />
+        <p className="font-body measure mt-9 text-lg leading-relaxed text-text-300 sm:text-xl">{about.supporting}</p>
       </header>
 
-      {/* the real film — same footage the old live site used for About */}
-      <section aria-label="Cineheight in motion" className="mx-auto w-[94vw] max-w-[1700px] pb-[12vh]">
-        <Reveal variant="fade-up" amount={0.15}>
-          <InlineVideo src={showreel.src} poster={showreel.poster} label="Cineheight production film" className="rounded-sm" />
-        </Reveal>
-      </section>
+      {/* the film, emerging through a mask */}
+      <div data-film className="relative mx-auto w-[96vw] max-w-[1820px] overflow-hidden will-change-transform">
+        <InlineVideo src={showreel.src} poster={showreel.poster} label="Cineheight production film" />
+      </div>
 
-      {/* one-team journey + capabilities */}
-      <section aria-label="How we work" className="mx-auto w-full max-w-[1500px] px-6 pb-[12vh] sm:px-10 lg:px-14">
-        <div className="grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-16">
-          <Reveal variant="fade-up" className="lg:col-span-6">
-            <h2 className="font-display font-bold text-text-100" style={{ fontSize: 'clamp(1.6rem, 2.8vw, 2.8rem)', lineHeight: 1.1 }}>
-              {about.journey}
-            </h2>
-            <p className="font-body mt-6 max-w-lg text-[15px] leading-relaxed text-text-300">
-              When one team owns strategy, design, content and campaigns, nothing gets lost between agencies — the idea that wins
-              the pitch is the idea that ships.
-            </p>
-          </Reveal>
-          <div className="lg:col-span-5 lg:col-start-8">
-            <ul aria-label="What we bring">
-              {about.capabilities.map((cap, i) => (
-                <Reveal
-                  key={cap}
-                  as="li"
-                  variant="fade-up"
-                  delay={i * 0.08}
-                  className="flex list-none items-center gap-4 border-b py-4"
-                  style={{ borderColor: 'var(--border)' }}
-                >
-                  <span aria-hidden="true" className="h-1 w-1 rounded-full" style={{ background: 'var(--blue-500)' }} />
-                  <span className="font-display text-sm font-medium text-text-200" style={{ letterSpacing: '0.06em' }}>
-                    {cap}
-                  </span>
-                </Reveal>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* capabilities list (the six services, compact) */}
-      <section aria-label="Capabilities" className="mx-auto w-full max-w-[1500px] px-6 pb-[12vh] sm:px-10 lg:px-14">
-        <Reveal variant="fade-up" className="mb-8">
-          <h2 className="font-display text-[11px] font-medium uppercase" style={{ letterSpacing: '0.32em', color: 'var(--blue-400)' }}>
-            What we do
-          </h2>
-        </Reveal>
-        <ul className="grid grid-cols-1 gap-x-14 sm:grid-cols-2">
-          {services.map((s, i) => (
-            <Reveal key={s.id} as="li" variant="fade-up" delay={(i % 2) * 0.08} className="flex list-none items-baseline gap-5 border-t py-5" style={{ borderColor: 'var(--border)' }}>
-              <span className="font-body text-[11px] text-text-500" style={{ letterSpacing: '0.2em' }}>
-                {s.index}
+      {/* the capability field — kinetic words, not a bordered list */}
+      <section
+        aria-label="What we bring"
+        className="relative overflow-hidden"
+        style={{ marginTop: mobile ? '12vh' : '18vh' }}
+      >
+        <ul className="relative">
+          {about.capabilities.map((cap, i) => (
+            <li
+              key={cap}
+              data-cap-word
+              className="list-none whitespace-nowrap"
+              style={{
+                // Each word starts from a different horizontal origin, so the
+                // column never lines up into a stack.
+                paddingLeft: `${[6, 22, 2, 30][i] ?? 8}%`,
+                marginTop: i === 0 ? 0 : mobile ? '-0.06em' : '-0.1em',
+              }}
+            >
+              <span
+                className="font-display font-bold uppercase text-text-100"
+                style={{
+                  fontSize: 'clamp(2rem, 9.5vw, 9rem)',
+                  lineHeight: 0.98,
+                  letterSpacing: '-0.04em',
+                  opacity: 0.92 - i * 0.1,
+                }}
+              >
+                {cap}
               </span>
-              <div>
-                <h3 className="font-display text-lg font-bold text-text-100">{s.title}</h3>
-                <p className="font-body mt-1.5 text-sm leading-relaxed text-text-300">{s.description}</p>
-              </div>
-            </Reveal>
+            </li>
           ))}
         </ul>
+        <div data-flow-anchor="edge-right" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '50%' }} aria-hidden="true" />
       </section>
 
-      {/* process, compact */}
-      <section aria-label="Process" className="mx-auto w-full max-w-[1500px] px-6 pb-[14vh] sm:px-10 lg:px-14">
-        <Reveal variant="fade-up" className="mb-8">
-          <h2 className="font-display text-[11px] font-medium uppercase" style={{ letterSpacing: '0.32em', color: 'var(--blue-400)' }}>
-            How it flows
-          </h2>
-        </Reveal>
-        <ol className="grid grid-cols-2 gap-x-8 gap-y-8 lg:grid-cols-4">
-          {processSteps.map((step, i) => (
-            <Reveal key={step.index} as="li" variant="fade-up" delay={i * 0.08} className="list-none">
-              <p className="font-display text-sm font-medium" style={{ color: 'var(--blue-400)', letterSpacing: '0.2em' }}>
-                {step.index}
-              </p>
-              <h3 className="font-display mt-2.5 text-lg font-bold text-text-100">{step.title}</h3>
-              <p className="font-body mt-2 text-sm leading-relaxed text-text-300">{step.description}</p>
-            </Reveal>
+      {/* the one-team argument */}
+      <section aria-label="How we work" className="flow-gutter relative" style={{ marginTop: mobile ? '12vh' : '18vh' }}>
+        <ScrollHeadline
+          as="h2"
+          text={about.journey}
+          className="font-display max-w-[18ch] font-bold text-text-100"
+          style={{ fontSize: 'clamp(1.8rem, 4.6vw, 4.4rem)', lineHeight: 0.98, letterSpacing: '-0.03em' }}
+          from={0.2}
+        />
+        <p className="font-body measure-wide mt-9 text-base leading-relaxed text-text-300 sm:text-lg">
+          When one team owns strategy, design, content and campaigns, nothing gets lost between agencies — the idea
+          that wins the pitch is the idea that ships.
+        </p>
+        <p className="font-body measure-wide mt-5 text-base leading-relaxed text-text-500">
+          We work out of {contact.location}, with brands anywhere.
+        </p>
+      </section>
+
+      {/* six disciplines + four beats, one connected column */}
+      <section aria-label="Capabilities and process" className="flow-gutter relative" style={{ marginTop: mobile ? '12vh' : '18vh' }}>
+        <KineticLabel text="THE DISCIPLINES" />
+        <ol className="mt-10">
+          {services.map((s) => (
+            <li
+              key={s.id}
+              data-row
+              className="flex list-none flex-col gap-x-12 gap-y-2 py-6 lg:flex-row lg:items-baseline"
+              style={{ opacity: reduced ? 1 : undefined }}
+            >
+              <span className="font-body w-12 shrink-0 text-[11px] text-text-500" style={{ letterSpacing: '0.22em' }}>
+                {s.index}
+              </span>
+              <h3
+                className="font-display w-full max-w-[16ch] shrink-0 font-bold text-text-100"
+                style={{ fontSize: 'clamp(1.4rem, 3vw, 2.4rem)', lineHeight: 1.02, letterSpacing: '-0.02em' }}
+              >
+                {s.title}
+              </h3>
+              <p className="font-body measure-wide text-sm leading-relaxed text-text-300 lg:pt-1">{s.description}</p>
+            </li>
           ))}
         </ol>
+
+        <div style={{ marginTop: mobile ? '9vh' : '13vh' }}>
+          <KineticLabel text="HOW IT FLOWS" />
+          <ol className="mt-10 flex flex-wrap gap-x-[clamp(2rem,6vw,6rem)] gap-y-10">
+            {processSteps.map((step, i) => (
+              <li key={step.index} data-row className="max-w-[26ch] list-none" style={{ marginTop: i % 2 ? '2rem' : 0, opacity: reduced ? 1 : undefined }}>
+                <p className="font-display text-sm font-medium" style={{ color: 'var(--blue-400)', letterSpacing: '0.2em' }}>
+                  {step.index}
+                </p>
+                <h3
+                  className="font-display mt-3 font-bold uppercase text-text-100"
+                  style={{ fontSize: 'clamp(1.6rem, 3.4vw, 2.8rem)', lineHeight: 0.98, letterSpacing: '-0.025em' }}
+                >
+                  {step.title}
+                </h3>
+                <p className="font-body mt-3 text-sm leading-relaxed text-text-300">{step.description}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <div data-flow-anchor="left" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '64%' }} aria-hidden="true" />
       </section>
 
-      {/* closing CTA */}
-      <section aria-label="Start a project" className="border-t" style={{ borderColor: 'var(--border)' }}>
-        <div className="mx-auto w-full max-w-[1500px] px-6 py-[10vh] sm:px-10 lg:px-14">
-          <Reveal variant="fade-up">
-            <h2 className="font-display max-w-3xl font-bold uppercase text-text-100" style={{ fontSize: 'clamp(1.7rem, 3.6vw, 3.4rem)', lineHeight: 1.05 }}>
-              {closing.question}
-            </h2>
-            <div className="mt-8 flex flex-wrap items-center gap-x-10 gap-y-4">
-              <Link
-                href="/contact"
-                className="group inline-flex min-h-[48px] items-center gap-4 rounded-full border px-7 py-3.5 font-display text-[13px] font-medium uppercase text-text-100 transition-colors duration-300 hover:border-[var(--blue-400)] hover:text-[var(--blue-200)]"
-                style={{ letterSpacing: '0.2em', borderColor: 'var(--blue-alpha-40)' }}
-              >
-                Start a Project
-                <svg width="26" height="10" viewBox="0 0 26 10" fill="none" aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1.5">
-                  <path d="M0 5h24M20 1l4 4-4 4" stroke="currentColor" strokeWidth="1.3" />
-                </svg>
-              </Link>
-              <a href={`mailto:${contact.email}`} className="font-body min-h-[44px] py-2 text-sm text-text-300 transition-colors hover:text-text-100">
-                {contact.email}
-              </a>
-            </div>
-          </Reveal>
+      {/* the ask */}
+      <section aria-label="Start a project" className="flow-gutter relative" style={{ marginTop: mobile ? '12vh' : '18vh' }}>
+        <ScrollHeadline
+          as="h2"
+          text={closing.question}
+          accent={['RISE']}
+          className="font-display max-w-[15ch] font-bold uppercase text-text-100"
+          style={{ fontSize: 'clamp(2.2rem, 7.4vw, 7rem)', lineHeight: 0.9, letterSpacing: '-0.035em' }}
+          from={0.2}
+          end="top 38%"
+        />
+        <div className="mt-12 flex flex-wrap items-center gap-x-12 gap-y-6">
+          <MagneticLink
+            href="/contact"
+            className="group font-display inline-flex min-h-[52px] items-center rounded-full border px-8 py-3.5 text-[13px] font-medium uppercase text-text-100 transition-colors duration-300 hover:border-[var(--blue-400)] hover:text-[var(--blue-200)]"
+            style={{ letterSpacing: '0.2em', borderColor: 'var(--blue-alpha-40)' }}
+          >
+            Start a project
+            <svg width="26" height="10" viewBox="0 0 26 10" fill="none" aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1.5">
+              <path d="M0 5h24M20 1l4 4-4 4" stroke="currentColor" strokeWidth="1.3" />
+            </svg>
+          </MagneticLink>
+          <a href={`mailto:${contact.email}`} className="font-body flex min-h-[44px] items-center text-sm text-text-300 transition-colors hover:text-text-100">
+            {contact.email}
+          </a>
         </div>
+        <div data-flow-anchor="center" className="pointer-events-none h-px" aria-hidden="true" />
       </section>
     </main>
   )

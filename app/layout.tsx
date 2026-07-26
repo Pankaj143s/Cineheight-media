@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import localFont from 'next/font/local'
 import './globals.css'
+import SmoothScrollProvider from '@/components/flow/SmoothScrollProvider'
+import RouteTransition from '@/components/flow/RouteTransition'
 
 const bebas = localFont({
   src: '../public/fonts/bebas-neue-400.woff2',
@@ -72,7 +74,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${bebas.variable} ${satoshi.variable} ${poppins.variable}`}>
-      <body>{children}</body>
+      <body>
+        <SmoothScrollProvider>{children}</SmoothScrollProvider>
+        <RouteTransition />
+      </body>
     </html>
   )
 }

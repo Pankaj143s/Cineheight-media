@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import FlowDirector from '@/components/flow/FlowDirector'
 import CaseStudyPage from '@/components/case-study/CaseStudyPage'
 import { caseStudies, getCaseStudy } from '@/content/caseStudies'
 
@@ -32,6 +33,9 @@ export default function Page({ params }: { params: { slug: string } }) {
   return (
     <>
       <span id="top" />
+      {/* The route atmosphere carries this client's accent — the only place
+          their colour appears at page scale. */}
+      <FlowDirector accent={cs.accentColor} />
       <Navbar />
       <CaseStudyPage slug={params.slug} />
       <Footer />

@@ -5,19 +5,32 @@ import Reveal from '@/components/ui/Reveal'
 import { contact, navItems, closing } from '@/content/siteContent'
 
 /**
- * Footer (spec §23) — the same stage settling to rest. New design (not the old
- * footer): the Bebas wordmark bookends the hero's opening title, one quiet
- * utility line carries the real details, and motion reduces to a single soft
- * reveal. No fabricated legal links — none exist in the source project
- * (docs/ROUTE-MAP.md); the copyright line is the only legal text.
+ * Footer — the same stage settling to rest. The Bebas wordmark bookends the
+ * hero's opening title, one quiet utility line carries the real details, and
+ * motion reduces to a single soft reveal. No fabricated legal links — none
+ * exist in the source project; the copyright line is the only legal text.
+ *
+ * `variant="integrated"` is used by the homepage's closing scene: the footer
+ * emerges out of the CTA field with no rule above it and no separate band, so
+ * the page ends as one composition. Every other route uses the standalone
+ * variant, where a hairline marks the end of the content.
  */
-export default function Footer() {
+export default function Footer({ variant = 'standalone' }: { variant?: 'standalone' | 'integrated' }) {
   const year = new Date().getFullYear()
+  const integrated = variant === 'integrated'
 
   return (
-    <footer aria-label="Site footer" className="relative overflow-hidden pb-10 pt-[6vh]">
-      <div className="mx-auto w-full max-w-[1800px] px-6 sm:px-10 lg:px-14">
-        <Reveal variant="fade" className="border-t pt-10" style={{ borderColor: 'var(--border)' }}>
+    <footer
+      aria-label="Site footer"
+      className="relative z-10 overflow-hidden pb-10"
+      style={{ paddingTop: integrated ? 'clamp(5rem, 12vh, 10rem)' : '6vh' }}
+    >
+      <div className={integrated ? 'flow-gutter w-full' : 'mx-auto w-full max-w-[1800px] px-6 sm:px-10 lg:px-14'}>
+        <Reveal
+          variant="fade"
+          className={integrated ? '' : 'border-t pt-10'}
+          style={integrated ? undefined : { borderColor: 'var(--border)' }}
+        >
           <p className="font-body max-w-sm text-sm leading-relaxed text-text-300">{closing.footerLine}</p>
         </Reveal>
 
