@@ -176,13 +176,17 @@ export default function ShowreelSection() {
         </span>
       </div>
 
-      {/* Frame — full-bleed 100vw, 16:9, capped to the viewport height. Video
+      {/* Frame — full-bleed width, 16:9, capped to the viewport height. Video
           stays object-cover so it never distorts; ≤16:9 screens fill, ultrawide
-          cover-crops a little, mobile is a natural full-width band. */}
+          cover-crops a little, mobile is a natural full-width band.
+          `width: 100%` (not 100vw) — this section is a direct, unconstrained
+          child of <main>, so 100% is visually identical but never overshoots
+          the viewport by the vertical-scrollbar gutter (spec §35/39: no
+          horizontal overflow). */}
       <div
         ref={frameRef}
-        className="relative z-10 will-change-transform"
-        style={{ width: '100vw', aspectRatio: '16 / 9', maxHeight: '100dvh' }}
+        className="relative z-10 w-full will-change-transform"
+        style={{ aspectRatio: '16 / 9', maxHeight: '100dvh' }}
       >
         <div ref={tiltRef} className="relative h-full w-full will-change-transform">
           <video

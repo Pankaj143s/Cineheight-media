@@ -6,3 +6,6 @@ build/
 next-env.d.ts
 .env*
 .DS_Store
+
+# Packaged build artefact — regenerated on demand, never versioned
+*.zip

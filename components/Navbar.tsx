@@ -49,7 +49,9 @@ export default function Navbar() {
         pointerEvents: visible ? 'auto' : 'none',
         visibility: visible ? 'visible' : 'hidden',
         background:
-          'linear-gradient(to bottom, rgba(2,3,6,0.9), rgba(2,3,6,0.4) 72%, transparent)',
+          'linear-gradient(to bottom, rgba(2,3,6,0.82), rgba(2,3,6,0.6) 80%, rgba(2,3,6,0.2))',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
       }}
       aria-hidden={!visible}
     >
