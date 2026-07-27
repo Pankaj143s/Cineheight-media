@@ -24,6 +24,24 @@ import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 
 const EASE = 0.15 // fraction of the gap closed per 60 Hz frame
 
+/**
+ * iPhone 17 Pro geometry, used as the reference for a realistic handset.
+ *
+ * The shell was previously 0.61 — roughly 1:1.64, far wider than any modern
+ * phone — which is why the reels read as stubby and horizontally squashed.
+ * Body is 71.9 × 150.0 mm; the display is 1206 × 2622 px. Both ratios are
+ * needed: the outer shell follows the body, the screen aperture inside the
+ * bezel follows the display.
+ *
+ * This is a proportion reference only. Nothing here is an official Apple
+ * component and no Apple marks are drawn.
+ */
+export const IPHONE_17_PRO_BODY_RATIO = 71.9 / 150
+export const IPHONE_17_PRO_SCREEN_RATIO = 1206 / 2622
+
+/** Upper bound on the active handset height on very large displays. */
+const PHONE_MAX_H = 670
+
 export default function PhoneReelExperience({
   reels,
   handle = 'cineheight.media',
@@ -95,11 +113,10 @@ export default function PhoneReelExperience({
   /**
    * Phone size, derived from the stage but hard-capped.
    *
-   * The previous rule took 94% of an 84svh stage, which on a standard desktop
-   * produced a 700–900px phone that owned the whole viewport and floated free
-   * of its own text. The cap keeps the active phone at roughly 460–700px so it
-   * reads as one element in an editorial composition, and the width constraint
-   * keeps it inside its column rather than the full page width.
+   * Height is the driver and width follows the real body ratio — the handset is
+   * never widened to fill space, because that is exactly what produced the
+   * stubby, squashed look. When the stage is too narrow for a phone of the
+   * wanted height, the height comes down; the proportions never change.
    */
   const measure = useCallback(() => {
     const stage = stageRef.current
@@ -107,17 +124,17 @@ export default function PhoneReelExperience({
     const h = stage.clientHeight
     const w = stage.clientWidth
 
-    const byHeight = mobile ? h * 0.9 : clamp(h * 0.8, 460, 700)
-    // Also bounded by the column: the phone must never be widened to fill the
-    // stage, and side phones need room to stay visible.
-    // A slightly wider shell keeps the mobile stack from reading as squeezed.
-    // The actual portrait media remains true 9:16 inside the handset.
-    const shellRatio = 0.61
-    const byWidth = (mobile ? w * 0.82 : w * 0.44) / shellRatio
-    const phoneH = Math.max(320, Math.min(byHeight, byWidth))
-    const phoneW = phoneH * shellRatio
+    const byHeight = mobile
+      ? clamp(h * 0.92, 420, 640)
+      : clamp(h * 0.84, 460, PHONE_MAX_H)
+    const byWidth = (mobile ? w * 0.7 : w * 0.42) / IPHONE_17_PRO_BODY_RATIO
+    const phoneH = Math.max(340, Math.min(byHeight, byWidth))
+    const phoneW = phoneH * IPHONE_17_PRO_BODY_RATIO
 
-    spacing.current = phoneW * (mobile ? 0.68 : 0.66)
+    // A narrower handset needs a proportionally wider spread, or the stage
+    // gains dead air on both sides. Extra width goes into the gaps between
+    // phones, never into the phones themselves.
+    spacing.current = phoneW * (mobile ? 0.82 : 0.9)
     stage.style.setProperty('--phone-w', `${Math.round(phoneW)}px`)
     stage.style.setProperty('--phone-h', `${Math.round(phoneH)}px`)
   }, [mobile])
@@ -137,9 +154,9 @@ export default function PhoneReelExperience({
         continue
       }
       el.style.visibility = 'visible'
-      // ±1 lands at ~0.84, ±2 at ~0.68 — visible enough to explain the
-      // interaction, never almost as tall as the centre phone.
-      const scale = clamp(1 - abs * (mobile ? 0.14 : 0.16), 0.6, 1)
+      // ±1 lands at ~0.82, ±2 at ~0.64 — near phones stay legible enough to
+      // explain the interaction, far ones only suggest depth.
+      const scale = clamp(1 - abs * (mobile ? 0.16 : 0.18), 0.6, 1)
       // Gentler than before: heavy rotation made the side phones read as
       // separate objects rather than the same installation.
       const rotate = clamp(-off * (mobile ? 8 : 11), -26, 26)
@@ -147,7 +164,7 @@ export default function PhoneReelExperience({
       el.style.transform =
         `translate3d(calc(-50% + ${(off * gap).toFixed(1)}px), -50%, ${z.toFixed(1)}px)` +
         ` rotateY(${rotate.toFixed(2)}deg) scale(${scale.toFixed(4)})`
-      el.style.opacity = String(clamp(1 - abs * 0.36, 0, 1))
+      el.style.opacity = String(clamp(1 - abs * 0.32, 0, 1))
       el.style.zIndex = String(40 - Math.round(abs * 6))
       el.style.filter = `brightness(${clamp(1 - abs * 0.24, 0.4, 1)})`
     }
@@ -383,8 +400,8 @@ export default function PhoneReelExperience({
           {reels.map((r, i) => (
             <li
               key={r.id}
-              className="w-[min(74vw,300px)] shrink-0 snap-center"
-              style={{ aspectRatio: '9 / 16' }}
+              className="w-[min(68vw,260px)] shrink-0 snap-center"
+              style={{ aspectRatio: String(IPHONE_17_PRO_BODY_RATIO) }}
             >
               <PhoneReelShell item={r} seed={i + 1} handle={handle} isActive={false} mountVideo={false} />
               <p className="font-body mt-3 text-xs text-text-300">
@@ -495,7 +512,7 @@ export default function PhoneReelExperience({
       onPointerCancel={endDrag}
       className="relative w-full cursor-grab touch-pan-y select-none active:cursor-grabbing"
       style={{
-        height: mobile ? 'clamp(540px, 74svh, 760px)' : 'clamp(560px, 72svh, 780px)',
+        height: mobile ? 'clamp(500px, 70svh, 700px)' : 'clamp(520px, 68svh, 740px)',
         perspective: mobile ? '1100px' : '1500px',
         // Nudged right so the installation sits off-centre against the
         // editorial column rather than dead-centre in its own box.
@@ -528,6 +545,8 @@ export default function PhoneReelExperience({
               if (i === active) openActive()
               else goTo(i)
             }}
+            data-phone-card
+            data-phone-active={i === active}
             className="absolute left-1/2 top-1/2 will-change-transform"
             style={{
               width: 'var(--phone-w, 282px)',

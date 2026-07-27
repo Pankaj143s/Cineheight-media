@@ -438,73 +438,145 @@ if (hasFlag('probe')) {
     JSON.stringify(fontState)
   )
 
-  // The compact process journey uses its original one-time activation rather
-  // than scrubbing its typography backward and forward with scroll.
+  /*
+   * The process journey is scroll-scrubbed, so the invariants are different
+   * from the old fire-once version: it must draw as you descend, RETRACT as you
+   * come back up, and — the point of the rebuild — its geometry must be
+   * measured, meaning the drawn line actually passes through every node and the
+   * travelling pulse sits exactly on the leading edge.
+   */
   const processState = await cdp.eval(`(async () => {
     const root = document.querySelector('#process')
     const path = root?.querySelector('[data-process-path]')
+    const pulse = root?.querySelector('[data-process-pulse]')
     const title = root?.querySelector('[data-process-title]')
-    if (!root || !path || !title) return null
-    const before = {
+    const nodes = [...(root?.querySelectorAll('[data-process-node]') ?? [])]
+    if (!root || !path || !pulse || !title || nodes.length !== 4) return null
+
+    const titles = [...root.querySelectorAll('[data-process-title]')]
+    const read = () => ({
       dash: Number.parseFloat(getComputedStyle(path).strokeDashoffset),
       titleOpacity: Number.parseFloat(getComputedStyle(title).opacity),
+      lastTitleOpacity: Number.parseFloat(getComputedStyle(titles[titles.length - 1]).opacity),
+    })
+    /** Shortest distance from a point to the drawn path, in px. */
+    const distanceToPath = (x, y) => {
+      const total = path.getTotalLength()
+      let best = Infinity
+      for (let i = 0; i <= 400; i++) {
+        const p = path.getPointAtLength((total * i) / 400)
+        const d = Math.hypot(p.x - x, p.y - y)
+        if (d < best) best = d
+      }
+      return best
     }
-    root.scrollIntoView({ block: 'center' })
-    await new Promise(r => setTimeout(r, 3100))
-    const completed = {
-      dash: Number.parseFloat(getComputedStyle(path).strokeDashoffset),
-      titleOpacity: Number.parseFloat(getComputedStyle(title).opacity),
+
+    const scrollToOffset = (fraction) => {
+      const rect = root.getBoundingClientRect()
+      window.scrollTo(0, rect.top + window.scrollY - innerHeight * fraction)
     }
-    window.scrollTo(0, 0)
-    await new Promise(r => setTimeout(r, 350))
-    root.scrollIntoView({ block: 'center' })
-    await new Promise(r => setTimeout(r, 180))
-    const returned = {
-      dash: Number.parseFloat(getComputedStyle(path).strokeDashoffset),
-      titleOpacity: Number.parseFloat(getComputedStyle(title).opacity),
+
+    scrollToOffset(0.95)
+    await new Promise(r => setTimeout(r, 500))
+    const before = read()
+
+    scrollToOffset(0.35)
+    await new Promise(r => setTimeout(r, 900))
+    const mid = read()
+    // Is the pulse on the line, and is it at the leading edge of the fill?
+    const total = path.getTotalLength()
+    const pulsePoint = { x: Number(pulse.getAttribute('cx')), y: Number(pulse.getAttribute('cy')) }
+    const pulseOffPath = distanceToPath(pulsePoint.x, pulsePoint.y)
+    const drawnLength = total - mid.dash
+    const edge = path.getPointAtLength(Math.max(0, Math.min(total, drawnLength)))
+    const pulseToEdge = Math.hypot(edge.x - pulsePoint.x, edge.y - pulsePoint.y)
+
+    // Every node must sit on the curve, at every viewport.
+    const nodesOffPath = nodes.map(n =>
+      distanceToPath(Number(n.getAttribute('cx')), Number(n.getAttribute('cy')))
+    )
+
+    // Scrub (0.75) plus smooth scrolling means a long jump needs real settle
+    // time before the value can be trusted.
+    scrollToOffset(-0.6)
+    await new Promise(r => setTimeout(r, 1800))
+    const complete = read()
+
+    scrollToOffset(0.95)
+    await new Promise(r => setTimeout(r, 1800))
+    const reversed = read()
+
+    return {
+      before, mid, complete, reversed,
+      pulseOffPath, pulseToEdge,
+      maxNodeOffPath: Math.max(...nodesOffPath),
     }
-    return { before, completed, returned }
   })()`)
   check(
-    'How We Work is readable before activation and remains complete when revisited',
+    'process path is measured — every node and the pulse sit on the drawn line',
     processState &&
-      processState.before.dash > 100 &&
-      processState.before.titleOpacity >= 0.7 &&
-      Math.abs(processState.completed.dash) < 1 &&
-      processState.completed.titleOpacity > 0.98 &&
-      Math.abs(processState.returned.dash) < 1 &&
-      processState.returned.titleOpacity > 0.98,
-    JSON.stringify(processState)
+      processState.maxNodeOffPath < 1.5 &&
+      processState.pulseOffPath < 1.5 &&
+      processState.pulseToEdge < 4,
+    JSON.stringify(processState && {
+      maxNodeOffPath: processState.maxNodeOffPath,
+      pulseOffPath: processState.pulseOffPath,
+      pulseToEdge: processState.pulseToEdge,
+    })
+  )
+  check(
+    'process line scrubs forward, completes, and retracts on reverse scroll',
+    processState &&
+      processState.before.dash > processState.mid.dash &&
+      processState.mid.dash > processState.complete.dash &&
+      processState.complete.dash < 2 &&
+      processState.reversed.dash > processState.complete.dash + 50 &&
+      // Text is never withheld: even un-activated it stays legible, and the
+      // leading step is the brightest once the line has run its course while
+      // earlier steps only quieten a little.
+      processState.before.titleOpacity >= 0.3 &&
+      processState.complete.lastTitleOpacity > 0.95 &&
+      processState.complete.titleOpacity > 0.8,
+    processState
+      ? `dash ${processState.before.dash.toFixed(0)} → ${processState.mid.dash.toFixed(0)} → ` +
+        `${processState.complete.dash.toFixed(0)} → ${processState.reversed.dash.toFixed(0)} ` +
+        `(first title ${processState.before.titleOpacity.toFixed(2)} → ${processState.complete.titleOpacity.toFixed(2)}, ` +
+        `last ${processState.complete.lastTitleOpacity.toFixed(2)})`
+      : 'no process section'
   )
 
   const marqueeState = await cdp.eval(`(async () => {
     const root = document.querySelector('[aria-label="Brands we have worked with"]')
-    const forward = root?.querySelector('[data-client-marquee-track="forward"]')
-    const reverse = root?.querySelector('[data-client-marquee-track="reverse"]')
-    if (!root || !forward || !reverse) return null
-    const x = (element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m41
+    const track = root?.querySelector('[data-client-marquee-track="forward"]')
+    const extra = root?.querySelectorAll('[data-client-marquee-track]').length ?? 0
+    const groups = root?.querySelectorAll('[data-client-marquee-track] > ul') ?? []
+    if (!root || !track) return null
+    const x = () => new DOMMatrixReadOnly(getComputedStyle(track).transform).m41
     root.scrollIntoView({ block: 'center' })
-    await new Promise(r => setTimeout(r, 300))
-    const first = { forward: x(forward), reverse: x(reverse) }
+    await new Promise(r => setTimeout(r, 320))
+    const first = x()
     await new Promise(r => setTimeout(r, 650))
-    const second = { forward: x(forward), reverse: x(reverse) }
+    const second = x()
     root.dispatchEvent(new PointerEvent('pointerenter'))
-    await new Promise(r => setTimeout(r, 80))
-    const pausedA = { forward: x(forward), reverse: x(reverse) }
     await new Promise(r => setTimeout(r, 420))
-    const pausedB = { forward: x(forward), reverse: x(reverse) }
+    const pausedA = x()
+    await new Promise(r => setTimeout(r, 420))
+    const pausedB = x()
     root.dispatchEvent(new PointerEvent('pointerleave'))
-    return { first, second, pausedA, pausedB }
+    return {
+      first, second, pausedA, pausedB,
+      trackCount: extra,
+      groupCount: groups.length,
+      hiddenClones: [...groups].filter(g => g.getAttribute('aria-hidden') === 'true').length,
+    }
   })()`)
   check(
-    'client carousel runs two seamless tracks in opposing directions and pauses on hover',
+    'one logo carousel drifts continuously, pauses on hover, and hides its clones',
     marqueeState &&
-      marqueeState.second.forward < marqueeState.first.forward &&
-      marqueeState.second.reverse > marqueeState.first.reverse &&
-      Math.abs(marqueeState.second.forward - marqueeState.first.forward) >
-        Math.abs(marqueeState.second.reverse - marqueeState.first.reverse) &&
-      Math.abs(marqueeState.pausedB.forward - marqueeState.pausedA.forward) < 0.5 &&
-      Math.abs(marqueeState.pausedB.reverse - marqueeState.pausedA.reverse) < 0.5,
+      marqueeState.trackCount === 1 &&
+      marqueeState.second < marqueeState.first &&
+      Math.abs(marqueeState.pausedB - marqueeState.pausedA) < 1.5 &&
+      marqueeState.hiddenClones === marqueeState.groupCount - 1,
     JSON.stringify(marqueeState)
   )
 
@@ -641,24 +713,45 @@ if (hasFlag('probe')) {
     fullOrder.join(',') === 'name,contact,company,service,preferredContact,timeline,projectDetails,submit',
     fullOrder.join(' → ')
   )
-  const socialFocus = await cdp.eval(`(() => {
-    const links = [...document.querySelectorAll('footer a[aria-label*="opens in a new tab"]')]
-    const target = links[0]
+  /*
+   * All four social channels are launch placeholders: real buttons that
+   * explain themselves, never anchors and never disabled glyphs. The probe
+   * asserts they are focusable, correctly sized, navigate nowhere, and say so
+   * when pressed.
+   */
+  const socialState = await cdp.eval(`(async () => {
+    const buttons = [...document.querySelectorAll('footer button[aria-label$="link coming soon"]')]
+    const anchors = [...document.querySelectorAll('footer a[aria-label*="opens in a new tab"]')]
+    const target = buttons[0]
     target?.focus()
     const rect = target?.getBoundingClientRect()
+    const pathBefore = location.pathname + location.hash
+    target?.click()
+    await new Promise(r => setTimeout(r, 120))
+    const tooltip = [...document.querySelectorAll('footer [role="status"]')]
+      .map(n => n.textContent.trim()).filter(Boolean).join('|')
     return {
-      count: links.length,
-      label: target?.getAttribute('aria-label') || '',
+      buttonCount: buttons.length,
+      anchorCount: anchors.length,
+      labels: buttons.map(b => b.getAttribute('aria-label')),
       focused: document.activeElement === target,
       width: rect?.width || 0,
       height: rect?.height || 0,
+      navigated: (location.pathname + location.hash) !== pathBefore,
+      tooltip,
+      cursors: buttons.map(b => getComputedStyle(b).cursor),
     }
   })()`)
   check(
-    'only verified Instagram renders with a keyboard-focusable 44px target',
-    socialFocus.count === 1 && /Instagram/.test(socialFocus.label) && socialFocus.focused &&
-      socialFocus.width >= 44 && socialFocus.height >= 44,
-    `${socialFocus.count} link; ${socialFocus.width}×${socialFocus.height}; focused=${socialFocus.focused}`
+    'four social placeholders are focusable 44px buttons that never navigate',
+    socialState.buttonCount === 4 &&
+      socialState.anchorCount === 0 &&
+      socialState.focused &&
+      socialState.width >= 44 && socialState.height >= 44 &&
+      !socialState.navigated &&
+      /connected before launch/.test(socialState.tooltip) &&
+      !socialState.cursors.some(c => c === 'not-allowed'),
+    JSON.stringify(socialState)
   )
 
   // ---- image lightbox on a case study ---------------------------------
@@ -737,6 +830,43 @@ if (hasFlag('probe')) {
   await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
   await sleep(700)
   check('video lightbox closes on Escape', await cdp.eval(`!document.querySelector('[role="dialog"]')`))
+
+  /*
+   * Handset proportions. The shell must follow the iPhone 17 Pro body
+   * (71.9/150 ≈ 0.4793) and the screen aperture inside the bezel must follow
+   * the display (1206/2622 ≈ 0.460). The old 0.61 shell is what made the reels
+   * read as stubby, so this is asserted rather than eyeballed.
+   */
+  const phoneGeometry = await cdp.eval(`(() => {
+    const reels = document.querySelector('[aria-label$="reels"]')
+    const card = reels?.querySelector('[data-phone-card][data-phone-active="true"]')
+    if (!card) return null
+    const body = card.getBoundingClientRect()
+    // The screen is the padded box inside the body chrome.
+    const shell = card.firstElementChild
+    const screen = shell?.firstElementChild?.getBoundingClientRect()
+    const media = shell?.querySelector('img[alt]:not([aria-hidden])')?.getBoundingClientRect()
+    return {
+      bodyRatio: body.width / body.height,
+      bodyHeight: body.height,
+      screenRatio: screen ? screen.width / screen.height : null,
+      mediaCoversScreen: media && screen
+        ? media.width >= screen.width - 1.5 && media.height >= screen.height - 1.5
+        : null,
+    }
+  })()`)
+  check(
+    'phones use iPhone 17 Pro body and display proportions',
+    phoneGeometry &&
+      Math.abs(phoneGeometry.bodyRatio - 71.9 / 150) < 0.012 &&
+      Math.abs(phoneGeometry.screenRatio - 1206 / 2622) < 0.012 &&
+      phoneGeometry.bodyHeight >= 455 && phoneGeometry.bodyHeight <= 685,
+    phoneGeometry
+      ? `body ${phoneGeometry.bodyRatio.toFixed(4)} (want 0.4793), screen ${phoneGeometry.screenRatio?.toFixed(4)} ` +
+        `(want 0.4600), h=${phoneGeometry.bodyHeight.toFixed(0)}, mediaFills=${phoneGeometry.mediaCoversScreen}`
+      : 'no active phone'
+  )
+
 
   // ---- videos pause when the tab is hidden ----------------------------
   await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 })
@@ -969,9 +1099,13 @@ if (hasFlag('refinement')) {
   await shoot(cdp, 'refinement/home-form-success__1440x900.png')
 
   await centre('/', 'footer')
-  await cdp.eval(`document.querySelector('a[aria-label^="Instagram"]')?.focus()`)
-  await sleep(240)
+  await shoot(cdp, 'refinement/social-rest__1440x900.png')
+  await cdp.eval(`document.querySelector('footer button[aria-label^="Instagram"]')?.focus()`)
+  await sleep(320)
   await shoot(cdp, 'refinement/social-focus__1440x900.png')
+  await cdp.eval(`document.querySelector('footer button[aria-label^="Instagram"]')?.click()`)
+  await sleep(220)
+  await shoot(cdp, 'refinement/social-tooltip__1440x900.png')
 
   console.log('captured refinement interaction evidence')
   proc?.kill()

@@ -88,15 +88,27 @@ const PhoneReelShell = forwardRef<HTMLVideoElement, {
 
   return (
     <div
-      className="relative h-full w-full rounded-[2.4rem] p-[3px]"
+      className="relative h-full w-full"
       style={{
         background: 'linear-gradient(158deg, #2b3242 0%, #10131c 54%, #262d3d 100%)',
+        /*
+         * The bezel is a percentage of the BODY WIDTH on all four sides — CSS
+         * resolves percentage padding against the inline size, so a single
+         * value gives the uniform rail a real handset has. With the body at
+         * 71.9 × 150 mm and a 2.65 mm rail, this lands the screen aperture on
+         * 1206 / 2622 ≈ 0.460 without hard-coding a second ratio anywhere.
+         */
+        padding: '3.686%',
+        borderRadius: 'calc(var(--phone-w, 280px) * 0.148)',
         boxShadow: isActive
           ? '0 34px 90px -18px rgba(0,0,0,0.85), 0 0 46px rgba(0,137,255,0.16)'
           : '0 18px 50px -16px rgba(0,0,0,0.75)',
       }}
     >
-      <div className="relative h-full w-full overflow-hidden rounded-[2.25rem] bg-black">
+      <div
+        className="relative h-full w-full overflow-hidden bg-black"
+        style={{ borderRadius: 'calc(var(--phone-w, 280px) * 0.113)' }}
+      >
         {item.isPlaceholder ? (
           /* ---- honest gap: no media element of any kind ---- */
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
@@ -114,23 +126,15 @@ const PhoneReelShell = forwardRef<HTMLVideoElement, {
             />
           </div>
         ) : item.portrait ? (
-          /* The handset is slightly wider than 9:16 for a less squeezed mobile
-             silhouette. Keep the master at its true ratio inside quiet rails. */
+          /*
+           * A true 9:16 master fills the 1206/2622 screen exactly as Instagram
+           * itself presents a reel — edge to edge, with the small side overscan
+           * absorbed by object-cover. No blurred plate here: it would be
+           * completely covered, so rendering one would be a second background
+           * treatment that nobody ever sees.
+           */
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={item.poster}
-              alt=""
-              aria-hidden="true"
-              draggable={false}
-              className="absolute inset-0 h-full w-full object-cover"
-              style={{ transform: 'scale(1.06)', filter: 'blur(18px) brightness(0.42)' }}
-              loading="lazy"
-            />
-            <div
-              className="absolute inset-y-0 left-1/2 -translate-x-1/2 overflow-hidden"
-              style={{ aspectRatio: '9 / 16', maxWidth: '100%' }}
-            >
+            <div className="absolute inset-0 overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={item.poster}
@@ -225,8 +229,19 @@ const PhoneReelShell = forwardRef<HTMLVideoElement, {
 
         {/* layer 3 — Instagram chrome across the FULL 9:16 screen */}
         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-          {/* notch */}
-          <div className="absolute left-1/2 top-2.5 h-[17px] w-[74px] -translate-x-1/2 rounded-full border border-white/5 bg-black" />
+          {/*
+            Dynamic Island, sized from the handset width rather than in fixed
+            pixels — at a fixed 74px it read as a letterbox slot on a small
+            phone and a pinhole on a large one.
+          */}
+          <div
+            className="absolute left-1/2 -translate-x-1/2 rounded-full border border-white/5 bg-black"
+            style={{
+              top: 'calc(var(--phone-w, 280px) * 0.038)',
+              width: 'calc(var(--phone-w, 280px) * 0.3)',
+              height: 'calc(var(--phone-w, 280px) * 0.082)',
+            }}
+          />
 
           {/* reels header */}
           <div className="absolute inset-x-0 top-8 flex items-center justify-between px-4">

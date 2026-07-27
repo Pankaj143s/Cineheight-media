@@ -325,6 +325,21 @@ html[data-contour-active='true'] .static-contour-field {
   opacity: 1 !important;
 }
 
+/*
+ * The active handset lifts very slightly under the pointer. The carousel's rAF
+ * owns `transform` on this element, so the hover state uses the independent
+ * `scale` property and the two compose rather than overwrite each other.
+ */
+[data-phone-card][data-phone-active='true'] {
+  transition: scale 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  [data-phone-card][data-phone-active='true']:hover {
+    scale: 1.015;
+  }
+}
+
 @keyframes signal-complete {
   from {
     opacity: 0.25;

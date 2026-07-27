@@ -8,7 +8,7 @@ import { EASE_CONTROL, EASE_TRAVEL } from '@/lib/motionTokens'
 
 const OUT_MS = 360
 const IN_MS = 300
-const COMPLETE_MS = 140
+const COMPLETE_MS = 180
 const NAVIGATION_TIMEOUT_MS = 10_000
 
 /**
@@ -25,8 +25,8 @@ const NAVIGATION_TIMEOUT_MS = 10_000
 const RISE = { ceiling: 0.7, tau: 130, forMs: 260 }
 /** Ceiling and time constant while waiting on the route. */
 const WAIT = { ceiling: 0.88, tau: 700 }
-/** Time constant for the final run to 100 %. */
-const COMPLETE_TAU = 70
+/** Time constant for the final run to 100 %; tuned to land inside COMPLETE_MS. */
+const COMPLETE_TAU = 38
 
 type Phase = 'idle' | 'out' | 'in'
 
@@ -189,12 +189,20 @@ export default function RouteTransition() {
     }
   }, [begin])
 
-  // Start the progress loop as soon as the overlay is on screen, once the bar
-  // has a measurable width for the leading light to travel along.
+  /*
+   * Start the progress loop as soon as the overlay is on screen, once the bar
+   * has a measurable width for the leading light to travel along.
+   *
+   * This deliberately covers the `in` phase too. Tearing the loop down when the
+   * phase flipped left the bar frozen a couple of percent short of full, since
+   * the final ramp is still running at that moment.
+   */
   useEffect(() => {
-    if (phase !== 'out' || reduced) return
-    trackWidthRef.current = trackRef.current?.getBoundingClientRect().width ?? 0
-    paint(0)
+    if (phase === 'idle' || reduced) return
+    if (phase === 'out') {
+      trackWidthRef.current = trackRef.current?.getBoundingClientRect().width ?? 0
+      paint(0)
+    }
     runLoop()
     return stopLoop
   }, [paint, phase, reduced, runLoop, stopLoop])
@@ -211,6 +219,9 @@ export default function RouteTransition() {
       if (reduced) paint(1)
       schedule(() => {
         pendingRef.current = null
+        // Guarantee a full bar at the moment the destination is revealed,
+        // whatever the ramp happened to be doing.
+        paint(1)
         setPhase('in')
         publishAudioEvent({ type: 'route-in' })
         schedule(finish, reduced ? 120 : IN_MS)

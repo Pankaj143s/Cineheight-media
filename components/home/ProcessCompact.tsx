@@ -414,6 +414,19 @@ export default function ProcessCompact() {
         </p>
       </div>
 
+      {/*
+        Bring the route thread to this side BEFORE the process line starts.
+        Without it the thread sweeps diagonally across the whole section to
+        reach the anchor at the bottom, cutting straight through the process
+        nodes so the two signal systems read as one tangled graphic.
+      */}
+      <div
+        data-flow-anchor="left"
+        data-flow-lead="1"
+        className="pointer-events-none h-px"
+        aria-hidden="true"
+      />
+
       <div
         ref={fieldRef}
         className="flow-gutter relative mt-10 sm:mt-14"
