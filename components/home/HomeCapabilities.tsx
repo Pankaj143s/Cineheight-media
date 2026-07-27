@@ -175,6 +175,8 @@ export default function HomeCapabilities() {
       c.y += (t.y - c.y) * f
       root.style.setProperty('--sx', `${(c.x * 100).toFixed(1)}%`)
       root.style.setProperty('--sy', `${(c.y * 100).toFixed(1)}%`)
+      root.style.setProperty('--cap-lean-x', `${((c.x - 0.5) * 20).toFixed(2)}px`)
+      root.style.setProperty('--cap-lean-y', `${((c.y - 0.5) * 14).toFixed(2)}px`)
       raf = requestAnimationFrame(loop)
     }
     const onMove = (e: PointerEvent) => {
@@ -182,10 +184,16 @@ export default function HomeCapabilities() {
       t.x = clamp((e.clientX - r.left) / r.width, 0, 1)
       t.y = clamp((e.clientY - r.top) / r.height, 0, 1)
     }
+    const onLeave = () => {
+      t.x = 0.5
+      t.y = 0.5
+    }
     root.addEventListener('pointermove', onMove)
+    root.addEventListener('pointerleave', onLeave)
     raf = requestAnimationFrame(loop)
     return () => {
       root.removeEventListener('pointermove', onMove)
+      root.removeEventListener('pointerleave', onLeave)
       cancelAnimationFrame(raf)
     }
   }, [rich])
@@ -202,7 +210,10 @@ export default function HomeCapabilities() {
           className="absolute inset-0"
           style={{
             opacity: active === i ? 1 : 0,
-            transform: active === i ? 'scale(1)' : 'scale(1.04)',
+            transform:
+              active === i
+                ? 'translate3d(var(--cap-lean-x), var(--cap-lean-y), 0) scale(1.02)'
+                : 'translate3d(0, 0, 0) scale(1.05)',
             transition: reduced ? 'none' : 'opacity 0.7s ease, transform 1.1s cubic-bezier(0.16,1,0.3,1)',
           }}
           aria-hidden={active !== i}
@@ -278,6 +289,7 @@ export default function HomeCapabilities() {
               }}
             >
               <span
+                data-parallax-y="0.12"
                 aria-hidden="true"
                 className="mb-4 block h-px origin-left"
                 style={{
@@ -373,6 +385,8 @@ export default function HomeCapabilities() {
         marginTop: 'calc(clamp(3.5rem, 10vh, 8rem) * var(--scene-gap))',
         ['--sx' as string]: '50%',
         ['--sy' as string]: '50%',
+        ['--cap-lean-x' as string]: '0px',
+        ['--cap-lean-y' as string]: '0px',
       }}
     >
       {rich && (

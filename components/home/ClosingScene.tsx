@@ -5,7 +5,8 @@ import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { closing, contact } from '@/content/siteContent'
 import ScrollHeadline from '@/components/motion/ScrollHeadline'
-import MagneticLink from '@/components/ui/MagneticLink'
+import ProjectContactForm from '@/components/contact/ProjectContactForm'
+import AnimatedBrandSignature from '@/components/home/AnimatedBrandSignature'
 import Footer from '@/components/Footer'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 
@@ -115,48 +116,43 @@ export default function ClosingScene() {
           />
         </div>
 
-        <div data-cta className="mt-12" style={{ opacity: reduced ? 1 : 0 }}>
-          <MagneticLink
-            href="/contact"
-            strength={9}
-            className="group font-display inline-flex min-h-[56px] items-center rounded-full border px-9 py-4 text-sm font-medium uppercase text-text-100 transition-colors duration-300 hover:border-[var(--blue-400)] hover:text-[var(--blue-200)]"
-            style={{ letterSpacing: '0.2em', borderColor: 'var(--blue-alpha-40)', background: 'rgba(0,137,255,0.06)' }}
-          >
-            {closing.cta}
-            <svg width="26" height="10" viewBox="0 0 26 10" fill="none" aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1.5">
-              <path d="M0 5h24M20 1l4 4-4 4" stroke="currentColor" strokeWidth="1.3" />
-            </svg>
-          </MagneticLink>
-          {/* the thread's destination */}
-          <div data-flow-anchor="left" className="pointer-events-none h-px w-full" aria-hidden="true" />
-        </div>
+        <div className="mt-14 grid gap-x-14 gap-y-14 lg:grid-cols-12">
+          <div data-cta data-parallax-y="0.055" className="lg:col-span-5" style={{ opacity: reduced ? 1 : 0 }}>
+            <p className="font-body max-w-md text-base leading-relaxed text-text-300">
+              Share the brief here, or reach us directly. A real person answers every channel.
+            </p>
+            <ul className="mt-9 flex flex-col items-start gap-5">
+              {channels.map((ch, index) => (
+                <li key={ch.label} data-channel className="group list-none" style={{ opacity: reduced ? 1 : 0 }}>
+                  <p className="font-display text-[10px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.28em' }}>
+                    {ch.label}
+                  </p>
+                  <a
+                    href={ch.href}
+                    {...(ch.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                    className={`font-display mt-1 inline-flex min-h-11 items-center font-medium text-text-100 transition-colors hover:text-[var(--blue-200)] ${
+                      index < 2 ? 'text-2xl sm:text-3xl' : 'text-lg'
+                    }`}
+                  >
+                    {ch.value}
+                  </a>
+                  <span
+                    aria-hidden="true"
+                    className="block h-px w-full origin-left scale-x-[0.2] bg-[var(--blue-500)] opacity-45 transition-transform duration-500 group-hover:scale-x-100"
+                  />
+                </li>
+              ))}
+            </ul>
+            <div data-flow-anchor="left" className="pointer-events-none h-px w-full" aria-hidden="true" />
+          </div>
 
-        {/* channels as part of the composition, not a contact card grid */}
-        <div data-parallax-y="0.05">
-          <ul className="mt-16 flex flex-wrap gap-x-14 gap-y-9">
-            {channels.map((ch) => (
-              <li key={ch.label} data-channel className="group list-none" style={{ opacity: reduced ? 1 : 0 }}>
-                <p className="font-display text-[10px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.28em' }}>
-                  {ch.label}
-                </p>
-                <a
-                  href={ch.href}
-                  {...(ch.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-                  className="font-display mt-2 inline-flex min-h-[44px] items-center text-xl font-medium text-text-100 transition-colors duration-300 hover:text-[var(--blue-200)] sm:text-2xl"
-                >
-                  {ch.value}
-                </a>
-                <span
-                  aria-hidden="true"
-                  className="mt-2 block h-px w-full origin-left scale-x-[0.25] bg-[var(--blue-500)] opacity-40 transition-transform duration-500 ease-out group-hover:scale-x-100 group-hover:opacity-90"
-                />
-              </li>
-            ))}
-          </ul>
+          <div className="lg:col-span-6 lg:col-start-7">
+            <ProjectContactForm variant="compact" />
+          </div>
         </div>
       </div>
 
-      {/* the footer emerges out of the same field */}
+      <AnimatedBrandSignature />
       <Footer variant="integrated" />
     </section>
   )

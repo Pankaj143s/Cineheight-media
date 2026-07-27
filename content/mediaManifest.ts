@@ -120,7 +120,7 @@ export const mediaManifest: ManifestItem[] = [
   ...(['brand-identity', 'social-media', 'graphic-design', 'video-production', 'performance-marketing', 'content-creation'].map((id, i) => ({
     id: `service-${id}`,
     client: 'cineheight' as const,
-    route: '/, /services',
+    route: '/services',
     section: 'services',
     title: ['Brand Identity & Design', 'Social Media Management', 'Graphic Design & Visuals', 'Video Production & Editing', 'Performance Marketing', 'Content Creation'][i],
     kind: 'image' as const,
@@ -133,7 +133,7 @@ export const mediaManifest: ManifestItem[] = [
     sizeKB: [76, 78, 76, 104, 91, 108][i],
     alt: '',
     preload: 'lazy' as const,
-    notes: 'Approved abstract service artwork (generated, non-client, decorative).',
+    notes: 'Approved original service artwork (generated, non-client, decorative). The newer presentation/services collection is retained but unused.',
   }))),
 
   // ---- Trusted-client logos (all real, from old public/logos) ----

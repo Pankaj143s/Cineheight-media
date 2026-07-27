@@ -49,11 +49,11 @@ and implied more work than the client supplied.
 industrial/plant photograph** that does not depict Divija at all. It is **not
 used** as a source for anything in this pass. It should be verified or removed.
 
-### Service artwork — superseded
+### Service artwork — approved production set
 
-`public/generated/services-final/*.webp` (6 × 1536×960). Retained on disk as a
-fallback, **no longer referenced**: laptops, analytics dashboards and platform
-icons read as a generic technology template. Replaced in §4.
+`public/generated/services-final/*.webp` (6 × 1536×960). This is the active
+artwork on `/services`, restored for the focused refinement pass. The homepage
+capability switcher uses client reel media and is unaffected.
 
 ---
 
@@ -118,10 +118,11 @@ Consumed by `WorkIndex.tsx` and `NextProject.tsx` through `<picture>`.
 
 ---
 
-## 4 · Service artwork — `illustrative`
+## 4 · Later service artwork — retained, unused
 
 `scripts/build-service-visuals.mjs` → `public/generated/presentation/services/`
-Six × **1920×1200** WebP, 30–72 KB each.
+Six × **1920×1200** WebP, 30–72 KB each. These files remain available for
+provenance but are not rendered by the current site.
 
 Generated as one coordinated collection (Higgsfield `cinematic_studio_2_5`, 2k,
 3:2), then normalised locally: letterbox bars measured and removed per row,

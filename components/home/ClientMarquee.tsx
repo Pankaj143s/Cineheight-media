@@ -194,6 +194,7 @@ export default function ClientMarquee() {
   return (
     <section
       ref={rootRef}
+      data-interaction-quiet
       aria-label="Brands we have worked with"
       className="relative z-10 overflow-hidden"
       style={{

@@ -19,6 +19,26 @@ export const contact = {
   instagramUrl: 'https://instagram.com/cineheight.media',
 }
 
+export type SocialPlatform = 'facebook' | 'instagram' | 'youtube' | 'linkedin'
+
+export interface SocialLink {
+  platform: SocialPlatform
+  label: string
+  href: string | null
+}
+
+/**
+ * Only render verified public profiles. The old project and public metadata
+ * verify Instagram; no authoritative Facebook, YouTube or LinkedIn company
+ * profile was found during the 2026-07-28 audit.
+ */
+export const socialLinks: SocialLink[] = [
+  { platform: 'facebook', label: 'Facebook', href: null },
+  { platform: 'instagram', label: 'Instagram', href: contact.instagramUrl },
+  { platform: 'youtube', label: 'YouTube', href: null },
+  { platform: 'linkedin', label: 'LinkedIn', href: null },
+]
+
 // ------------------------------------------------------------------- nav
 /** Old live nav had NO Insights item and no insight content exists —
  *  the item is intentionally absent (docs/ROUTE-MAP.md). */
@@ -41,12 +61,9 @@ export interface Service {
 }
 
 /**
- * `image` points at the new coordinated collection in
- * /generated/presentation/services (see scripts/build-service-visuals.mjs).
- * The previous /generated/services-final artwork is retained on disk as a
- * fallback but is no longer referenced: it showed laptops, analytics
- * dashboards and platform icons, which read as a generic technology template
- * rather than a creative agency.
+ * The approved 1536×960 service artwork from the original production set.
+ * The later `/generated/presentation/services` collection remains on disk for
+ * provenance, but the Services page deliberately does not render it.
  */
 export const services: Service[] = [
   {
@@ -56,7 +73,7 @@ export const services: Service[] = [
     description: 'Distinctive brand identities that capture your essence and resonate with your audience.',
     detail:
       'Positioning, naming systems, logo and visual identity, brand guidelines and the design language your audience will remember you by.',
-    image: '/generated/presentation/services/brand-identity.webp',
+    image: '/generated/services-final/brand-identity.webp',
   },
   {
     id: 'social-media',
@@ -65,7 +82,7 @@ export const services: Service[] = [
     description: 'Strategic social presence that builds community and converts followers into customers.',
     detail:
       'Monthly content calendars, platform strategy, community management and consistent brand presentation across every channel.',
-    image: '/generated/presentation/services/social-media.webp',
+    image: '/generated/services-final/social-media.webp',
   },
   {
     id: 'graphic-design',
@@ -74,7 +91,7 @@ export const services: Service[] = [
     description: 'Eye-catching visual content that communicates your message and stops the scroll.',
     detail:
       'Campaign creatives, social posts, infographics and print — visuals built on one coherent system, not one-off graphics.',
-    image: '/generated/presentation/services/graphic-design.webp',
+    image: '/generated/services-final/graphic-design.webp',
   },
   {
     id: 'video-production',
@@ -83,7 +100,7 @@ export const services: Service[] = [
     description: 'Cinematic storytelling that captivates your audience from concept to final cut.',
     detail:
       'Product films, reels, campaign videos and testimonials — shot, edited and graded for the platforms they live on.',
-    image: '/generated/presentation/services/video-production.webp',
+    image: '/generated/services-final/video-production.webp',
   },
   {
     id: 'performance-marketing',
@@ -92,7 +109,7 @@ export const services: Service[] = [
     description: 'Data-driven campaigns that deliver measurable results and real growth.',
     detail:
       'Targeted campaigns, lead funnels and continuous optimisation — the discipline that turns attention into enquiries and sales.',
-    image: '/generated/presentation/services/performance-marketing.webp',
+    image: '/generated/services-final/performance-marketing.webp',
   },
   {
     id: 'content-creation',
@@ -101,7 +118,7 @@ export const services: Service[] = [
     description: 'Compelling content that tells your story through photography, video, and copy.',
     detail:
       'Photography, short-form video and copywriting produced as one connected stream — so every post sounds and looks like you.',
-    image: '/generated/presentation/services/content-creation.webp',
+    image: '/generated/services-final/content-creation.webp',
   },
 ]
 

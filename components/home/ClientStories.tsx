@@ -126,7 +126,7 @@ export default function ClientStories() {
         className="relative mt-10 w-full overflow-hidden will-change-transform"
         style={{ height: mobile ? '62svh' : 'clamp(30rem, 82svh, 62rem)' }}
       >
-        <div className="absolute inset-[-3%]" data-parallax-y="0.1" data-parallax-scale="0.015">
+        <div className="absolute inset-[-2%]" data-parallax-y="0.07" data-parallax-scale="0.008">
           <OrientationMedia
             ref={videoRef}
             poster={film.poster}
@@ -149,9 +149,9 @@ export default function ClientStories() {
           </OrientationMedia>
         </div>
 
-        <div className="flow-gutter absolute inset-x-0 bottom-0 pb-[clamp(1.25rem,4vh,2.75rem)]" data-parallax-y="0.04">
+        <div className="flow-gutter absolute inset-x-0 bottom-0 pb-[clamp(1.25rem,4vh,2.75rem)]">
           <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-6">
-            <div className="min-w-0">
+            <div className="min-w-0" data-parallax-y="0.04">
               <p
                 className="font-display text-[13px] font-medium uppercase text-text-100"
                 style={{ letterSpacing: '0.2em' }}

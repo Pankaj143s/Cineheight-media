@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { contact, closing } from '@/content/siteContent'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
+import ProjectContactForm from '@/components/contact/ProjectContactForm'
 import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects, useIsMobileTier } from '@/lib/useMediaPreferences'
 
@@ -13,9 +14,8 @@ import { useCanRunRichEffects, useIsMobileTier } from '@/lib/useMediaPreferences
  * toward whichever channel you approach, and the moment you commit, the link
  * is an ordinary anchor that navigates instantly.
  *
- * No form: no submission endpoint exists anywhere in this project, and the old
- * site's form only simulated success. Shipping a fake one would be the
- * dishonest option.
+ * The expressive direct channels remain intact beside the shared, real
+ * project form. Its API reports provider/configuration failures honestly.
  */
 
 const CHANNELS = [
@@ -128,7 +128,7 @@ export default function ContactPage() {
     const onMove = (e: PointerEvent) => {
       pointer.x = e.clientX
       pointer.y = e.clientY
-      inside = true
+      inside = !(e.target as HTMLElement | null)?.closest('[data-interaction-quiet]')
     }
     const onLeave = () => {
       inside = false
@@ -175,46 +175,48 @@ export default function ContactPage() {
         </p>
       </header>
 
-      <section aria-label="Contact channels" className="flow-gutter relative z-10" style={{ marginTop: mobile ? '8vh' : '14vh' }}>
-        <ul className="flex flex-wrap gap-x-[clamp(2.5rem,8vw,9rem)] gap-y-[clamp(3rem,7vh,6rem)]">
-          {CHANNELS.map((ch, i) => (
-            <li
-              key={ch.label}
-              ref={(el) => {
-                itemRefs.current[i] = el
-              }}
-              className="list-none will-change-transform"
-              style={{
-                // Staggered baselines so the channels read as a field, not a grid.
-                marginTop: `${[0, 3.5, 1.5, 5][i] ?? 0}rem`,
-              }}
-            >
-              <a
-                href={ch.href}
-                {...(ch.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-                className="group block max-w-[24ch]"
-                onFocus={() => setFocused(i)}
-                onBlur={() => setFocused(null)}
+      <section aria-label="Contact channels and project form" className="flow-gutter relative z-10" style={{ marginTop: mobile ? '8vh' : '12vh' }}>
+        <div className="grid gap-x-14 gap-y-16 lg:grid-cols-12">
+          <ul className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:col-span-6">
+            {CHANNELS.map((ch, i) => (
+              <li
+                key={ch.label}
+                ref={(el) => {
+                  itemRefs.current[i] = el
+                }}
+                className="list-none will-change-transform"
+                style={{ marginTop: mobile ? 0 : `${[0, 2.5, 1, 3.5][i] ?? 0}rem` }}
               >
-                <p className="font-display text-[10px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.3em' }}>
-                  {ch.label}
-                </p>
-                <p
-                  className="font-display mt-3 flex min-h-[44px] items-center font-bold text-text-100 transition-colors duration-300 group-hover:text-[var(--blue-200)] group-focus-visible:text-[var(--blue-200)]"
-                  style={{ fontSize: 'clamp(1.4rem, 3.2vw, 2.6rem)', lineHeight: 1.04, letterSpacing: '-0.02em' }}
+                <a
+                  href={ch.href}
+                  {...(ch.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                  className="group block max-w-[24ch]"
+                  onFocus={() => setFocused(i)}
+                  onBlur={() => setFocused(null)}
                 >
-                  {ch.value}
-                </p>
-                <span
-                  aria-hidden="true"
-                  className="mt-3 block h-px transition-all duration-500 group-hover:w-24 group-focus-visible:w-24"
-                  style={{ width: focused === i ? 96 : 40, background: 'var(--blue-500)' }}
-                />
-                <p className="font-body mt-4 text-sm leading-relaxed text-text-500">{ch.hint}</p>
-              </a>
-            </li>
-          ))}
-        </ul>
+                  <p className="font-display text-[10px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.3em' }}>
+                    {ch.label}
+                  </p>
+                  <p
+                    className="font-display mt-3 flex min-h-[44px] items-center font-bold text-text-100 transition-colors duration-300 group-hover:text-[var(--blue-200)] group-focus-visible:text-[var(--blue-200)]"
+                    style={{ fontSize: 'clamp(1.2rem, 2.4vw, 2rem)', lineHeight: 1.04, letterSpacing: '-0.02em' }}
+                  >
+                    {ch.value}
+                  </p>
+                  <span
+                    aria-hidden="true"
+                    className="mt-3 block h-px transition-all duration-500 group-hover:w-24 group-focus-visible:w-24"
+                    style={{ width: focused === i ? 96 : 40, background: 'var(--blue-500)' }}
+                  />
+                  <p className="font-body mt-4 text-sm leading-relaxed text-text-500">{ch.hint}</p>
+                </a>
+              </li>
+            ))}
+          </ul>
+          <div className="lg:col-span-6">
+            <ProjectContactForm variant="full" />
+          </div>
+        </div>
         <div data-flow-anchor="right" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '50%' }} aria-hidden="true" />
       </section>
 

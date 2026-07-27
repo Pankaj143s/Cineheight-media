@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { caseStudies } from '@/content/caseStudies'
-import { workIndexSlots, workIndexMobileSlots } from '@/content/mediaSlots'
+import { workIndexSlots } from '@/content/mediaSlots'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import MediaSpecPlaceholder from '@/components/media/MediaSpecPlaceholder'
@@ -175,8 +175,6 @@ export default function WorkIndex() {
               <div data-scene-media className="absolute inset-[-10%]">
                 <MediaSpecPlaceholder
                   spec={workIndexSlots[cs.id]}
-                  mobileSpec={workIndexMobileSlots[cs.id]}
-                  kind="image"
                   alt={`${cs.client} campaign work`}
                   priority={i === 0}
                   className="h-full w-full"

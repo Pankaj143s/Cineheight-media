@@ -167,17 +167,13 @@ export function caseCover(id: string): CaseCover {
 
 /* --------------------------------------------------------------- services */
 
-/**
- * Service artwork — generated as one coordinated collection and normalised to a
- * shared 1920×1200 frame by `scripts/build-service-visuals.mjs`. Illustrative,
- * never presented as client work.
- */
+/** Approved service artwork restored from the retained original collection. */
 export function serviceVisual(id: string): PresentationAsset {
   return {
-    src: `${PRES}/services/${id}.webp`,
-    width: 1920,
-    height: 1200,
-    aspect: '16:10',
+    src: `/generated/services-final/${id}.webp`,
+    width: 1536,
+    height: 960,
+    aspect: '8:5',
     provenance: 'illustrative',
   }
 }

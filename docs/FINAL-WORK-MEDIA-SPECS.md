@@ -23,21 +23,22 @@ Full-width cinematic master per project.
 
 | Client | Desktop target | Desktop spec | Mobile target | Mobile spec |
 |---|---|---|---|---|
-| Sapale Yamaha | `/media/work/featured/sapale-yamaha-desktop.mp4` | 2560×1440 · 16:9 | `/media/work/featured/sapale-yamaha-mobile.mp4` | 1080×1350 · 4:5 |
-| Sindhudurg Education Society | `/media/work/featured/sindhudurg-education-desktop.mp4` | 2560×1440 · 16:9 | `/media/work/featured/sindhudurg-education-mobile.mp4` | 1080×1350 · 4:5 |
-| Divija Old Age Home | `/media/work/featured/divija-old-age-home-desktop.mp4` | 2560×1440 · 16:9 | `/media/work/featured/divija-old-age-home-mobile.mp4` | 1080×1350 · 4:5 |
+| Sapale Yamaha | `/media/home-work/sapale-yamaha-desktop.mp4` | 2560×1440 · 16:9 | `/media/home-work/sapale-yamaha-mobile.mp4` | 1080×1350 · 4:5 |
+| Sindhudurg Education Society | `/media/home-work/sindhudurg-education-desktop.mp4` | 2560×1440 · 16:9 | `/media/home-work/sindhudurg-education-mobile.mp4` | 1080×1350 · 4:5 |
+| Divija Old Age Home | `/media/home-work/divija-old-age-home-desktop.mp4` | 2560×1440 · 16:9 | `/media/home-work/divija-old-age-home-mobile.mp4` | 1080×1350 · 4:5 |
 
 Each desktop slot also needs a matching poster at
-`/media/work/featured/{id}-desktop-poster.webp` (2560×1440) and mobile poster
-at `/media/work/featured/{id}-mobile-poster.webp` (1080×1350).
+`/media/home-work/{id}-desktop.webp` (2560×1440) and mobile poster
+at `/media/home-work/{id}-mobile.webp` (1080×1350).
 
-**Format:** MP4 (H.264), muted-loop-safe, 15–30s. No essential text/subject
+**Format:** MP4 (H.264), muted-loop-safe, 15–30s desktop and 10–20s mobile.
+Target size is ≤15 MB desktop and ≤8 MB mobile. No essential text/subject
 inside the outer 8% edge margin (the stage crops and drifts slightly under
 scroll parallax).
 
 **Optional ultrawide** (`featuredWorkUltrawide` in `content/mediaSlots.ts`,
-used only if supplied): `/media/work/featured/{id}-ultrawide.mp4`, 3840×1600,
-12:5 / 2.4:1.
+used only if supplied): `/media/home-work/{id}-ultrawide.mp4` with matching
+`.webp` poster, 3840×1600, 12:5 / 2.4:1, target ≤18 MB.
 
 **Creative brief per client:**
 - **Sapale Yamaha** — showroom/product hero shot, landscape, matching the
@@ -58,13 +59,13 @@ square reel poster (`caseStudies[].thumbnail`) blown up, which would crop
 
 | Client | Desktop target | Desktop spec | Mobile target | Mobile spec |
 |---|---|---|---|---|
-| Sapale Yamaha | `/media/work-index/sapale-yamaha-desktop.webp` | 2400×1350 · 16:9 | `/media/work-index/sapale-yamaha-mobile.webp` | 1080×1350 · 4:5 |
-| Sindhudurg Education Society | `/media/work-index/sindhudurg-education-desktop.webp` | 2400×1350 · 16:9 | `/media/work-index/sindhudurg-education-mobile.webp` | 1080×1350 · 4:5 |
-| Divija Old Age Home | `/media/work-index/divija-old-age-home-desktop.webp` | 2400×1350 · 16:9 | `/media/work-index/divija-old-age-home-mobile.webp` | 1080×1350 · 4:5 |
+| Sapale Yamaha | `/media/work-index/sapale-yamaha-desktop.webp` | 2560×1440 · 16:9 | `/media/work-index/sapale-yamaha-mobile.webp` | 1080×1350 · 4:5 |
+| Sindhudurg Education Society | `/media/work-index/sindhudurg-education-desktop.webp` | 2560×1440 · 16:9 | `/media/work-index/sindhudurg-education-mobile.webp` | 1080×1350 · 4:5 |
+| Divija Old Age Home | `/media/work-index/divija-old-age-home-desktop.webp` | 2560×1440 · 16:9 | `/media/work-index/divija-old-age-home-mobile.webp` | 1080×1350 · 4:5 |
 
-**Format:** WebP still, or a short (≤6s) muted looping MP4 if a motion cover is
-preferred later (would require a small `kind` addition on the slot — not
-needed for the current `image` slots).
+**Format:** WebP still targeting ≤500 KB, or a short (≤6s, ≤5 MB) muted
+looping MP4 if a motion cover is preferred later. `MediaSpecPlaceholder`
+already supports changing `mediaKind` and paths without a layout change.
 
 The homepage and /work-index assets **may** be the same source composition if
 it reads well cropped both ways, but the two slot maps are independent so a

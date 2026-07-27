@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { caseStudies } from '@/content/caseStudies'
-import { featuredWorkSlots, featuredWorkMobileSlots } from '@/content/mediaSlots'
+import { featuredWorkSlots } from '@/content/mediaSlots'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import MediaSpecPlaceholder from '@/components/media/MediaSpecPlaceholder'
@@ -315,11 +315,10 @@ export default function FeaturedWorkJourney() {
             className="relative mt-[6vh]"
           >
             <Link href={`/work/${cs.id}`} className="block" aria-label={`${cs.client} — ${cs.tagline}`}>
-              <div className="relative w-full" style={{ height: '62svh' }}>
+              <div className="relative w-full" style={{ height: '72svh' }}>
                 <MediaSpecPlaceholder
                   ref={(el) => { videoRefs.current[i] = el }}
-                  spec={featuredWorkMobileSlots[cs.id]}
-                  kind="video"
+                  spec={featuredWorkSlots[cs.id]}
                   alt={`${cs.client} campaign preview`}
                   priority={i === 0}
                 >
@@ -368,7 +367,6 @@ export default function FeaturedWorkJourney() {
                   <MediaSpecPlaceholder
                     ref={(el) => { videoRefs.current[i] = el }}
                     spec={featuredWorkSlots[cs.id]}
-                    kind="video"
                     alt={`${cs.client} campaign preview`}
                     priority={i === 0}
                   />

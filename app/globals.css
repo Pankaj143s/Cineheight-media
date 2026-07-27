@@ -164,6 +164,50 @@ body {
   }
 }
 
+[data-parallax-y],
+[data-parallax-x],
+[data-parallax-scale] {
+  --parallax-x: 0px;
+  --parallax-y: 0px;
+  --parallax-scale: 1;
+  translate: var(--parallax-x) var(--parallax-y);
+  scale: var(--parallax-scale);
+  will-change: translate, scale;
+}
+
+.process-step [data-process-title] {
+  transition: translate 280ms ease, color 280ms ease;
+}
+
+.process-step[data-process-hover='true'] [data-process-title] {
+  translate: 5px 0;
+  color: var(--blue-200);
+}
+
+.process-step[data-process-hover='true'] [data-process-description] {
+  opacity: 1 !important;
+}
+
+@keyframes signal-complete {
+  from {
+    opacity: 0.25;
+    transform: scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-parallax-y],
+  [data-parallax-x],
+  [data-parallax-scale] {
+    translate: 0 0 !important;
+    scale: 1 !important;
+  }
+}
+
 /* ============================================================
    Flow composition helpers
    ============================================================ */

@@ -316,6 +316,8 @@ export default function FlowThread() {
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', schedule)
       document.removeEventListener('visibilitychange', onVis)
+      document.documentElement.style.removeProperty('--flow-thread-x')
+      document.documentElement.style.removeProperty('--flow-thread-y')
     }
   }, [measure, reduced])
 

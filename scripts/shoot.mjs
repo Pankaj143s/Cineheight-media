@@ -404,7 +404,7 @@ if (hasFlag('reduced')) {
 
 /* ── interaction probes ───────────────────────────────────────────────── */
 if (hasFlag('probe')) {
-  await setViewport(cdp, 1440, 900)
+  await setViewport(cdp, 1440, 900, 2)
   const results = []
   const check = (name, pass, detail = '') =>
     results.push({ name, pass: !!pass, detail: String(detail).slice(0, 120) })
@@ -442,9 +442,121 @@ if (hasFlag('probe')) {
     `offset ${atTop?.dashOffset} of ${atTop?.dashArray}`
   )
 
+  // ---- pointer canvas: DPR cap, idle sleep, visibility sleep ------------
+  await cdp.eval(`document.querySelector('#what-we-do')?.scrollIntoView({ block: 'center' })`)
+  await sleep(700)
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 720, y: 450 })
+  await sleep(500)
+  const canvasDpr = await cdp.eval(`(() => {
+    const canvas = document.querySelector('[data-signal-playground]')
+    if (!canvas) return null
+    return {
+      x: Number((canvas.width / canvas.clientWidth).toFixed(2)),
+      y: Number((canvas.height / canvas.clientHeight).toFixed(2)),
+      device: devicePixelRatio,
+    }
+  })()`)
+  check(
+    'pointer canvas caps backing DPR at 1.5',
+    canvasDpr && canvasDpr.x <= 1.5 && canvasDpr.y <= 1.5 && canvasDpr.device === 2,
+    canvasDpr ? `${canvasDpr.x}x / ${canvasDpr.y}x at device ${canvasDpr.device}` : 'canvas missing'
+  )
+
+  const canvasHash = `(() => {
+    const canvas = document.querySelector('[data-signal-playground]')
+    if (!canvas) return null
+    const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data
+    let hash = 2166136261
+    for (let i = 0; i < data.length; i += 977) hash = Math.imul(hash ^ data[i], 16777619)
+    return hash >>> 0
+  })()`
+  await sleep(2900)
+  const idleHashA = await cdp.eval(canvasHash)
+  await sleep(450)
+  const idleHashB = await cdp.eval(canvasHash)
+  check('pointer canvas sleeps after idle', idleHashA != null && idleHashA === idleHashB, `${idleHashA} → ${idleHashB}`)
+
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 590, y: 540 })
+  await sleep(180)
+  await cdp.eval(`Object.defineProperty(document, 'hidden', { value: true, configurable: true }); document.dispatchEvent(new Event('visibilitychange'))`)
+  await sleep(160)
+  const hiddenHashA = await cdp.eval(canvasHash)
+  await sleep(420)
+  const hiddenHashB = await cdp.eval(canvasHash)
+  check('pointer canvas sleeps while document is hidden', hiddenHashA != null && hiddenHashA === hiddenHashB, `${hiddenHashA} → ${hiddenHashB}`)
+  await cdp.eval(`Object.defineProperty(document, 'hidden', { value: false, configurable: true }); document.dispatchEvent(new Event('visibilitychange'))`)
+
+  // Placeholder contracts must not issue requests until their status is ready.
+  const homePlaceholderLoads = await cdp.eval(
+    `performance.getEntriesByType('resource').filter(e => /\\/media\\/home-work\\//.test(e.name)).map(e => e.name)`
+  )
+  check('homepage placeholders issue no media-slot network requests', homePlaceholderLoads.length === 0, homePlaceholderLoads.join(', '))
+  await goto(cdp, BASE + '/work')
+  await sleep(700)
+  const indexPlaceholderLoads = await cdp.eval(
+    `performance.getEntriesByType('resource').filter(e => /\\/media\\/work-index\\//.test(e.name)).map(e => e.name)`
+  )
+  check('work-index placeholders issue no media-slot network requests', indexPlaceholderLoads.length === 0, indexPlaceholderLoads.join(', '))
+
+  // Both form variants preserve a predictable keyboard sequence.
+  const formOrder = async (route, variant) => {
+    await goto(cdp, BASE + route)
+    return cdp.eval(`(() => {
+      const form = document.querySelector('[data-contact-form="${variant}"]')
+      return form ? [...form.querySelectorAll('input:not([tabindex="-1"]), select, textarea, button')]
+        .filter(element => !element.disabled)
+        .map(element => element.name || element.type) : []
+    })()`)
+  }
+  const compactOrder = await formOrder('/', 'compact')
+  check(
+    'compact form keyboard order is complete',
+    compactOrder.join(',') === 'name,contact,company,service,projectDetails,submit',
+    compactOrder.join(' → ')
+  )
+  const fullOrder = await formOrder('/contact', 'full')
+  check(
+    'full form keyboard order is complete',
+    fullOrder.join(',') === 'name,contact,company,service,preferredContact,timeline,projectDetails,submit',
+    fullOrder.join(' → ')
+  )
+  const socialFocus = await cdp.eval(`(() => {
+    const links = [...document.querySelectorAll('footer a[aria-label*="opens in a new tab"]')]
+    const target = links[0]
+    target?.focus()
+    const rect = target?.getBoundingClientRect()
+    return {
+      count: links.length,
+      label: target?.getAttribute('aria-label') || '',
+      focused: document.activeElement === target,
+      width: rect?.width || 0,
+      height: rect?.height || 0,
+    }
+  })()`)
+  check(
+    'only verified Instagram renders with a keyboard-focusable 44px target',
+    socialFocus.count === 1 && /Instagram/.test(socialFocus.label) && socialFocus.focused &&
+      socialFocus.width >= 44 && socialFocus.height >= 44,
+    `${socialFocus.count} link; ${socialFocus.width}×${socialFocus.height}; focused=${socialFocus.focused}`
+  )
+
   // ---- image lightbox on a case study ---------------------------------
   await goto(cdp, BASE + '/work/sapale-yamaha')
   await primeScroll(cdp, 0)
+  const retainedMedia = await cdp.eval(`(() => {
+    const sources = [...document.querySelectorAll('img[src], video[src], source[src]')]
+      .map(element => element.getAttribute('src'))
+      .filter(Boolean)
+    return {
+      detail: sources.filter(src => src.startsWith('/case-studies/sapale-yamaha/')).length,
+      replacement: sources.filter(src => src.includes('/media/home-work/') || src.includes('/media/work-index/')).length,
+    }
+  })()`)
+  check(
+    'case-study detail media is retained outside replacement slots',
+    retainedMedia.detail > 0 && retainedMedia.replacement === 0,
+    `${retainedMedia.detail} detail sources; ${retainedMedia.replacement} replacement sources`
+  )
   const orbitOpened = await cdp.eval(`(async () => {
     const orbit = document.querySelector('[aria-label$="creatives"]')
     if (!orbit) return 'no orbit'
@@ -550,6 +662,112 @@ if (hasFlag('probe')) {
     console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name}${r.detail ? '  [' + r.detail + ']' : ''}`)
   }
   console.log(failed ? `\n${failed} probe(s) failed.` : '\nAll probes passed.')
+  proc?.kill()
+  process.exit(0)
+}
+
+/* Focused interaction evidence for the refinement pass. */
+if (hasFlag('refinement')) {
+  await setViewport(cdp, 1440, 900)
+
+  const centre = async (route, selector) => {
+    await goto(cdp, BASE + route)
+    await primeScroll(cdp, 0)
+    const found = await cdp.eval(`(() => {
+      const element = document.querySelector(${JSON.stringify(selector)})
+      if (!element) return false
+      const rect = element.getBoundingClientRect()
+      window.scrollTo(0, Math.max(0, rect.top + window.scrollY - (innerHeight - rect.height) / 2))
+      return true
+    })()`)
+    if (!found) throw new Error(`Refinement selector not found: ${route} ${selector}`)
+    await sleep(900)
+  }
+
+  await centre('/', '#what-we-do')
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 720, y: 450 })
+  await sleep(550)
+  await shoot(cdp, 'refinement/pointer-rest__1440x900.png')
+
+  for (let i = 0; i < 12; i++) {
+    await cdp.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: 420 + i * 34,
+      y: 520 - Math.sin(i / 2) * 80,
+    })
+    await sleep(42)
+  }
+  await shoot(cdp, 'refinement/pointer-slow__1440x900.png')
+
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1180, y: 220 })
+  await sleep(16)
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 590, y: 610 })
+  await sleep(90)
+  await shoot(cdp, 'refinement/pointer-fast__1440x900.png')
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: 590, y: 610, button: 'left', clickCount: 1 })
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 590, y: 610, button: 'left', clickCount: 1 })
+  await sleep(190)
+  await shoot(cdp, 'refinement/pointer-click__1440x900.png')
+
+  await centre('/services', '[aria-label="Video Production & Editing"]')
+  await shoot(cdp, 'refinement/service-active-video__1440x900.png')
+  await centre('/services', '[aria-label="How the services connect"]')
+  await shoot(cdp, 'refinement/service-chain__1440x900.png')
+
+  await centre('/contact', '[data-contact-form="full"]')
+  await sleep(3100)
+  await cdp.eval(`(() => {
+    const form = document.querySelector('[data-contact-form="full"]')
+    const set = (name, value) => {
+      const element = form.elements.namedItem(name)
+      const setter = Object.getOwnPropertyDescriptor(
+        element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype,
+        'value'
+      ).set
+      setter.call(element, value)
+      element.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    set('name', 'Visual Test')
+    set('contact', 'visual@example.com')
+    set('company', 'Cineheight Test')
+    set('projectDetails', 'This is a real browser test of the transparent provider configuration error.')
+    form.requestSubmit()
+  })()`)
+  await sleep(900)
+  await shoot(cdp, 'refinement/contact-config-error__1440x900.png')
+
+  await centre('/', '[data-contact-form="compact"]')
+  await sleep(3100)
+  await cdp.eval(`(() => {
+    window.fetch = async () => new Response(JSON.stringify({ ok: true, id: 'visual_success' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    })
+    const form = document.querySelector('[data-contact-form="compact"]')
+    const set = (name, value) => {
+      const element = form.elements.namedItem(name)
+      const setter = Object.getOwnPropertyDescriptor(
+        element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype,
+        'value'
+      ).set
+      setter.call(element, value)
+      element.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    set('name', 'Visual Test')
+    set('contact', 'visual@example.com')
+    set('company', 'Cineheight Test')
+    set('projectDetails', 'This is a real browser test of the accepted project-form success state.')
+    form.requestSubmit()
+  })()`)
+  await sleep(650)
+  await shoot(cdp, 'refinement/home-form-success__1440x900.png')
+
+  await centre('/', 'footer')
+  await cdp.eval(`document.querySelector('a[aria-label^="Instagram"]')?.focus()`)
+  await sleep(240)
+  await shoot(cdp, 'refinement/social-focus__1440x900.png')
+
+  console.log('captured refinement interaction evidence')
   proc?.kill()
   process.exit(0)
 }

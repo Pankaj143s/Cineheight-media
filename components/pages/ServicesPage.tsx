@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { gsap } from '@/lib/gsap'
+import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { services, closing, contact } from '@/content/siteContent'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
@@ -42,6 +44,9 @@ const CHAIN = ['Brand', 'Content', 'Distribution', 'Conversion', 'Growth']
 export default function ServicesPage() {
   const rootRef = useRef<HTMLDivElement>(null)
   const entryRefs = useRef<(HTMLElement | null)[]>([])
+  const introCopyRef = useRef<HTMLParagraphElement>(null)
+  const chainRef = useRef<HTMLOListElement>(null)
+  const revealedRef = useRef<Set<number>>(new Set())
   const mobile = useIsMobileTier()
   const reduced = useReducedMotion()
 
@@ -53,6 +58,143 @@ export default function ServicesPage() {
     activeRef.current = i
     setActive(i)
   }, [])
+
+  useIsomorphicLayoutEffect(() => {
+    if (reduced) return
+    const paragraph = introCopyRef.current
+    const chain = chainRef.current
+    const animations: gsap.core.Animation[] = []
+
+    if (paragraph) {
+      animations.push(
+        gsap.fromTo(
+          paragraph,
+          { autoAlpha: 0.68, y: 10, letterSpacing: '0.025em' },
+          {
+            autoAlpha: 1,
+            y: 0,
+            letterSpacing: '0em',
+            duration: 0.75,
+            ease: 'power2.out',
+            scrollTrigger: { trigger: paragraph, start: 'top 90%', once: true },
+          }
+        )
+      )
+    }
+
+    if (chain) {
+      const steps = Array.from(chain.querySelectorAll<HTMLElement>('[data-chain-step]'))
+      const arrows = Array.from(chain.querySelectorAll<SVGPathElement>('[data-chain-pulse]'))
+      const timeline = gsap.timeline({
+        scrollTrigger: { trigger: chain, start: 'top 82%', once: true },
+      })
+      steps.forEach((step, i) => {
+        timeline.to(step, { opacity: 1, y: 0, duration: 0.28, ease: 'power2.out' })
+        if (arrows[i]) {
+          timeline.fromTo(
+            arrows[i],
+            { opacity: 0, strokeDashoffset: 34 },
+            { opacity: 0.9, strokeDashoffset: -34, duration: 0.38, ease: 'power1.inOut' },
+            '<0.04'
+          )
+          timeline.to(arrows[i], { opacity: 0, duration: 0.12 })
+        }
+      })
+      timeline.to(steps[steps.length - 1], {
+        textShadow: '0 0 16px rgba(0,137,255,0.75)',
+        color: '#DCEEFF',
+        duration: 0.35,
+      })
+      animations.push(timeline)
+    }
+
+    return () => animations.forEach((animation) => animation.kill())
+  }, [reduced])
+
+  useEffect(() => {
+    if (mobile || reduced) return
+    const entry = entryRefs.current[active]
+    if (!entry) return
+    const first = !revealedRef.current.has(active)
+    revealedRef.current.add(active)
+
+    const number = entry.querySelector('[data-service-number]')
+    const title = entry.querySelector('[data-service-title]')
+    const description = entry.querySelector('[data-service-description]')
+    const detail = entry.querySelector('[data-service-detail]')
+    const deliverables = entry.querySelectorAll('[data-service-deliverable]')
+    const rule = entry.querySelector('[data-service-rule]')
+
+    if (!first) {
+      gsap.to([number, title, description, detail, deliverables], {
+        autoAlpha: 1,
+        y: 0,
+        duration: 0.24,
+        ease: 'power1.out',
+        overwrite: true,
+      })
+      return
+    }
+
+    const timeline = gsap.timeline()
+    timeline
+      .fromTo(number, { autoAlpha: 0.25, x: -8 }, { autoAlpha: 1, x: 0, duration: 0.42, ease: 'power2.out' })
+      .fromTo(
+        title,
+        { autoAlpha: 0.45, yPercent: 105 },
+        { autoAlpha: 1, yPercent: 0, duration: 0.62, ease: 'power3.out' },
+        '<0.04'
+      )
+      .fromTo(
+        description,
+        { autoAlpha: 0.55, y: 14 },
+        { autoAlpha: 1, y: 0, duration: 0.5, ease: 'power2.out' },
+        '<0.16'
+      )
+      .fromTo(
+        detail,
+        { autoAlpha: 0.55, y: 10 },
+        { autoAlpha: 1, y: 0, duration: 0.55, ease: 'power2.out' },
+        '<0.15'
+      )
+      .fromTo(
+        deliverables,
+        { autoAlpha: 0.55, y: 7 },
+        { autoAlpha: 1, y: 0, duration: 0.35, stagger: 0.055, ease: 'power1.out' },
+        '<0.12'
+      )
+      .fromTo(rule, { scaleX: 0.12, opacity: 0.24 }, { scaleX: 1, opacity: 0.8, duration: 0.65, ease: 'power3.out' }, 0)
+    return () => {
+      timeline.kill()
+    }
+  }, [active, mobile, reduced])
+
+  useEffect(() => {
+    if (!mobile || reduced) return
+    const observers: IntersectionObserver[] = []
+    entryRefs.current.forEach((entry) => {
+      if (!entry) return
+      const revealTargets = entry.querySelectorAll<HTMLElement>('[data-mobile-reveal]')
+      gsap.killTweensOf(revealTargets)
+      gsap.set(revealTargets, { autoAlpha: 1, y: 0, yPercent: 0 })
+      const observer = new IntersectionObserver(
+        ([record]) => {
+          if (!record.isIntersecting || entry.dataset.mobileSeen) return
+          entry.dataset.mobileSeen = 'true'
+          gsap.fromTo(
+            revealTargets,
+            { autoAlpha: 0.72, y: 12, yPercent: 0 },
+            { autoAlpha: 1, y: 0, yPercent: 0, duration: 0.5, stagger: 0.055, ease: 'power2.out' }
+          )
+          observer.disconnect()
+        },
+        { threshold: 0.16 }
+      )
+      observer.observe(entry)
+      observers.push(observer)
+    })
+    return () => observers.forEach((observer) => observer.disconnect())
+  }, [mobile, reduced])
 
   useEffect(() => {
     if (mobile) return
@@ -104,10 +246,19 @@ export default function ServicesPage() {
           decoding="async"
           style={{
             opacity: active === i ? 1 : 0,
-            transform: active === i ? 'scale(1)' : 'scale(1.05)',
+            transform:
+              active === i
+                ? 'translate3d(0,0,0) scale(1)'
+                : `translate3d(0,${i < active ? -10 : 10}px,0) scale(1.018)`,
+            clipPath:
+              active === i
+                ? 'inset(0 0 0 0)'
+                : i < active
+                  ? 'inset(0 0 100% 0)'
+                  : 'inset(100% 0 0 0)',
             transition: reduced
               ? 'none'
-              : 'opacity 0.8s ease, transform 1.3s cubic-bezier(0.16,1,0.3,1)',
+              : 'opacity 0.65s ease, transform 0.9s cubic-bezier(0.16,1,0.3,1), clip-path 0.72s cubic-bezier(0.16,1,0.3,1)',
           }}
         />
       ))}
@@ -136,13 +287,13 @@ export default function ServicesPage() {
           srLabel="Six disciplines. One connected system."
           className="type-display-1 font-display mt-6 max-w-[18ch] font-bold uppercase text-text-100"
         />
-        <p className="font-body measure mt-8 text-base leading-relaxed text-text-300">
+        <p ref={introCopyRef} className="font-body measure mt-8 text-base leading-relaxed text-text-300">
           Strategy, design, content and campaigns work best when they are built together — every service below feeds
           the next.
         </p>
       </header>
 
-      <div ref={rootRef} className="flow-gutter relative grid grid-cols-12 gap-x-12">
+      <div ref={rootRef} className="flow-gutter relative grid grid-cols-12 lg:gap-x-12">
         {/* the scrolling index */}
         <div className="col-span-12 lg:col-span-6">
           {services.map((s, i) => (
@@ -159,6 +310,8 @@ export default function ServicesPage() {
               }}
             >
               <span
+                data-service-rule
+                data-mobile-reveal
                 aria-hidden="true"
                 className="mb-5 block h-px origin-left"
                 style={{
@@ -169,35 +322,41 @@ export default function ServicesPage() {
                   transition: reduced ? 'none' : 'transform 0.8s cubic-bezier(0.16,1,0.3,1), opacity 0.5s ease',
                 }}
               />
-              <div className="flex items-baseline gap-5">
+              <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-5">
                 <span
+                  data-service-number
+                  data-mobile-reveal
                   className="font-display text-[12px] font-medium"
                   style={{ letterSpacing: '0.28em', color: active === i ? 'var(--blue-400)' : 'var(--text-500)' }}
                 >
                   {s.index}
                 </span>
                 <h2
-                  className="font-display font-bold uppercase text-text-100"
+                  className="min-w-0 font-display font-bold uppercase text-text-100"
                   style={{
                     fontSize: 'calc(clamp(1.5rem, 3.2vw, 2.8rem) * var(--display-scale))',
                     lineHeight: 1.02,
                     letterSpacing: '-0.022em',
                   }}
                 >
-                  {s.title}
+                  <span className="block overflow-hidden pb-[0.13em] -mb-[0.13em]">
+                    <span data-service-title data-mobile-reveal className="block">
+                      {s.title}
+                    </span>
+                  </span>
                 </h2>
               </div>
 
-              <p className="font-body mt-5 text-[15px] leading-relaxed text-text-200 sm:text-base" style={{ maxWidth: '50ch' }}>
+              <p data-service-description data-mobile-reveal className="font-body mt-5 text-[15px] leading-relaxed text-text-200 sm:text-base" style={{ maxWidth: '50ch' }}>
                 {s.description}
               </p>
-              <p className="font-body mt-3 text-sm leading-relaxed text-text-500" style={{ maxWidth: '52ch' }}>
+              <p data-service-detail data-mobile-reveal className="font-body mt-3 text-sm leading-relaxed text-text-500" style={{ maxWidth: '52ch' }}>
                 {s.detail}
               </p>
 
               <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-1.5">
                 {(DELIVERABLES[s.id] ?? []).map((d) => (
-                  <li key={d} className="font-body list-none text-[12px] text-text-500">
+                  <li key={d} data-service-deliverable data-mobile-reveal className="font-body list-none text-[12px] text-text-500">
                     {d}
                   </li>
                 ))}
@@ -229,18 +388,28 @@ export default function ServicesPage() {
           Each discipline feeds the next. That chain is the reason one team is faster than four suppliers.
         </p>
 
-        <ol className="mt-10 flex flex-wrap items-center gap-x-3 gap-y-4">
+        <ol ref={chainRef} className="mt-10 flex flex-wrap items-center gap-x-3 gap-y-4">
           {CHAIN.map((step, i) => (
             <li key={step} className="flex list-none items-center gap-3">
               <span
+                data-chain-step
                 className="font-display whitespace-nowrap text-[13px] font-medium uppercase text-text-100"
-                style={{ letterSpacing: '0.16em' }}
+                style={{ letterSpacing: '0.16em', opacity: reduced ? 1 : 0.68, transform: reduced ? 'translateY(0)' : 'translateY(3px)' }}
               >
                 {step}
               </span>
               {i < CHAIN.length - 1 && (
                 <svg width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true" className="shrink-0">
                   <path d="M0 4h30M27 1l4 3-4 3" stroke="var(--blue-500)" strokeWidth="1.2" opacity="0.7" />
+                  <path
+                    data-chain-pulse
+                    d="M0 4h30"
+                    stroke="#DCEEFF"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeDasharray="7 27"
+                    opacity="0"
+                  />
                 </svg>
               )}
             </li>

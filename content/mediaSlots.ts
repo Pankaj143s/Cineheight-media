@@ -1,113 +1,128 @@
-/**
- * Media-slot specs for the homepage Selected Work and /work index media.
- *
- * The client is producing new, final media specifically for this design — the
- * layout must not be constrained around the ratios of the currently available
- * client reels. Every slot below documents exactly what file must land where,
- * at what dimensions, before `status` flips from `'placeholder'` to `'ready'`.
- * `MediaSpecPlaceholder` renders an identical box either way, so flipping the
- * status later requires zero layout changes — only a data edit here.
- *
- * This mirrors the discipline already established in `content/presentationMedia.ts`
- * (`PresentationAsset`/`caseCover()`), but covers slots that have no real asset
- * yet, which that module deliberately never does.
- */
-
 import { caseStudies } from './caseStudies'
 
 export type MediaSlotStatus = 'placeholder' | 'ready'
+export type MediaSlotUsage = 'home-featured-work' | 'work-index'
+export type MediaSlotKind = 'video' | 'image'
 
 export interface MediaSlotVariant {
-  targetSrc: string
-  targetPoster?: string
+  src: string
+  poster?: string
   width: number
   height: number
   aspect: string
+  format: string
 }
 
-export interface MediaSlotSpec extends MediaSlotVariant {
+export interface MediaSlotSpec {
   id: string
+  usage: MediaSlotUsage
   client: string
   status: MediaSlotStatus
-  /** Optional ultrawide/hero alternate for the same slot — used only if supplied. */
-  ultrawide?: MediaSlotVariant
+  mediaKind: MediaSlotKind
   accentColor: string
   label: string
-  /** What kind of shot this slot needs — shown on the placeholder plate. */
   brief: string
+  notes: string[]
+  desktop: MediaSlotVariant
+  mobile: MediaSlotVariant
+  ultrawide?: MediaSlotVariant
 }
 
-const accentOf = (id: string) => caseStudies.find((c) => c.id === id)?.accentColor ?? 'var(--blue-500)'
+const CLIENTS = [
+  {
+    id: 'sapale-yamaha',
+    label: 'Sapale Yamaha',
+    brief: 'Showroom/product hero shot matching the Fascino brand-film tone.',
+  },
+  {
+    id: 'sindhudurg-education',
+    label: 'Sindhudurg Education Society',
+    brief: 'Campus and academic-life hero shot matching the SES visual identity.',
+  },
+  {
+    id: 'divija-old-age-home',
+    label: 'Divija Old Age Home',
+    brief: 'Warm, dignified resident/community imagery matching the Divija film series.',
+  },
+] as const
 
-const CLIENT_IDS = ['sapale-yamaha', 'sindhudurg-education', 'divija-old-age-home'] as const
+const accentOf = (id: string) =>
+  caseStudies.find((study) => study.id === id)?.accentColor ?? '#0089FF'
 
-const BRIEFS: Record<(typeof CLIENT_IDS)[number], string> = {
-  'sapale-yamaha': 'Showroom/product hero shot — matches the Fascino brand-film tone.',
-  'sindhudurg-education': 'Campus/academic-life hero shot — matches the SES visual identity.',
-  'divija-old-age-home': 'Warm, dignified resident/community shot — matches the Divija film series.',
-}
-
-const LABEL_OF: Record<(typeof CLIENT_IDS)[number], string> = {
-  'sapale-yamaha': 'Sapale Yamaha',
-  'sindhudurg-education': 'Sindhudurg Education Society',
-  'divija-old-age-home': 'Divija Old Age Home',
-}
-
-function buildSlots(
-  usage: 'home-featured-work' | 'work-index',
-  variant: 'desktop' | 'mobile'
-): Record<string, MediaSlotSpec> {
-  const kind = usage === 'home-featured-work' ? 'featured' : 'work-index'
-  const isDesktop = variant === 'desktop'
-  const width = usage === 'home-featured-work' ? (isDesktop ? 2560 : 1080) : isDesktop ? 2400 : 1080
-  const height = usage === 'home-featured-work' ? (isDesktop ? 1440 : 1350) : isDesktop ? 1350 : 1350
-  const aspect = isDesktop ? '16:9' : '4:5'
-  const ext = usage === 'home-featured-work' ? 'mp4' : 'webp'
-  const dir = usage === 'home-featured-work' ? 'work/featured' : 'work-index'
-
-  return Object.fromEntries(
-    CLIENT_IDS.map((id) => {
-      const base = `/media/${dir}/${id}-${variant}`
-      const spec: MediaSlotSpec = {
-        id: `${kind}.${id}.${variant}`,
-        client: LABEL_OF[id],
-        status: 'placeholder',
-        targetSrc: `${base}.${ext}`,
-        targetPoster: usage === 'home-featured-work' ? `${base}-poster.webp` : undefined,
-        width,
-        height,
-        aspect,
-        accentColor: accentOf(id),
-        label: `${LABEL_OF[id]} — ${usage === 'home-featured-work' ? 'hero reel' : 'index cover'}`,
-        brief: BRIEFS[id],
-      }
-      return [id, spec]
-    })
-  )
-}
-
-/** Homepage Selected Work — desktop 2560×1440 16:9 cinematic master, MP4. */
-export const featuredWorkSlots: Record<string, MediaSlotSpec> = buildSlots('home-featured-work', 'desktop')
-
-/** Homepage Selected Work — mobile 1080×1350 4:5, MP4. */
-export const featuredWorkMobileSlots: Record<string, MediaSlotSpec> = buildSlots('home-featured-work', 'mobile')
-
-/** /work index — desktop 2400×1350 16:9 cover, still or short cinematic, WebP. */
-export const workIndexSlots: Record<string, MediaSlotSpec> = buildSlots('work-index', 'desktop')
-
-/** /work index — mobile 1080×1350 4:5 cover, WebP. */
-export const workIndexMobileSlots: Record<string, MediaSlotSpec> = buildSlots('work-index', 'mobile')
-
-/** Optional ultrawide alternate for the homepage stage, only if ever supplied. */
-export const featuredWorkUltrawide: Record<string, MediaSlotVariant> = Object.fromEntries(
-  CLIENT_IDS.map((id) => [
+export const featuredWorkSlots: Record<string, MediaSlotSpec> = Object.fromEntries(
+  CLIENTS.map(({ id, label, brief }) => [
     id,
     {
-      targetSrc: `/media/work/featured/${id}-ultrawide.mp4`,
-      targetPoster: `/media/work/featured/${id}-ultrawide-poster.webp`,
-      width: 3840,
-      height: 1600,
-      aspect: '12:5',
-    },
+      id: `home-featured-work.${id}`,
+      usage: 'home-featured-work',
+      client: label,
+      status: 'placeholder',
+      mediaKind: 'video',
+      accentColor: accentOf(id),
+      label: `${label} — homepage featured film`,
+      brief,
+      notes: [
+        'Muted-loop-safe; 15–30 seconds desktop and 10–20 seconds mobile.',
+        'Keep essential content outside the outer 8% desktop edge and inside the central 80% mobile safe area.',
+      ],
+      desktop: {
+        src: `/media/home-work/${id}-desktop.mp4`,
+        poster: `/media/home-work/${id}-desktop.webp`,
+        width: 2560,
+        height: 1440,
+        aspect: '16:9',
+        format: 'MP4 H.264 + WebP poster',
+      },
+      mobile: {
+        src: `/media/home-work/${id}-mobile.mp4`,
+        poster: `/media/home-work/${id}-mobile.webp`,
+        width: 1080,
+        height: 1350,
+        aspect: '4:5',
+        format: 'MP4 H.264 + WebP poster',
+      },
+      ultrawide: {
+        src: `/media/home-work/${id}-ultrawide.mp4`,
+        poster: `/media/home-work/${id}-ultrawide.webp`,
+        width: 3840,
+        height: 1600,
+        aspect: '12:5',
+        format: 'Optional MP4 H.264 + WebP poster',
+      },
+    } satisfies MediaSlotSpec,
+  ])
+)
+
+export const workIndexSlots: Record<string, MediaSlotSpec> = Object.fromEntries(
+  CLIENTS.map(({ id, label, brief }) => [
+    id,
+    {
+      id: `work-index.${id}`,
+      usage: 'work-index',
+      client: label,
+      status: 'placeholder',
+      mediaKind: 'image',
+      accentColor: accentOf(id),
+      label: `${label} — work-index cover`,
+      brief,
+      notes: [
+        'Art-directed still; a short muted loop can be enabled later by changing mediaKind and paths.',
+        'Keep essential content inside the central safe area.',
+      ],
+      desktop: {
+        src: `/media/work-index/${id}-desktop.webp`,
+        width: 2560,
+        height: 1440,
+        aspect: '16:9',
+        format: 'WebP still',
+      },
+      mobile: {
+        src: `/media/work-index/${id}-mobile.webp`,
+        width: 1080,
+        height: 1350,
+        aspect: '4:5',
+        format: 'WebP still',
+      },
+    } satisfies MediaSlotSpec,
   ])
 )

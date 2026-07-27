@@ -14,6 +14,15 @@ npm run dev        # http://localhost:3100
 `npm run build` / `npm run start` for production. `npx tsc --noEmit` and
 `npm run lint` must stay clean.
 
+### Contact delivery
+
+The homepage and `/contact` forms submit to `POST /api/contact`. Copy
+`.env.example` to `.env.local`, set `RESEND_API_KEY`, and provide a
+Resend-verified sender in `CONTACT_FROM_EMAIL`. `CONTACT_TO_EMAIL` defaults to
+`grow@cineheight.com`. Until those server-only values are configured, the API
+returns `503 not_configured` and the forms show direct email, phone and
+WhatsApp alternatives; they never simulate success.
+
 ## Status
 
 **Phase 2 complete (hero system + cloud-balance correction):** project scaffold,

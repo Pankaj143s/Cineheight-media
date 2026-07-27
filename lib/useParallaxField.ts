@@ -4,42 +4,35 @@ import { useEffect } from 'react'
 import { clamp } from './utils'
 import { useReducedMotion } from './useMediaPreferences'
 
+const BASE_PX = 150
+const SELECTOR = '[data-parallax-y], [data-parallax-x], [data-parallax-scale]'
+
+interface ParallaxItem {
+  el: HTMLElement
+  y: number
+  x: number
+  scale: number
+}
+
+function reset(items: ParallaxItem[]) {
+  for (const item of items) {
+    item.el.style.setProperty('--parallax-x', '0px')
+    item.el.style.setProperty('--parallax-y', '0px')
+    item.el.style.setProperty('--parallax-scale', '1')
+  }
+}
+
 /**
- * One rAF-throttled, scroll-driven parallax engine for the whole page after
- * the showreel — elements opt in with data attributes instead of each scene
- * wiring its own scroll listener:
- *
- *   <span data-parallax-y="0.14" />           — vertical drift, in "speed units"
- *   <span data-parallax-x="0.06" />           — horizontal drift
- *   <span data-parallax-scale="0.02" />       — ±2% scale breathing
- *
- * A speed unit maps to roughly `unit * BASE_PX` pixels of total travel as the
- * element crosses the viewport (BASE_PX chosen so 0.06–0.24 lands in the
- * "8–24px text / 12–36px decorative / 18–48px media" ranges design asked for).
- * Scale units are applied directly as a fraction (0.02 = ±2%).
- *
- * Mounted once in `FlowDirector` — matches this project's existing convention
- * of centralising cross-cutting scroll work rather than duplicating a listener
- * per component. Skips entirely under reduced motion. Elements are queried
- * once per mount (this page's parallax targets don't mount/unmount mid-scroll
- * within a route), so the per-frame cost is just a `getBoundingClientRect` and
- * a `style.transform` write per opted-in element — no React state.
+ * One scroll/resize pipeline for every declarative parallax layer. Independent
+ * CSS translate/scale properties compose with the transforms owned by GSAP,
+ * pointer lean and marquees, so sections never fight over `style.transform`.
  */
-
-const BASE_PX = 90
-
 export function useParallaxField(): void {
   const reduced = useReducedMotion()
 
   useEffect(() => {
-    if (reduced) return
-
-    const collect = () =>
-      Array.from(
-        document.querySelectorAll<HTMLElement>(
-          '[data-parallax-y], [data-parallax-x], [data-parallax-scale]'
-        )
-      ).map((el) => ({
+    const collect = (): ParallaxItem[] =>
+      Array.from(document.querySelectorAll<HTMLElement>(SELECTOR)).map((el) => ({
         el,
         y: Number(el.dataset.parallaxY ?? 0),
         x: Number(el.dataset.parallaxX ?? 0),
@@ -48,49 +41,64 @@ export function useParallaxField(): void {
 
     let items = collect()
     if (!items.length) return
+    if (reduced) {
+      reset(items)
+      return
+    }
 
     let raf = 0
     let ticking = false
+    let visible = !document.hidden
+    const mobileQuery = window.matchMedia('(max-width: 767px), (pointer: coarse)')
 
     const apply = () => {
       ticking = false
+      if (!visible) return
       const vh = window.innerHeight || 1
+      const mobile = mobileQuery.matches
+      const amplitude = mobile ? 0.4 : 1
+
       for (const item of items) {
-        const r = item.el.getBoundingClientRect()
-        // -1 as the element enters from the bottom .. 0 centred .. 1 as it
-        // leaves the top — clamped so travel never runs away on tall elements.
-        const progress = clamp((vh - (r.top + r.height / 2)) / vh - 0.5, -0.75, 0.75) * 1.33
-        const parts: string[] = []
-        if (item.x || item.y) {
-          const tx = (progress * item.x * BASE_PX).toFixed(2)
-          const ty = (progress * item.y * BASE_PX).toFixed(2)
-          parts.push(`translate3d(${tx}px, ${ty}px, 0)`)
-        }
-        if (item.scale) {
-          parts.push(`scale(${(1 + progress * item.scale).toFixed(4)})`)
-        }
-        if (parts.length) item.el.style.transform = parts.join(' ')
+        const rect = item.el.getBoundingClientRect()
+        const progress =
+          clamp((vh - (rect.top + rect.height / 2)) / vh - 0.5, -0.75, 0.75) * 1.33
+        const tx = mobile ? 0 : progress * item.x * BASE_PX
+        const ty = progress * item.y * BASE_PX * amplitude
+        const scale = mobile ? 1 : 1 + progress * item.scale
+        item.el.style.setProperty('--parallax-x', `${tx.toFixed(2)}px`)
+        item.el.style.setProperty('--parallax-y', `${ty.toFixed(2)}px`)
+        item.el.style.setProperty('--parallax-scale', scale.toFixed(4))
       }
     }
 
-    const onScroll = () => {
-      if (ticking) return
+    const schedule = () => {
+      if (ticking || !visible) return
       ticking = true
       raf = requestAnimationFrame(apply)
     }
 
     const onResize = () => {
       items = collect()
-      apply()
+      schedule()
+    }
+    const onVisibility = () => {
+      visible = !document.hidden
+      if (visible) schedule()
+      else cancelAnimationFrame(raf)
     }
 
     apply()
-    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('scroll', schedule, { passive: true })
     window.addEventListener('resize', onResize)
+    mobileQuery.addEventListener('change', onResize)
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
       cancelAnimationFrame(raf)
-      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('scroll', schedule)
       window.removeEventListener('resize', onResize)
+      mobileQuery.removeEventListener('change', onResize)
+      document.removeEventListener('visibilitychange', onVisibility)
+      reset(items)
     }
   }, [reduced])
 }
