@@ -3,11 +3,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useReducedMotion } from '@/lib/useMediaPreferences'
+import { publishAudioEvent } from '@/lib/audio/audioBus'
+import { EASE_CONTROL, EASE_TRAVEL } from '@/lib/motionTokens'
 
-const OUT_MS = 430
-const IN_MS = 390
+const OUT_MS = 360
+const IN_MS = 300
 const COMPLETE_MS = 140
 const NAVIGATION_TIMEOUT_MS = 10_000
+
+/**
+ * Progress is a continuously-eased ref, not React state.
+ *
+ * The bar used to step 6 → 72 → 84 → 100 with a CSS transition whose duration
+ * became 1800 ms once it passed 84 — so the last stretch visibly crawled, and
+ * on a fast route change the bar was still creeping when the page had already
+ * arrived. Now one rAF loop eases toward a ceiling with an exponential
+ * approach: it always moves, never reaches the ceiling, and completes the
+ * moment the pathname commits.
+ */
+/** Ceiling and time constant for the first, quick rise. */
+const RISE = { ceiling: 0.7, tau: 130, forMs: 260 }
+/** Ceiling and time constant while waiting on the route. */
+const WAIT = { ceiling: 0.88, tau: 700 }
+/** Time constant for the final run to 100 %. */
+const COMPLETE_TAU = 70
 
 type Phase = 'idle' | 'out' | 'in'
 
@@ -16,10 +35,37 @@ export default function RouteTransition() {
   const pathname = usePathname()
   const reduced = useReducedMotion()
   const [phase, setPhase] = useState<Phase>('idle')
-  const [progress, setProgress] = useState(0)
   const pendingRef = useRef<string | null>(null)
   const startedAtRef = useRef(0)
   const timers = useRef<number[]>([])
+
+  // Progress lives in refs and is painted straight to the DOM — no React state,
+  // so a 60 Hz bar never re-renders the overlay.
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const barRef = useRef<HTMLSpanElement>(null)
+  const capRef = useRef<HTMLSpanElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)
+  const progressRef = useRef(0)
+  const completingRef = useRef(false)
+  const rafRef = useRef(0)
+  const trackWidthRef = useRef(0)
+
+  const paint = useCallback((p: number) => {
+    progressRef.current = p
+    if (barRef.current) barRef.current.style.transform = `scaleX(${p.toFixed(4)})`
+    // The leading light rides the actual end of the fill, so the two can never
+    // drift apart the way a separately-timed element would.
+    if (capRef.current) {
+      capRef.current.style.transform = `translate3d(${(p * trackWidthRef.current).toFixed(2)}px, -50%, 0)`
+      capRef.current.style.opacity = p > 0.02 && p < 0.999 ? '1' : '0'
+    }
+    overlayRef.current?.setAttribute('data-route-progress', String(Math.round(p * 100)))
+  }, [])
+
+  const stopLoop = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    rafRef.current = 0
+  }, [])
 
   const clearTimers = useCallback(() => {
     timers.current.forEach((timer) => window.clearTimeout(timer))
@@ -28,10 +74,40 @@ export default function RouteTransition() {
 
   const finish = useCallback(() => {
     clearTimers()
+    stopLoop()
     pendingRef.current = null
-    setProgress(0)
+    completingRef.current = false
+    progressRef.current = 0
     setPhase('idle')
-  }, [clearTimers])
+  }, [clearTimers, stopLoop])
+
+  /** Start (or restart) the progress loop. */
+  const runLoop = useCallback(() => {
+    stopLoop()
+    let last = performance.now()
+    const started = last
+
+    const tick = (now: number) => {
+      const dt = Math.min(50, now - last || 16)
+      last = now
+      const p = progressRef.current
+
+      if (completingRef.current) {
+        const next = p + (1 - p) * (1 - Math.exp(-dt / COMPLETE_TAU))
+        paint(next > 0.999 ? 1 : next)
+        if (progressRef.current >= 1) {
+          stopLoop()
+          return
+        }
+      } else {
+        const early = now - started < RISE.forMs
+        const { ceiling, tau } = early ? RISE : WAIT
+        paint(p + (ceiling - p) * (1 - Math.exp(-dt / tau)))
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+  }, [paint, stopLoop])
 
   const schedule = useCallback((callback: () => void, delay: number) => {
     const timer = window.setTimeout(callback, delay)
@@ -45,21 +121,18 @@ export default function RouteTransition() {
       clearTimers()
       pendingRef.current = target
       startedAtRef.current = performance.now()
+      completingRef.current = false
+      progressRef.current = 0
       setPhase('out')
-      setProgress(6)
+      publishAudioEvent({ type: 'route-out' })
 
-      schedule(() => setProgress(72), reduced ? 32 : 20)
-      schedule(
-        () => {
-          setProgress(84)
-          if (push) router.push(target)
-        },
-        reduced ? 80 : OUT_MS
-      )
+      // Hand the route to Next straight away — the loader is feedback, it must
+      // never be the thing delaying navigation.
+      if (push) router.push(target)
       schedule(finish, NAVIGATION_TIMEOUT_MS)
       return true
     },
-    [clearTimers, finish, reduced, router, schedule]
+    [clearTimers, finish, router, schedule]
   )
 
   useEffect(() => () => clearTimers(), [clearTimers])
@@ -116,6 +189,16 @@ export default function RouteTransition() {
     }
   }, [begin])
 
+  // Start the progress loop as soon as the overlay is on screen, once the bar
+  // has a measurable width for the leading light to travel along.
+  useEffect(() => {
+    if (phase !== 'out' || reduced) return
+    trackWidthRef.current = trackRef.current?.getBoundingClientRect().width ?? 0
+    paint(0)
+    runLoop()
+    return stopLoop
+  }, [paint, phase, reduced, runLoop, stopLoop])
+
   useEffect(() => {
     if (!pendingRef.current) return
     const minimumVisible = reduced ? 80 : OUT_MS
@@ -123,14 +206,17 @@ export default function RouteTransition() {
 
     clearTimers()
     schedule(() => {
-      setProgress(100)
+      // Run the bar home, then reveal.
+      completingRef.current = true
+      if (reduced) paint(1)
       schedule(() => {
         pendingRef.current = null
         setPhase('in')
+        publishAudioEvent({ type: 'route-in' })
         schedule(finish, reduced ? 120 : IN_MS)
       }, reduced ? 32 : COMPLETE_MS)
     }, remaining)
-  }, [pathname, reduced, clearTimers, finish, schedule])
+  }, [pathname, reduced, clearTimers, finish, paint, schedule])
 
   useEffect(() => {
     if (phase === 'idle') {
@@ -152,10 +238,11 @@ export default function RouteTransition() {
         Loading page
       </span>
       <div
+        ref={overlayRef}
         aria-hidden="true"
         data-route-loader
         data-route-phase={phase}
-        data-route-progress={Math.round(progress)}
+        data-route-progress={0}
         className="pointer-events-none fixed inset-0 z-[80]"
         style={{ contain: 'paint' }}
       >
@@ -167,8 +254,8 @@ export default function RouteTransition() {
             animation: reduced
               ? 'none'
               : phase === 'out'
-                ? `route-close ${outDuration}ms cubic-bezier(0.65,0,0.35,1) forwards`
-                : `route-open ${inDuration}ms cubic-bezier(0.22,1,0.36,1) forwards`,
+                ? `route-close ${outDuration}ms ${EASE_TRAVEL} forwards`
+                : `route-open ${inDuration}ms ${EASE_CONTROL} forwards`,
           }}
         />
         {!reduced && (
@@ -181,8 +268,8 @@ export default function RouteTransition() {
               boxShadow: '0 0 16px 3px rgba(0,137,255,0.6)',
               animation:
                 phase === 'out'
-                  ? `route-signal-down ${outDuration}ms cubic-bezier(0.65,0,0.35,1) forwards`
-                  : `route-signal-up ${inDuration}ms cubic-bezier(0.22,1,0.36,1) forwards`,
+                  ? `route-signal-down ${outDuration}ms ${EASE_TRAVEL} forwards`
+                  : `route-signal-up ${inDuration}ms ${EASE_CONTROL} forwards`,
             }}
           />
         )}
@@ -203,16 +290,30 @@ export default function RouteTransition() {
                 Signal / Loading
               </span>
             </div>
-            <div className="mt-4 h-px overflow-hidden bg-white/10">
+            {/*
+              The bar and the light in front of it are written by the same rAF
+              from the same number, so the light is always exactly at the end of
+              the fill. `overflow` stays visible on the track so the light's
+              glow is not clipped.
+            */}
+            <div ref={trackRef} className="relative mt-4 h-px bg-white/10">
               <span
-                className="route-loader-progress block h-full origin-left bg-[var(--blue-500)]"
-                style={{
-                  transform: `scaleX(${progress / 100})`,
-                  transition: reduced
-                    ? 'none'
-                    : `transform ${progress === 100 ? COMPLETE_MS : progress >= 84 ? 1800 : OUT_MS}ms cubic-bezier(0.22,1,0.36,1)`,
-                }}
+                ref={barRef}
+                className="route-loader-progress absolute inset-0 block h-full origin-left bg-[var(--blue-500)]"
+                style={{ transform: reduced ? 'scaleX(0.9)' : 'scaleX(0)' }}
               />
+              {!reduced && (
+                <span
+                  ref={capRef}
+                  className="absolute left-0 top-1/2 block h-[5px] w-[5px] rounded-full bg-[#DCEEFF]"
+                  style={{
+                    transform: 'translate3d(0, -50%, 0)',
+                    opacity: 0,
+                    boxShadow: '0 0 10px 2px rgba(0,137,255,0.85)',
+                    transition: `opacity 160ms ${EASE_CONTROL}`,
+                  }}
+                />
+              )}
             </div>
             <div className="mt-2 flex justify-between">
               <span className="h-1 w-1 rounded-full bg-[var(--blue-400)] shadow-[0_0_10px_rgba(0,137,255,0.9)]" />

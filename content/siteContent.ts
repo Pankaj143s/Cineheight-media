@@ -24,19 +24,34 @@ export type SocialPlatform = 'facebook' | 'instagram' | 'youtube' | 'linkedin'
 export interface SocialLink {
   platform: SocialPlatform
   label: string
+  /** Populated as soon as a profile is known, regardless of `status`. */
   href: string | null
+  /**
+   * `live` navigates; `placeholder` renders an interactive button that
+   * explains itself instead of going anywhere.
+   */
+  status: 'live' | 'placeholder'
 }
 
 /**
- * Only render verified public profiles. The old project and public metadata
- * verify Instagram; no authoritative Facebook, YouTube or LinkedIn company
- * profile was found during the 2026-07-28 audit.
+ * Every channel is a launch placeholder for now.
+ *
+ * Instagram's URL is verified and kept here so going live is a one-word edit
+ * (`placeholder` → `live`) rather than a Footer redesign. The other three had
+ * no authoritative company profile at the 2026-07-28 audit. Placeholders are
+ * still fully interactive — a dead grey icon tells a visitor nothing, whereas a
+ * button that says "coming soon" does.
  */
 export const socialLinks: SocialLink[] = [
-  { platform: 'facebook', label: 'Facebook', href: null },
-  { platform: 'instagram', label: 'Instagram', href: contact.instagramUrl },
-  { platform: 'youtube', label: 'YouTube', href: null },
-  { platform: 'linkedin', label: 'LinkedIn', href: null },
+  { platform: 'facebook', label: 'Facebook', href: null, status: 'placeholder' },
+  {
+    platform: 'instagram',
+    label: 'Instagram',
+    href: contact.instagramUrl,
+    status: 'placeholder',
+  },
+  { platform: 'youtube', label: 'YouTube', href: null, status: 'placeholder' },
+  { platform: 'linkedin', label: 'LinkedIn', href: null, status: 'placeholder' },
 ]
 
 // ------------------------------------------------------------------- nav

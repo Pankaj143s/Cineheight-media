@@ -1,4 +1,23 @@
-import type { SocialPlatform } from '@/content/siteContent'
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import type { SocialLink, SocialPlatform } from '@/content/siteContent'
+import { DURATION_MS, EASE_CONTROL } from '@/lib/motionTokens'
+
+/**
+ * A social channel control.
+ *
+ * Three of the four channels have no profile yet and Instagram's is being held
+ * back until launch, so all four are placeholders in this pass. A placeholder
+ * is a real `<button>`, not an `href="#"` anchor and not a dimmed
+ * `cursor-not-allowed` glyph: the first lies to the browser and to screen
+ * readers about being a link, and the second removes the only affordance that
+ * would let someone discover what the icon even is. Instead the button carries
+ * its own explanation and says so when pressed.
+ *
+ * Flipping a channel live is a content edit (`status: 'live'`) — the markup and
+ * every hover state below are shared by both branches.
+ */
 
 function SocialGlyph({ platform }: { platform: SocialPlatform }) {
   if (platform === 'facebook') {
@@ -29,54 +48,110 @@ function SocialGlyph({ platform }: { platform: SocialPlatform }) {
   )
 }
 
-export default function SocialIconLink({
-  platform,
-  label,
-  href,
-}: {
-  platform: SocialPlatform
-  label: string
-  href: string | null
-}) {
-  const content = (
+/** Shared 44 px target, ring, rising blue fill and glyph. */
+const SHELL_CLASS =
+  'group relative flex h-11 w-11 items-center justify-center rounded-full text-text-300 ' +
+  'transition-[transform,color,filter] duration-300 ease-out ' +
+  'hover:-translate-y-[3px] hover:text-[var(--blue-050)] ' +
+  'focus-visible:-translate-y-[3px] focus-visible:text-[var(--blue-050)] ' +
+  'active:translate-y-0 active:scale-95'
+
+function Decoration({ platform }: { platform: SocialPlatform }) {
+  return (
     <>
       <span
         aria-hidden="true"
         className="absolute inset-0 rounded-full border transition-colors duration-300 group-hover:border-[var(--blue-500)] group-focus-visible:border-[var(--blue-500)]"
         style={{ borderColor: 'var(--border-strong)' }}
       />
+      {/* Blue fill rising from the base of the circle on hover and focus. */}
       <span
         aria-hidden="true"
-        className="absolute bottom-1 left-2 right-2 h-px origin-left scale-x-0 bg-[var(--blue-500)] transition-transform duration-300 group-hover:scale-x-100 group-focus-visible:scale-x-100"
+        className="absolute inset-0 origin-bottom scale-0 rounded-full opacity-0 transition-[transform,opacity] duration-[320ms] group-hover:scale-100 group-hover:opacity-100 group-focus-visible:scale-100 group-focus-visible:opacity-100"
+        style={{
+          background:
+            'radial-gradient(circle at 50% 100%, rgba(0,137,255,0.85), rgba(0,137,255,0.32) 58%, rgba(0,137,255,0.05) 100%)',
+          transitionTimingFunction: EASE_CONTROL,
+        }}
       />
-      <svg width="18" height="18" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 rounded-full opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100"
+        style={{ boxShadow: '0 6px 18px -6px rgba(0,137,255,0.55)' }}
+      />
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 32 32"
+        fill="currentColor"
+        aria-hidden="true"
+        className="relative"
+      >
         <SocialGlyph platform={platform} />
       </svg>
     </>
   )
+}
 
-  if (!href) {
+export default function SocialIconLink({ platform, label, href, status }: SocialLink) {
+  const [announced, setAnnounced] = useState(false)
+  const timer = useRef<number>()
+  const isLive = status === 'live' && !!href
+
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+
+  const announce = () => {
+    window.clearTimeout(timer.current)
+    setAnnounced(true)
+    timer.current = window.setTimeout(() => setAnnounced(false), DURATION_MS.toast)
+  }
+
+  if (isLive) {
     return (
-      <span
-        role="img"
-        aria-label={`${label} profile is not yet configured`}
-        title={`${label} profile coming soon`}
-        className="relative flex h-11 w-11 cursor-not-allowed items-center justify-center rounded-full text-text-500 opacity-55"
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`${label} — opens in a new tab`}
+        className={SHELL_CLASS}
       >
-        {content}
-      </span>
+        <Decoration platform={platform} />
+      </a>
     )
   }
 
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={`${label} — opens in a new tab`}
-      className="group relative flex h-11 w-11 items-center justify-center rounded-full text-text-300 transition-all duration-300 hover:-translate-y-0.5 hover:text-[var(--blue-200)] focus-visible:-translate-y-0.5 focus-visible:text-[var(--blue-200)]"
-    >
-      {content}
-    </a>
+    <span className="relative">
+      <button
+        type="button"
+        aria-label={`${label} link coming soon`}
+        className={SHELL_CLASS}
+        onClick={announce}
+        onBlur={() => setAnnounced(false)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setAnnounced(false)
+        }}
+      >
+        <Decoration platform={platform} />
+      </button>
+      {/*
+        Non-blocking and self-dismissing. `role="status"` announces it without
+        stealing focus, so it works the same whether it was opened by pointer or
+        by keyboard.
+      */}
+      <span
+        role="status"
+        aria-live="polite"
+        className={`pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max max-w-[15rem] -translate-x-1/2 rounded-md px-2.5 py-1.5 text-[11px] leading-snug text-text-200 transition-opacity duration-200 ${
+          announced ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{
+          background: 'rgba(2,3,6,0.94)',
+          border: '1px solid var(--border-strong)',
+        }}
+      >
+        {announced ? 'Social link will be connected before launch.' : ''}
+      </span>
+    </span>
   )
 }

@@ -295,8 +295,30 @@ html[data-contour-active='true'] .static-contour-field {
 }
 
 .process-step[data-process-hover='true'] [data-process-title] {
-  translate: 5px 0;
+  translate: 4px 0;
   color: var(--blue-200);
+}
+
+/*
+ * Two owners write a process node's size: the scroll pulse sets --node-scale as
+ * it passes, pointer proximity sets --node-hover. Composing them here means
+ * neither has to know about the other, and hover emphasis stays a modest
+ * multiplier on top of the primary animation rather than replacing it.
+ */
+.process-node {
+  --node-scale: 1;
+  --node-hover: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  /*
+   * `scale` is written every frame by the scroll pulse and must not be
+   * transitioned, or the arrival pop trails the line. `transform` carries the
+   * pointer emphasis and IS transitioned. They are separate CSS properties, so
+   * they compose instead of overwriting each other.
+   */
+  scale: var(--node-scale);
+  transform: scale(var(--node-hover));
+  transition: transform 260ms ease;
 }
 
 .process-step[data-process-hover='true'] [data-process-description] {

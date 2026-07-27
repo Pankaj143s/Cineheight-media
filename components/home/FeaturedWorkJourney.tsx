@@ -9,6 +9,7 @@ import { featuredWorkSlots } from '@/content/mediaSlots'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import MediaSpecPlaceholder from '@/components/media/MediaSpecPlaceholder'
+import CountUp from '@/components/ui/CountUp'
 import { clamp, damp } from '@/lib/utils'
 import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
@@ -34,10 +35,17 @@ function ProjectCopy({
   cs,
   index,
   compact = false,
+  active = false,
 }: {
   cs: (typeof caseStudies)[number]
   index: number
   compact?: boolean
+  /**
+   * Whether this project is the one currently on stage. Drives the metric
+   * count — see the note on `CountUp`'s external trigger for why the built-in
+   * observer cannot be used here.
+   */
+  active?: boolean
 }) {
   return (
     <>
@@ -65,9 +73,13 @@ function ProjectCopy({
 
       <div className={`mt-7 flex flex-wrap items-end gap-x-10 gap-y-5 ${compact ? '' : ''}`}>
         <p className="font-display font-bold leading-none text-text-100" style={{ fontSize: 'calc(clamp(2.4rem, 4.6vw, 4.4rem) * var(--display-scale))' }}>
-          {cs.headlineStat.prefix}
-          {cs.headlineStat.value}
-          <span style={{ color: 'var(--blue-500)' }}>{cs.headlineStat.suffix}</span>
+          <CountUp
+            value={cs.headlineStat.value}
+            prefix={cs.headlineStat.prefix}
+            suffix={cs.headlineStat.suffix}
+            duration={1100}
+            active={active}
+          />
           <span className="font-body ml-3 align-middle text-sm font-normal text-text-300">
             {cs.headlineStat.label}
           </span>
@@ -335,7 +347,7 @@ export default function FeaturedWorkJourney() {
               </div>
             </Link>
             <div data-copy className="flow-gutter relative -mt-[7vh]">
-              <ProjectCopy cs={cs} index={i} compact />
+              <ProjectCopy cs={cs} index={i} compact active={active === i} />
             </div>
           </article>
         ))}
@@ -423,7 +435,7 @@ export default function FeaturedWorkJourney() {
             style={{ opacity: 0 }}
           >
             <div className="pointer-events-auto">
-              <ProjectCopy cs={cs} index={i} />
+              <ProjectCopy cs={cs} index={i} active={active === i} />
             </div>
           </div>
         ))}
