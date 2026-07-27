@@ -7,8 +7,10 @@ import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import type { CaseStudy } from '@/content/caseStudies'
 import { caseCover } from '@/content/presentationMedia'
+import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { observeVisibleLayerPromotion } from '@/lib/visibleLayerPromotion'
 
 /**
  * The next chapter beginning, not a footer card. Full-width media, the client
@@ -50,35 +52,34 @@ export default function NextProject({ next }: { next: CaseStudy }) {
     if (!root || !media) return
     const target = { x: 0, y: 0 }
     const cur = { x: 0, y: 0 }
-    let raf = 0
-    let last = performance.now()
 
-    const loop = (now: number) => {
-      const dt = Math.min(50, now - last || 16)
-      last = now
+    const animation = createManagedFrameLoop((_now, dt) => {
       const f = damp(0.08, dt)
       cur.x += (target.x - cur.x) * f
       cur.y += (target.y - cur.y) * f
       media.style.transform = `perspective(1600px) rotateY(${(cur.x * 2.4).toFixed(2)}deg) rotateX(${(-cur.y * 1.6).toFixed(2)}deg)`
       root.style.setProperty('--mx', `${50 + cur.x * 40}%`)
-      raf = requestAnimationFrame(loop)
-    }
+      return Math.abs(target.x - cur.x) > 0.002 || Math.abs(target.y - cur.y) > 0.002
+    })
     const onMove = (e: PointerEvent) => {
       const r = root.getBoundingClientRect()
       target.x = clamp((e.clientX - r.left) / r.width - 0.5, -0.5, 0.5)
       target.y = clamp((e.clientY - r.top) / r.height - 0.5, -0.5, 0.5)
+      animation.wake()
     }
     const onLeave = () => {
       target.x = 0
       target.y = 0
+      animation.wake()
     }
     root.addEventListener('pointermove', onMove)
     root.addEventListener('pointerleave', onLeave)
-    raf = requestAnimationFrame(loop)
+    const stopPromotion = observeVisibleLayerPromotion([media])
     return () => {
       root.removeEventListener('pointermove', onMove)
       root.removeEventListener('pointerleave', onLeave)
-      cancelAnimationFrame(raf)
+      stopPromotion()
+      animation.destroy()
     }
   }, [rich])
 
@@ -93,7 +94,7 @@ export default function NextProject({ next }: { next: CaseStudy }) {
       >
         <div
           ref={mediaRef}
-          className="relative w-full overflow-hidden will-change-transform"
+          className="relative w-full overflow-hidden"
           // Capped on short desktops so the scene never exceeds the viewport.
           style={{ height: mobile ? '58svh' : 'clamp(30rem, 78svh, 52rem)' }}
         >

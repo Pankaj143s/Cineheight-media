@@ -110,9 +110,12 @@ export default function PhoneReelExperience({
     const byHeight = mobile ? h * 0.9 : clamp(h * 0.8, 460, 700)
     // Also bounded by the column: the phone must never be widened to fill the
     // stage, and side phones need room to stay visible.
-    const byWidth = ((mobile ? w * 0.78 : w * 0.42) * 16) / 9
+    // A slightly wider shell keeps the mobile stack from reading as squeezed.
+    // The actual portrait media remains true 9:16 inside the handset.
+    const shellRatio = 0.61
+    const byWidth = (mobile ? w * 0.82 : w * 0.44) / shellRatio
     const phoneH = Math.max(320, Math.min(byHeight, byWidth))
-    const phoneW = (phoneH * 9) / 16
+    const phoneW = phoneH * shellRatio
 
     spacing.current = phoneW * (mobile ? 0.68 : 0.66)
     stage.style.setProperty('--phone-w', `${Math.round(phoneW)}px`)
@@ -527,7 +530,7 @@ export default function PhoneReelExperience({
             }}
             className="absolute left-1/2 top-1/2 will-change-transform"
             style={{
-              width: 'var(--phone-w, 260px)',
+              width: 'var(--phone-w, 282px)',
               height: 'var(--phone-h, 462px)',
               transformStyle: 'preserve-3d',
               cursor: 'pointer',

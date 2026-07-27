@@ -8,10 +8,6 @@ import { closing, contact, navItems, socialLinks } from '@/content/siteContent'
 export default function Footer({ variant = 'standalone' }: { variant?: 'standalone' | 'integrated' }) {
   const year = new Date().getFullYear()
   const integrated = variant === 'integrated'
-  const configuredSocials = socialLinks.filter(
-    (link): link is typeof link & { href: string } => Boolean(link.href)
-  )
-
   return (
     <footer
       data-interaction-quiet
@@ -74,7 +70,7 @@ export default function Footer({ variant = 'standalone' }: { variant?: 'standalo
               ))}
             </nav>
             <div className="mt-4 flex items-center gap-2" aria-label="Social links">
-              {configuredSocials.map((link) => (
+              {socialLinks.map((link) => (
                 <SocialIconLink key={link.platform} {...link} />
               ))}
             </div>

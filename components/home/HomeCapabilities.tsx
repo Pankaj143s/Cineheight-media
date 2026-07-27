@@ -6,6 +6,7 @@ import { getCaseStudy } from '@/content/caseStudies'
 import { portraitReel } from '@/content/presentationMedia'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
+import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 
@@ -57,24 +58,24 @@ const PILLARS: Pillar[] = [
     index: '01',
     title: 'Build the brand',
     description:
-      'Brand strategy, positioning and identity systems that make your business distinctive, recognisable and ready to grow.',
-    includes: ['Brand strategy', 'Positioning', 'Identity design', 'Visual systems', 'Graphic design'],
+      'Positioning and identity systems that make your brand distinctive and ready to grow.',
+    includes: ['Brand strategy', 'Identity design', 'Visual systems'],
     media: mediaFor(sapale, 2), // Fascino brand film
   },
   {
     index: '02',
     title: 'Create attention',
     description:
-      'Social content, photography, reels and campaign films designed to earn attention and keep your brand memorable.',
-    includes: ['Social media', 'Content creation', 'Photography', 'Reels & campaign films', 'Editing'],
+      'Social content, reels and campaign films designed to earn attention and stay memorable.',
+    includes: ['Social media', 'Content creation', 'Reels & films'],
     media: mediaFor(divija, 0), // Diwali campaign
   },
   {
     index: '03',
     title: 'Drive growth',
     description:
-      'Performance campaigns and continuous optimisation that turn visibility into enquiries, customers and measurable growth.',
-    includes: ['Performance marketing', 'Campaign strategy', 'Lead generation', 'Optimisation & reporting', 'Ongoing social management'],
+      'Performance campaigns that turn visibility into qualified enquiries and measurable growth.',
+    includes: ['Performance marketing', 'Lead generation', 'Optimisation'],
     media: mediaFor(ses, 2), // Consistency story
   },
 ]
@@ -165,11 +166,7 @@ export default function HomeCapabilities() {
     if (!root) return
     const t = { x: 0.5, y: 0.5 }
     const c = { x: 0.5, y: 0.5 }
-    let raf = 0
-    let last = performance.now()
-    const loop = (now: number) => {
-      const dt = Math.min(50, now - last || 16)
-      last = now
+    const animation = createManagedFrameLoop((_now, dt) => {
       const f = damp(0.12, dt)
       c.x += (t.x - c.x) * f
       c.y += (t.y - c.y) * f
@@ -177,24 +174,25 @@ export default function HomeCapabilities() {
       root.style.setProperty('--sy', `${(c.y * 100).toFixed(1)}%`)
       root.style.setProperty('--cap-lean-x', `${((c.x - 0.5) * 20).toFixed(2)}px`)
       root.style.setProperty('--cap-lean-y', `${((c.y - 0.5) * 14).toFixed(2)}px`)
-      raf = requestAnimationFrame(loop)
-    }
+      return Math.abs(t.x - c.x) > 0.002 || Math.abs(t.y - c.y) > 0.002
+    })
     const onMove = (e: PointerEvent) => {
       const r = root.getBoundingClientRect()
       t.x = clamp((e.clientX - r.left) / r.width, 0, 1)
       t.y = clamp((e.clientY - r.top) / r.height, 0, 1)
+      animation.wake()
     }
     const onLeave = () => {
       t.x = 0.5
       t.y = 0.5
+      animation.wake()
     }
     root.addEventListener('pointermove', onMove)
     root.addEventListener('pointerleave', onLeave)
-    raf = requestAnimationFrame(loop)
     return () => {
       root.removeEventListener('pointermove', onMove)
       root.removeEventListener('pointerleave', onLeave)
-      cancelAnimationFrame(raf)
+      animation.destroy()
     }
   }, [rich])
 

@@ -12,7 +12,9 @@ import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import MediaSpecPlaceholder from '@/components/media/MediaSpecPlaceholder'
 import CountUp from '@/components/ui/CountUp'
 import { clamp, damp } from '@/lib/utils'
+import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { observeVisibleLayerPromotion } from '@/lib/visibleLayerPromotion'
 
 /**
  * Three campaign worlds you walk through, not three cards you browse.
@@ -95,11 +97,7 @@ export default function WorkIndex() {
     if (!root) return
     const target = { x: 0, y: 0 }
     const cur = { x: 0, y: 0 }
-    let raf = 0
-    let last = performance.now()
-    const loop = (now: number) => {
-      const dt = Math.min(50, now - last || 16)
-      last = now
+    const animation = createManagedFrameLoop((_now, dt) => {
       const f = damp(0.07, dt)
       cur.x += (target.x - cur.x) * f
       cur.y += (target.y - cur.y) * f
@@ -107,17 +105,21 @@ export default function WorkIndex() {
       root.style.setProperty('--lean-y', `${(cur.y * 12).toFixed(2)}px`)
       root.style.setProperty('--px', `${(50 + cur.x * 46).toFixed(1)}%`)
       root.style.setProperty('--py', `${(50 + cur.y * 46).toFixed(1)}%`)
-      raf = requestAnimationFrame(loop)
-    }
+      return Math.abs(target.x - cur.x) > 0.002 || Math.abs(target.y - cur.y) > 0.002
+    })
     const onMove = (e: PointerEvent) => {
       target.x = clamp(e.clientX / window.innerWidth - 0.5, -0.5, 0.5)
       target.y = clamp(e.clientY / window.innerHeight - 0.5, -0.5, 0.5)
+      animation.wake()
     }
     window.addEventListener('pointermove', onMove, { passive: true })
-    raf = requestAnimationFrame(loop)
+    const stopPromotion = observeVisibleLayerPromotion(
+      root.querySelectorAll<HTMLElement>('[data-work-index-stage]')
+    )
     return () => {
       window.removeEventListener('pointermove', onMove)
-      cancelAnimationFrame(raf)
+      stopPromotion()
+      animation.destroy()
     }
   }, [rich])
 
@@ -162,11 +164,11 @@ export default function WorkIndex() {
         >
           <Link href={`/work/${cs.id}`} className="group block" aria-label={`${cs.client} — ${cs.tagline}`}>
             <div
+              data-work-index-stage
               className="relative w-full overflow-hidden"
               style={{
                 height: mobile ? '70svh' : 'clamp(32rem, 88svh, 60rem)',
                 transform: rich ? 'translate3d(var(--lean-x), var(--lean-y), 0)' : undefined,
-                willChange: rich ? 'transform' : undefined,
               }}
             >
               {/* Client is producing final index covers for this design — a

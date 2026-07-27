@@ -4,8 +4,10 @@ import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
+import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects, useIsMobileTier } from '@/lib/useMediaPreferences'
+import { observeVisibleLayerPromotion } from '@/lib/visibleLayerPromotion'
 
 /**
  * The plain-English answer to "what is this company?", placed immediately after
@@ -33,12 +35,8 @@ export default function AgencyProposition() {
 
     const t = { x: 0, y: 0 }
     const c = { x: 0, y: 0 }
-    let raf = 0
-    let last = performance.now()
 
-    const loop = (now: number) => {
-      const dt = Math.min(50, now - last || 16)
-      last = now
+    const animation = createManagedFrameLoop((_now, dt) => {
       const f = damp(0.06, dt)
       c.x += (t.x - c.x) * f
       c.y += (t.y - c.y) * f
@@ -46,23 +44,29 @@ export default function AgencyProposition() {
       depth.style.transform = `translate3d(${(c.x * 10).toFixed(2)}px, ${(c.y * 6).toFixed(2)}px, 0)`
       root.style.setProperty('--px', `${(50 + c.x * 40).toFixed(1)}%`)
       root.style.setProperty('--py', `${(50 + c.y * 40).toFixed(1)}%`)
-      raf = requestAnimationFrame(loop)
-    }
+      return Math.abs(t.x - c.x) > 0.002 || Math.abs(t.y - c.y) > 0.002
+    })
 
     const onMove = (e: PointerEvent) => {
       const r = root.getBoundingClientRect()
       t.x = clamp((e.clientX - r.left) / r.width - 0.5, -0.5, 0.5)
       t.y = clamp((e.clientY - r.top) / r.height - 0.5, -0.5, 0.5)
+      animation.wake()
     }
-    const onLeave = () => { t.x = 0; t.y = 0 }
+    const onLeave = () => {
+      t.x = 0
+      t.y = 0
+      animation.wake()
+    }
 
     root.addEventListener('pointermove', onMove)
     root.addEventListener('pointerleave', onLeave)
-    raf = requestAnimationFrame(loop)
+    const stopPromotion = observeVisibleLayerPromotion([depth])
     return () => {
       root.removeEventListener('pointermove', onMove)
       root.removeEventListener('pointerleave', onLeave)
-      cancelAnimationFrame(raf)
+      stopPromotion()
+      animation.destroy()
     }
   }, [rich])
 
@@ -103,7 +107,7 @@ export default function AgencyProposition() {
         }}
       />
 
-      <div ref={depthRef} className="flow-gutter relative will-change-transform">
+      <div ref={depthRef} className="flow-gutter relative">
         <div data-parallax-y="0.09">
           <KineticLabel text="WHAT WE DO" />
         </div>
@@ -128,10 +132,8 @@ export default function AgencyProposition() {
 
         <div data-parallax-y="0.06">
           <p className="font-body measure-wide mt-6 text-base leading-relaxed text-text-200 sm:text-lg">
-            Cineheight is a full-service creative and growth agency. We combine brand strategy and identity design
-            with social media management, content creation, video and reel production, campaign execution and
-            performance marketing — turning growing businesses into brands people remember, and attention into
-            measurable growth.
+            Cineheight is a creative and growth agency combining brand strategy, identity, social content, video
+            and performance marketing — one team turning attention into measurable growth.
           </p>
         </div>
 

@@ -74,6 +74,79 @@ body {
   border-radius: 2px;
 }
 
+/* Fine-pointer tier: a compact signal cursor replaces the stock arrow while
+   text-entry controls retain the native I-beam. The decorative layer is
+   mounted only when the rich-effects capability gate passes. */
+html[data-signal-cursor='true'] body,
+html[data-signal-cursor='true'] a,
+html[data-signal-cursor='true'] button,
+html[data-signal-cursor='true'] [role='button'] {
+  cursor: none !important;
+}
+html[data-signal-cursor='true'] input,
+html[data-signal-cursor='true'] textarea {
+  cursor: text;
+}
+html[data-signal-cursor='true'] select {
+  cursor: auto;
+}
+.signal-cursor-dot {
+  width: 5px;
+  height: 5px;
+  translate: -50% -50%;
+  background: var(--blue-050);
+  box-shadow: 0 0 6px 1px rgba(0, 137, 255, 0.62);
+  transition: width 160ms ease, height 160ms ease, background 160ms ease;
+}
+.signal-cursor-target {
+  width: 14px;
+  height: 14px;
+  translate: -50% -50%;
+  border: 1px solid rgba(153, 207, 255, 0.62);
+  opacity: 0;
+  transition: opacity 160ms ease, scale 180ms ease;
+  scale: 0.72;
+}
+.signal-cursor-click {
+  width: 24px;
+  height: 24px;
+  translate: -50% -50%;
+  border: 1px solid rgba(0, 137, 255, 0.52);
+  opacity: var(--cursor-click);
+  scale: var(--cursor-click-scale);
+}
+[data-signal-cursor][data-cursor-mode='action'] .signal-cursor-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--blue-200);
+}
+[data-signal-cursor][data-cursor-mode='action'] .signal-cursor-target {
+  opacity: 0.72;
+  scale: 1;
+}
+
+.static-contour-field {
+  opacity: 0.24;
+  transition: opacity 300ms ease;
+}
+html[data-contour-active='true'] .static-contour-field {
+  opacity: 0;
+}
+[data-text-layer-active='true'] {
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce), (pointer: coarse) {
+  [data-signal-cursor] {
+    display: none !important;
+  }
+  html[data-signal-cursor='true'] body,
+  html[data-signal-cursor='true'] a,
+  html[data-signal-cursor='true'] button,
+  html[data-signal-cursor='true'] [role='button'] {
+    cursor: auto !important;
+  }
+}
+
 /* ============================================================
    Hero title — live HTML, Bebas Neue, vertical tone transition
    (spec §6: 400 weight, ~82–92vw, lh 0.78–0.84, no chrome/bevel)
@@ -128,6 +201,36 @@ body {
     clip-path: inset(100% 0 0 0);
   }
 }
+
+.route-loader-mark {
+  opacity: 0;
+  animation-name: route-loader-mark;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+}
+
+.route-loader-word {
+  letter-spacing: 0.42em;
+  animation: route-loader-tracking 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.route-loader-progress {
+  width: 100%;
+  transform: scaleX(0);
+  will-change: transform;
+}
+
+@keyframes route-loader-mark {
+  0%, 18% { opacity: 0; transform: translateY(7px); }
+  48%, 74% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+
+@keyframes route-loader-tracking {
+  from { letter-spacing: 0.62em; opacity: 0; }
+  to { letter-spacing: 0.42em; opacity: 1; }
+}
+
 /* The signal runs just ahead of the mask's edge in both directions. */
 @keyframes route-signal-down {
   from {
@@ -156,6 +259,17 @@ body {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .route-loader-mark {
+    opacity: 1;
+    transform: none;
+    animation: none !important;
+  }
+  .route-loader-word {
+    animation: none !important;
+  }
+  .route-loader-progress {
+    will-change: auto;
+  }
   [style*='route-close'],
   [style*='route-open'],
   [style*='route-signal'] {
@@ -166,7 +280,8 @@ body {
 
 [data-parallax-y],
 [data-parallax-x],
-[data-parallax-scale] {
+[data-parallax-scale],
+[data-parallax-auto] {
   --parallax-x: 0px;
   --parallax-y: 0px;
   --parallax-scale: 1;
@@ -202,9 +317,15 @@ body {
 @media (prefers-reduced-motion: reduce) {
   [data-parallax-y],
   [data-parallax-x],
-  [data-parallax-scale] {
+  [data-parallax-scale],
+  [data-parallax-auto] {
     translate: 0 0 !important;
     scale: 1 !important;
+  }
+
+  .flow-atmosphere-orbit,
+  .flow-atmosphere-axis {
+    transform: none !important;
   }
 }
 

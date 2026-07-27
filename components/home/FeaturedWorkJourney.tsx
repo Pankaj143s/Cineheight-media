@@ -10,6 +10,7 @@ import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import MediaSpecPlaceholder from '@/components/media/MediaSpecPlaceholder'
 import { clamp, damp } from '@/lib/utils'
+import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 
 /**
@@ -243,12 +244,8 @@ export default function FeaturedWorkJourney() {
 
     const t = { x: 0, y: 0, on: 0 }
     const c = { x: 0, y: 0, on: 0 }
-    let raf = 0
-    let last = performance.now()
 
-    const loop = (now: number) => {
-      const dt = Math.min(50, now - last || 16)
-      last = now
+    const animation = createManagedFrameLoop((_now, dt) => {
       const f = damp(0.11, dt)
       c.x += (t.x - c.x) * f
       c.y += (t.y - c.y) * f
@@ -260,24 +257,31 @@ export default function FeaturedWorkJourney() {
       // 6–14px of internal media drift — depth, not a wobble.
       stage.style.setProperty('--media-x', `${((c.x / stage.clientWidth - 0.5) * 14).toFixed(2)}px`)
       stage.style.setProperty('--media-y', `${((c.y / stage.clientHeight - 0.5) * 9).toFixed(2)}px`)
-      raf = requestAnimationFrame(loop)
-    }
+      return (
+        Math.abs(t.x - c.x) > 0.05 ||
+        Math.abs(t.y - c.y) > 0.05 ||
+        Math.abs(t.on - c.on) > 0.002
+      )
+    })
 
     const onMove = (e: PointerEvent) => {
       const r = stage.getBoundingClientRect()
       t.x = e.clientX - r.left
       t.y = e.clientY - r.top
       t.on = 1
+      animation.wake()
     }
-    const onLeave = () => { t.on = 0 }
+    const onLeave = () => {
+      t.on = 0
+      animation.wake()
+    }
 
     stage.addEventListener('pointermove', onMove)
     stage.addEventListener('pointerleave', onLeave)
-    raf = requestAnimationFrame(loop)
     return () => {
       stage.removeEventListener('pointermove', onMove)
       stage.removeEventListener('pointerleave', onLeave)
-      cancelAnimationFrame(raf)
+      animation.destroy()
     }
   }, [rich, mobile])
 

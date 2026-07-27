@@ -180,7 +180,7 @@ export default function ProcessCompact() {
           style={{ maxWidth: '20ch' }}
         />
         <p className="font-body measure mt-6 text-[15px] leading-relaxed text-text-300">
-          Strategy, design, content and campaigns handled end to end — so nothing is lost between agencies.
+          One connected path from insight to launch and ongoing growth.
         </p>
       </div>
 

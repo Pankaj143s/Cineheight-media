@@ -4,33 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useReducedMotion } from '@/lib/useMediaPreferences'
 
-/**
- * A route transition that begins on the CLICK, not after the route has already
- * changed.
- *
- * The previous version watched `usePathname()`, so the sweep only started once
- * the destination was already rendering — the visitor saw the old page sit
- * still, then the new page arrive, then an animation play over the top of it.
- *
- * This version intercepts internal navigation in the capture phase of a single
- * document-level click listener. One file covers every `<Link>` and `<a>` on
- * the site, including ones added later, with no transition-aware link component
- * to remember to use.
- *
- * Sequence (≈600 ms total):
- *   0 ms    signal sweeps down, dark mask closes        (≈210 ms)
- *   210 ms  router.push()
- *   →       mask clips away revealing the destination   (≈320 ms)
- *
- * Left alone deliberately: external links, `mailto:` / `tel:` / `wa.me` and
- * other non-http schemes, same-page `#anchors`, downloads, `target=_blank`,
- * and any click carrying a modifier key or a non-primary button — those must
- * behave exactly as the browser intends. Back/forward is untouched, so scroll
- * restoration keeps working.
- */
-
-const OUT_MS = 210
-const IN_MS = 320
+const OUT_MS = 430
+const IN_MS = 390
+const COMPLETE_MS = 140
+const NAVIGATION_TIMEOUT_MS = 10_000
 
 type Phase = 'idle' | 'out' | 'in'
 
@@ -38,33 +15,73 @@ export default function RouteTransition() {
   const router = useRouter()
   const pathname = usePathname()
   const reduced = useReducedMotion()
-
   const [phase, setPhase] = useState<Phase>('idle')
+  const [progress, setProgress] = useState(0)
   const pendingRef = useRef<string | null>(null)
+  const startedAtRef = useRef(0)
   const timers = useRef<number[]>([])
 
   const clearTimers = useCallback(() => {
-    timers.current.forEach((t) => window.clearTimeout(t))
+    timers.current.forEach((timer) => window.clearTimeout(timer))
     timers.current = []
   }, [])
+
+  const finish = useCallback(() => {
+    clearTimers()
+    pendingRef.current = null
+    setProgress(0)
+    setPhase('idle')
+  }, [clearTimers])
+
+  const schedule = useCallback((callback: () => void, delay: number) => {
+    const timer = window.setTimeout(callback, delay)
+    timers.current.push(timer)
+    return timer
+  }, [])
+
+  const begin = useCallback(
+    (target: string, push: boolean) => {
+      if (pendingRef.current) return false
+      clearTimers()
+      pendingRef.current = target
+      startedAtRef.current = performance.now()
+      setPhase('out')
+      setProgress(6)
+
+      schedule(() => setProgress(72), reduced ? 32 : 20)
+      schedule(
+        () => {
+          setProgress(84)
+          if (push) router.push(target)
+        },
+        reduced ? 80 : OUT_MS
+      )
+      schedule(finish, NAVIGATION_TIMEOUT_MS)
+      return true
+    },
+    [clearTimers, finish, reduced, router, schedule]
+  )
 
   useEffect(() => () => clearTimers(), [clearTimers])
 
   useEffect(() => {
-    if (reduced) return
+    const onClick = (event: MouseEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return
+      }
 
-    const onClick = (e: MouseEvent) => {
-      // Only a plain primary click — never steal a modified or middle click.
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
-
-      const anchor = (e.target as HTMLElement | null)?.closest?.('a')
-      if (!anchor) return
-      if (anchor.target && anchor.target !== '_self') return
-      if (anchor.hasAttribute('download')) return
+      const anchor = (event.target as HTMLElement | null)?.closest?.('a')
+      if (!anchor || (anchor.target && anchor.target !== '_self') || anchor.hasAttribute('download')) return
 
       const href = anchor.getAttribute('href')
       if (!href) return
-      // mailto:, tel:, https://wa.me/…, instagram — all leave the site.
       if (/^[a-z]+:/i.test(href) && !href.startsWith('/') && !href.startsWith(location.origin)) {
         if (!href.startsWith('http')) return
       }
@@ -76,73 +93,134 @@ export default function RouteTransition() {
         return
       }
       if (url.origin !== location.origin) return
-      // Same-page anchor / identical route — let the browser handle it.
-      if (url.pathname === location.pathname && url.search === location.search) return
-      if (pendingRef.current) {
-        // A transition is already running; swallow the second click rather
-        // than queueing a double navigation.
-        e.preventDefault()
+      if (url.pathname === location.pathname) return
+
+      event.preventDefault()
+      if (!begin(url.pathname + url.search, true)) {
+        // Never queue a second destination behind an in-flight transition.
         return
       }
+    }
 
-      e.preventDefault()
-      pendingRef.current = url.pathname + url.search
-      setPhase('out')
-
-      clearTimers()
-      timers.current.push(
-        window.setTimeout(() => {
-          const target = pendingRef.current
-          if (target) router.push(target)
-        }, OUT_MS)
-      )
+    const onPopState = () => {
+      // The browser owns history navigation, so the overlay begins immediately
+      // and completes when Next publishes the new pathname.
+      begin(`history:${location.pathname}${location.search}`, false)
     }
 
     document.addEventListener('click', onClick, true)
-    return () => document.removeEventListener('click', onClick, true)
-  }, [router, reduced, clearTimers])
+    window.addEventListener('popstate', onPopState)
+    return () => {
+      document.removeEventListener('click', onClick, true)
+      window.removeEventListener('popstate', onPopState)
+    }
+  }, [begin])
 
-  // The destination has rendered — clip the mask away.
   useEffect(() => {
     if (!pendingRef.current) return
-    pendingRef.current = null
-    setPhase('in')
-    clearTimers()
-    timers.current.push(window.setTimeout(() => setPhase('idle'), IN_MS))
-  }, [pathname, clearTimers])
+    const minimumVisible = reduced ? 80 : OUT_MS
+    const remaining = Math.max(0, minimumVisible - (performance.now() - startedAtRef.current))
 
-  if (reduced || phase === 'idle') return null
+    clearTimers()
+    schedule(() => {
+      setProgress(100)
+      schedule(() => {
+        pendingRef.current = null
+        setPhase('in')
+        schedule(finish, reduced ? 120 : IN_MS)
+      }, reduced ? 32 : COMPLETE_MS)
+    }, remaining)
+  }, [pathname, reduced, clearTimers, finish, schedule])
+
+  useEffect(() => {
+    if (phase === 'idle') {
+      document.body.removeAttribute('aria-busy')
+      return
+    }
+    document.body.setAttribute('aria-busy', 'true')
+    return () => document.body.removeAttribute('aria-busy')
+  }, [phase])
+
+  if (phase === 'idle') return null
+
+  const outDuration = reduced ? 0 : OUT_MS
+  const inDuration = reduced ? 0 : IN_MS
 
   return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-[80]"
-      // The overlay is never interactive, so it cannot delay a click or trap
-      // focus even mid-transition.
-    >
+    <>
+      <span className="sr-only" role="status" aria-live="polite">
+        Loading page
+      </span>
       <div
-        className="absolute inset-0 origin-top"
-        style={{
-          background: 'linear-gradient(to bottom, #020306, #04070d)',
-          animation:
-            phase === 'out'
-              ? `route-close ${OUT_MS}ms cubic-bezier(0.65,0,0.35,1) forwards`
-              : `route-open ${IN_MS}ms cubic-bezier(0.22,1,0.36,1) forwards`,
-        }}
-      />
-      <div
-        className="absolute inset-x-0"
-        style={{
-          height: 2,
-          background:
-            'linear-gradient(to right, transparent, #0089FF 20%, #DCEEFF 50%, #0089FF 80%, transparent)',
-          boxShadow: '0 0 16px 3px rgba(0,137,255,0.6)',
-          animation:
-            phase === 'out'
-              ? `route-signal-down ${OUT_MS}ms cubic-bezier(0.65,0,0.35,1) forwards`
-              : `route-signal-up ${IN_MS}ms cubic-bezier(0.22,1,0.36,1) forwards`,
-        }}
-      />
-    </div>
+        aria-hidden="true"
+        data-route-loader
+        data-route-phase={phase}
+        data-route-progress={Math.round(progress)}
+        className="pointer-events-none fixed inset-0 z-[80]"
+        style={{ contain: 'paint' }}
+      >
+        <div
+          className="absolute inset-0 origin-top"
+          style={{
+            background: 'linear-gradient(to bottom, #020306, #04070d)',
+            clipPath: reduced ? 'inset(0)' : undefined,
+            animation: reduced
+              ? 'none'
+              : phase === 'out'
+                ? `route-close ${outDuration}ms cubic-bezier(0.65,0,0.35,1) forwards`
+                : `route-open ${inDuration}ms cubic-bezier(0.22,1,0.36,1) forwards`,
+          }}
+        />
+        {!reduced && (
+          <div
+            className="absolute inset-x-0"
+            style={{
+              height: 2,
+              background:
+                'linear-gradient(to right, transparent, #0089FF 20%, #DCEEFF 50%, #0089FF 80%, transparent)',
+              boxShadow: '0 0 16px 3px rgba(0,137,255,0.6)',
+              animation:
+                phase === 'out'
+                  ? `route-signal-down ${outDuration}ms cubic-bezier(0.65,0,0.35,1) forwards`
+                  : `route-signal-up ${inDuration}ms cubic-bezier(0.22,1,0.36,1) forwards`,
+            }}
+          />
+        )}
+        <div
+          key={phase}
+          className="route-loader-mark absolute inset-0 flex items-center justify-center"
+          style={{ animationDuration: `${phase === 'out' ? outDuration : inDuration}ms` }}
+        >
+          <div className="w-[min(74vw,22rem)]">
+            <div className="flex items-end justify-between gap-5">
+              <span className="route-loader-word font-display text-sm font-bold uppercase text-text-100 sm:text-base">
+                Cineheight
+              </span>
+              <span
+                className="font-display text-[8px] font-medium uppercase text-[var(--blue-200)]"
+                style={{ letterSpacing: '0.28em' }}
+              >
+                Signal / Loading
+              </span>
+            </div>
+            <div className="mt-4 h-px overflow-hidden bg-white/10">
+              <span
+                className="route-loader-progress block h-full origin-left bg-[var(--blue-500)]"
+                style={{
+                  transform: `scaleX(${progress / 100})`,
+                  transition: reduced
+                    ? 'none'
+                    : `transform ${progress === 100 ? COMPLETE_MS : progress >= 84 ? 1800 : OUT_MS}ms cubic-bezier(0.22,1,0.36,1)`,
+                }}
+              />
+            </div>
+            <div className="mt-2 flex justify-between">
+              <span className="h-1 w-1 rounded-full bg-[var(--blue-400)] shadow-[0_0_10px_rgba(0,137,255,0.9)]" />
+              <span className="h-1 w-1 rounded-full bg-white/35" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }

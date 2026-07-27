@@ -114,33 +114,48 @@ const PhoneReelShell = forwardRef<HTMLVideoElement, {
             />
           </div>
         ) : item.portrait ? (
-          /* Already 9:16 — the blurred composition is baked into the file, so
-             compositing another one here would double-blur the bands. */
+          /* The handset is slightly wider than 9:16 for a less squeezed mobile
+             silhouette. Keep the master at its true ratio inside quiet rails. */
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={item.poster}
-              alt={`${item.client} — ${item.title}`}
+              alt=""
+              aria-hidden="true"
               draggable={false}
               className="absolute inset-0 h-full w-full object-cover"
+              style={{ transform: 'scale(1.06)', filter: 'blur(18px) brightness(0.42)' }}
               loading="lazy"
             />
-            {mountVideo && (
-              <video
-                ref={videoRef}
-                key={item.src}
+            <div
+              className="absolute inset-y-0 left-1/2 -translate-x-1/2 overflow-hidden"
+              style={{ aspectRatio: '9 / 16', maxWidth: '100%' }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={item.poster}
+                alt={`${item.client} — ${item.title}`}
+                draggable={false}
                 className="absolute inset-0 h-full w-full object-cover"
-                poster={item.poster}
-                muted={muted}
-                loop
-                playsInline
-                preload="none"
-                tabIndex={-1}
-                aria-hidden="true"
-              >
-                <source src={item.src} type="video/mp4" />
-              </video>
-            )}
+                loading="lazy"
+              />
+              {mountVideo && (
+                <video
+                  ref={videoRef}
+                  key={item.src}
+                  className="absolute inset-0 h-full w-full object-cover"
+                  poster={item.poster}
+                  muted={muted}
+                  loop
+                  playsInline
+                  preload="none"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                >
+                  <source src={item.src} type="video/mp4" />
+                </video>
+              )}
+            </div>
           </>
         ) : (
           <>

@@ -1,58 +1,68 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useCanRunRichEffects } from '@/lib/useMediaPreferences'
+import { createManagedFrameLoop, type ManagedFrameLoop } from '@/lib/managedFrame'
+import { readScrollSignal, subscribeScrollSignal } from '@/lib/scrollSignal'
+import { useMotionCapabilityProfile } from '@/lib/useMediaPreferences'
 
-const NODE_COUNT = 28
-const TRAIL_POINTS = 16
-const FILAMENTS = [
-  [0, 7],
-  [4, 15],
-  [10, 23],
-] as const
-
-interface SignalNode {
-  x: number
-  y: number
-  vx: number
-  vy: number
-  angle: number
-  radius: number
-  size: number
-  alpha: number
-  role: 0 | 1 | 2
-}
-
-interface Spark {
-  x: number
-  y: number
-  vx: number
-  vy: number
-  life: number
-}
-
-function cubicPoint(a: number, b: number, c: number, d: number, t: number) {
-  const mt = 1 - t
-  return mt * mt * mt * a + 3 * mt * mt * t * b + 3 * mt * t * t * c + t * t * t * d
-}
+const BAND_COUNT = 9
+const POINTER_RADIUS = 260
+const MAX_BEND = 22
 
 export default function PointerAtmosphere() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const enabled = useCanRunRichEffects()
+  const cursorRef = useRef<HTMLDivElement>(null)
+  const profile = useMotionCapabilityProfile()
+  const enabled = profile.interactive
 
   useEffect(() => {
     if (!enabled) return
     const canvas = canvasRef.current
-    if (!canvas) return
+    const cursor = cursorRef.current
+    if (!canvas || !cursor) return
+    const cursorEl = cursor
     const context = canvas.getContext('2d', { alpha: true })
     if (!context) return
     const ctx = context
+    const pointCount = profile.contourPointCount
+    const trailCount = profile.trailPointCount
 
+    const contourY = new Float32Array(BAND_COUNT * pointCount)
+    const trailX = new Float32Array(trailCount)
+    const trailY = new Float32Array(trailCount)
+
+    let width = 1
+    let height = 1
     let dpr = 1
-    let width = 0
-    let height = 0
+    let targetX = width / 2
+    let targetY = height / 2
+    let pointerX = targetX
+    let pointerY = targetY
+    let previousRawX = targetX
+    let previousRawY = targetY
+    let wakeX = 0
+    let wakeY = 0
+    let presence = 0
+    let targetPresence = 0
+    let interaction = 1
+    let targetInteraction = 1
+    let trailPresence = 0
+    let trailLength = 0
+    let pointerSpeed = 0
+    let targetPointerSpeed = 0
+    let scrollPhase = readScrollSignal().progress
+    let targetScrollPhase = scrollPhase
+    let rippleStart = -1
+    let clickStart = -1
+    let clickX = 0
+    let clickY = 0
+    let lastMoveAt = performance.now()
+    let lastScrollAt = lastMoveAt
+    let cursorMode: 'field' | 'action' | 'text' = 'field'
+    let animation: ManagedFrameLoop | null = null
+
     const resize = () => {
-      dpr = Math.min(window.devicePixelRatio || 1, 1.5)
+      dpr = Math.min(window.devicePixelRatio || 1, profile.canvasDprCap)
       width = document.documentElement.clientWidth
       height = document.documentElement.clientHeight
       canvas.width = Math.floor(width * dpr)
@@ -60,377 +70,298 @@ export default function PointerAtmosphere() {
       canvas.style.width = `${width}px`
       canvas.style.height = `${height}px`
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    }
-    resize()
-
-    const nodes: SignalNode[] = Array.from({ length: NODE_COUNT }, (_, index) => ({
-      x: width / 2,
-      y: height / 2,
-      vx: 0,
-      vy: 0,
-      angle: (index / NODE_COUNT) * Math.PI * 2 + Math.random() * 0.45,
-      radius: 44 + Math.random() * 205,
-      size: 0.8 + Math.random() * 1.35,
-      alpha: 0.2 + Math.random() * 0.36,
-      role: (index % 3) as 0 | 1 | 2,
-    }))
-    const sparks: Spark[] = Array.from({ length: 2 }, () => ({ x: 0, y: 0, vx: 0, vy: 0, life: 0 }))
-    const trailX = new Float32Array(TRAIL_POINTS)
-    const trailY = new Float32Array(TRAIL_POINTS)
-    let trailCount = 0
-    let trailStrength = 0
-
-    let targetX = width / 2
-    let targetY = height / 2
-    let pointerX = targetX
-    let pointerY = targetY
-    let lastRawX = targetX
-    let lastRawY = targetY
-    let lastMoveAt = performance.now()
-    let lastSparkAt = 0
-    let speed = 0
-    let targetPresence = 0
-    let presence = 0
-    let quietTarget = 1
-    let quiet = 1
-    let seeded = false
-    let waveStart = -1
-    let clickPulseStart = -1
-
-    let raf = 0
-    let running = false
-    let previousFrame = performance.now()
-
-    const seedAroundPointer = () => {
-      for (const node of nodes) {
-        node.x = targetX + Math.cos(node.angle) * node.radius
-        node.y = targetY + Math.sin(node.angle) * node.radius * 0.68
+      if (!trailLength) {
+        targetX = pointerX = width / 2
+        targetY = pointerY = height / 2
       }
-      for (let i = 0; i < TRAIL_POINTS; i++) {
-        trailX[i] = targetX
-        trailY[i] = targetY
-      }
-      trailCount = 1
-      seeded = true
     }
 
     const wake = () => {
-      if (running || document.hidden) return
-      running = true
-      previousFrame = performance.now()
-      raf = requestAnimationFrame(frame)
+      animation?.wake()
     }
 
     const onMove = (event: PointerEvent) => {
       if (event.pointerType !== 'mouse') return
       const now = performance.now()
-      const dx = event.clientX - lastRawX
-      const dy = event.clientY - lastRawY
-      const elapsed = Math.max(8, now - lastMoveAt)
-      const rawSpeed = Math.min(3.2, Math.hypot(dx, dy) / elapsed)
-      speed += (rawSpeed - speed) * 0.48
+      const dt = Math.max(8, now - lastMoveAt)
+      const dx = event.clientX - previousRawX
+      const dy = event.clientY - previousRawY
+      targetPointerSpeed = Math.min(1, Math.hypot(dx, dy) / dt / 1.45)
+      wakeX += (Math.max(-2.5, Math.min(2.5, dx / dt)) - wakeX) * 0.42
+      wakeY += (Math.max(-2.5, Math.min(2.5, dy / dt)) - wakeY) * 0.42
       targetX = event.clientX
       targetY = event.clientY
       targetPresence = 1
+
       const target = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null
-      quietTarget = target?.closest(
-        '[data-interaction-quiet], nav, form, button, a, input, textarea, select, p'
-      )
-        ? 0.32
-        : 1
+      const action = target?.closest('a, button, [role="button"]')
+      const textEntry = target?.closest('input, textarea, select, [contenteditable="true"]')
+      const quiet = target?.closest('[data-interaction-quiet], form, nav')
+      cursorMode = textEntry ? 'text' : action ? 'action' : 'field'
+      cursorEl.dataset.cursorMode = cursorMode
+      targetInteraction = quiet || textEntry ? 0.12 : action ? 0.45 : 1
 
-      if (!seeded) seedAroundPointer()
-      if (Math.hypot(dx, dy) > 2) {
-        const jump = Math.hypot(dx, dy)
-        if (jump > 160) {
-          const localLength = Math.min(220, jump)
-          const ux = dx / jump
-          const uy = dy / jump
-          for (let i = 0; i < TRAIL_POINTS; i++) {
-            const distance = (i / (TRAIL_POINTS - 1)) * localLength
-            trailX[i] = event.clientX - ux * distance
-            trailY[i] = event.clientY - uy * distance
-          }
-          trailCount = TRAIL_POINTS
-        } else {
-          for (let i = TRAIL_POINTS - 1; i > 0; i--) {
-            trailX[i] = trailX[i - 1]
-            trailY[i] = trailY[i - 1]
-          }
-          trailX[0] = event.clientX
-          trailY[0] = event.clientY
-          trailCount = Math.min(TRAIL_POINTS, trailCount + 1)
+      const moveDistance = Math.hypot(dx, dy)
+      if (moveDistance > 110) {
+        // Pointer events can be coalesced into one large jump. Seed a compact
+        // directional tail instead of drawing a distracting viewport-wide
+        // chord between two unrelated samples.
+        const span = Math.min(180, moveDistance * 0.42)
+        const directionX = dx / moveDistance
+        const directionY = dy / moveDistance
+        for (let index = 0; index < trailCount; index++) {
+          const distanceBehind = (index / Math.max(1, trailCount - 1)) * span
+          trailX[index] = event.clientX - directionX * distanceBehind
+          trailY[index] = event.clientY - directionY * distanceBehind
         }
-        trailStrength = Math.min(1, trailStrength + 0.3 + rawSpeed * 0.18)
+        trailLength = trailCount
+      } else {
+        for (let index = trailCount - 1; index > 0; index--) {
+          trailX[index] = trailX[index - 1]
+          trailY[index] = trailY[index - 1]
+        }
+        trailX[0] = event.clientX
+        trailY[0] = event.clientY
+        trailLength = Math.min(trailCount, trailLength + 1)
       }
+      trailPresence = Math.min(1, trailPresence + 0.58)
 
-      if (rawSpeed > 1.25 && now - lastSparkAt > 130) {
-        const spark = sparks.find((item) => item.life <= 0) ?? sparks[0]
-        spark.x = event.clientX
-        spark.y = event.clientY
-        spark.vx = -dx * 0.035 + (Math.random() - 0.5) * 0.5
-        spark.vy = -dy * 0.035 + (Math.random() - 0.5) * 0.5
-        spark.life = 1
-        lastSparkAt = now
-      }
-
-      lastRawX = event.clientX
-      lastRawY = event.clientY
+      previousRawX = event.clientX
+      previousRawY = event.clientY
       lastMoveAt = now
       wake()
     }
 
     const onDown = (event: PointerEvent) => {
       if (event.pointerType !== 'mouse') return
-      targetX = event.clientX
-      targetY = event.clientY
-      const now = performance.now()
-      waveStart = now
-      clickPulseStart = now
-      for (const node of nodes) {
-        const dx = node.x - targetX
-        const dy = node.y - targetY
-        const distance = Math.max(28, Math.hypot(dx, dy))
-        if (distance > 290) continue
-        const impulse = (1 - distance / 290) * 1.15
-        node.vx += (dx / distance) * impulse
-        node.vy += (dy / distance) * impulse
-      }
-      lastMoveAt = now
+      clickX = event.clientX
+      clickY = event.clientY
+      rippleStart = performance.now()
+      clickStart = rippleStart
       wake()
     }
 
     const onLeave = () => {
       targetPresence = 0
-      quietTarget = 1
+      targetInteraction = 0
       lastMoveAt = performance.now()
       wake()
     }
 
-    const drawTrail = (alpha: number) => {
-      if (trailCount < 3 || trailStrength < 0.02) return
-      const count = Math.min(trailCount, 10 + Math.round(speed * 2.2))
-      const tail = count - 1
-      const gradient = ctx.createLinearGradient(trailX[tail], trailY[tail], trailX[0], trailY[0])
-      gradient.addColorStop(0, 'rgba(0,137,255,0)')
-      gradient.addColorStop(0.55, `rgba(0,137,255,${0.16 * alpha})`)
-      gradient.addColorStop(1, `rgba(130,205,255,${0.58 * alpha})`)
-      ctx.beginPath()
-      ctx.moveTo(trailX[0], trailY[0])
-      for (let i = 0; i < count - 1; i++) {
-        const p0x = trailX[Math.max(0, i - 1)]
-        const p0y = trailY[Math.max(0, i - 1)]
-        const p1x = trailX[i]
-        const p1y = trailY[i]
-        const p2x = trailX[Math.min(tail, i + 1)]
-        const p2y = trailY[Math.min(tail, i + 1)]
-        const p3x = trailX[Math.min(tail, i + 2)]
-        const p3y = trailY[Math.min(tail, i + 2)]
-        ctx.bezierCurveTo(
-          p1x + (p2x - p0x) / 6,
-          p1y + (p2y - p0y) / 6,
-          p2x - (p3x - p1x) / 6,
-          p2y - (p3y - p1y) / 6,
-          p2x,
-          p2y
-        )
+    const drawContours = (now: number) => {
+      const phase = scrollPhase * Math.PI * 4
+      const rippleProgress = rippleStart < 0 ? 1 : Math.min(1, (now - rippleStart) / 700)
+      const rippleRadius = rippleProgress * Math.max(320, width * 0.28)
+      const threadX = Number.parseFloat(
+        document.documentElement.style.getPropertyValue('--flow-thread-x')
+      )
+      const threadY = Number.parseFloat(
+        document.documentElement.style.getPropertyValue('--flow-thread-y')
+      )
+      const threadDistance =
+        Number.isFinite(threadX) && Number.isFinite(threadY)
+          ? Math.hypot(threadX - pointerX, threadY - pointerY)
+          : Infinity
+      const threadPull = threadDistance < 160 ? (1 - threadDistance / 160) ** 2 : 0
+
+      for (let band = 0; band < BAND_COUNT; band++) {
+        const baseY =
+          height * (0.12 + (band / (BAND_COUNT - 1)) * 0.76) +
+          Math.sin(phase * 0.42 + band * 0.78) * 8
+
+        for (let point = 0; point < pointCount; point++) {
+          const x = (point / (pointCount - 1)) * width
+          const organic =
+            Math.sin(point * 0.63 + band * 0.94 + phase) * 3.2 +
+            Math.sin(point * 0.21 - band * 0.58 - phase * 0.7) * 2
+          const dx = x - pointerX
+          const dy = baseY - pointerY
+          const distance = Math.max(1, Math.hypot(dx, dy))
+          const influence =
+            distance < POINTER_RADIUS
+              ? (1 - distance / POINTER_RADIUS) ** 2 * presence * interaction
+              : 0
+          let y =
+            baseY +
+            organic +
+            (dy / distance) * MAX_BEND * influence -
+            wakeY * 7 * influence +
+            wakeX * (dx / distance) * 2.5 * influence
+
+          if (rippleProgress < 1) {
+            const clickDistance = Math.hypot(x - clickX, baseY - clickY)
+            const edgeDistance = Math.abs(clickDistance - rippleRadius)
+            if (edgeDistance < 48) {
+              y +=
+                Math.sin((1 - edgeDistance / 48) * Math.PI) *
+                (1 - rippleProgress) *
+                11 *
+                (baseY >= clickY ? 1 : -1)
+            }
+          }
+
+          if (threadPull > 0) {
+            const span = Math.max(0, 1 - Math.abs(x - threadX) / 190)
+            y += (threadY - y) * span * threadPull * 0.08
+          }
+          contourY[band * pointCount + point] = y
+        }
+
+        ctx.beginPath()
+        ctx.moveTo(0, contourY[band * pointCount])
+        for (let point = 1; point < pointCount - 1; point++) {
+          const x = (point / (pointCount - 1)) * width
+          const nextX = ((point + 1) / (pointCount - 1)) * width
+          const y = contourY[band * pointCount + point]
+          const nextY = contourY[band * pointCount + point + 1]
+          ctx.quadraticCurveTo(x, y, (x + nextX) / 2, (y + nextY) / 2)
+        }
+        ctx.lineTo(width, contourY[(band + 1) * pointCount - 1])
+        const emphasis = band === 4 ? 1 : 0.58 + (band % 2) * 0.16
+        ctx.strokeStyle = `rgba(0,137,255,${(0.075 * emphasis).toFixed(3)})`
+        ctx.lineWidth = band === 4 ? 1 : 0.72
+        ctx.stroke()
       }
-      ctx.strokeStyle = gradient
-      ctx.lineWidth = 0.85 + Math.min(0.55, speed * 0.2)
+
+      if (rippleProgress >= 1) rippleStart = -1
+    }
+
+    const drawTrail = () => {
+      if (trailLength < 2 || trailPresence < 0.02 || cursorMode === 'text') return
+      const opacity = trailPresence * presence * interaction
+      const speedLift = 0.78 + pointerSpeed * 0.34
       ctx.lineCap = 'round'
-      ctx.stroke()
+      ctx.lineJoin = 'round'
+
+      // Two allocation-free passes: a restrained halo, then a crisp tapered
+      // core. Each segment uses Catmull-Rom-derived Bézier controls.
+      for (let pass = 0; pass < 2; pass++) {
+        ctx.strokeStyle = pass === 0 ? 'rgb(0, 137, 255)' : 'rgb(203, 231, 255)'
+        for (let index = trailLength - 1; index > 0; index--) {
+          const age = 1 - index / Math.max(1, trailLength - 1)
+          const strength = age * opacity * speedLift
+          if (strength < 0.008) continue
+
+          const p0 = Math.min(trailLength - 1, index + 1)
+          const p1 = index
+          const p2 = index - 1
+          const p3 = Math.max(0, index - 2)
+          const cp1x = trailX[p1] + (trailX[p2] - trailX[p0]) / 6
+          const cp1y = trailY[p1] + (trailY[p2] - trailY[p0]) / 6
+          const cp2x = trailX[p2] - (trailX[p3] - trailX[p1]) / 6
+          const cp2y = trailY[p2] - (trailY[p3] - trailY[p1]) / 6
+
+          ctx.beginPath()
+          ctx.moveTo(trailX[p1], trailY[p1])
+          ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, trailX[p2], trailY[p2])
+          ctx.globalAlpha = strength * (pass === 0 ? 0.22 : 0.72)
+          ctx.lineWidth = pass === 0 ? 2.4 + strength * 1.4 : 0.48 + strength * 0.5
+          ctx.stroke()
+        }
+      }
+      ctx.globalAlpha = 1
     }
 
-    const drawFilament = (
-      a: SignalNode,
-      b: SignalNode,
-      index: number,
-      alpha: number,
-      now: number,
-      threadBoost: number
-    ) => {
-      const bend = 0.3 + index * 0.06
-      const c1x = a.x + (pointerX - a.x) * bend - (pointerY - a.y) * 0.05
-      const c1y = a.y + (pointerY - a.y) * bend + (pointerX - a.x) * 0.05
-      const c2x = b.x + (pointerX - b.x) * bend + (pointerY - b.y) * 0.04
-      const c2y = b.y + (pointerY - b.y) * bend - (pointerX - b.x) * 0.04
-      ctx.beginPath()
-      ctx.moveTo(a.x, a.y)
-      ctx.bezierCurveTo(c1x, c1y, c2x, c2y, b.x, b.y)
-      ctx.strokeStyle = `rgba(0,137,255,${(0.11 + index * 0.025 + threadBoost * 0.1) * alpha})`
-      ctx.lineWidth = index === 0 ? 1.15 : 0.8
-      ctx.stroke()
+    function frame(now: number, dt: number) {
+      const pointerFactor = 1 - Math.exp(-dt / 58)
+      const fieldFactor = 1 - Math.exp(-dt / 130)
+      pointerX += (targetX - pointerX) * pointerFactor
+      pointerY += (targetY - pointerY) * pointerFactor
+      presence += (targetPresence - presence) * fieldFactor
+      interaction += (targetInteraction - interaction) * fieldFactor
+      scrollPhase += (targetScrollPhase - scrollPhase) * (1 - Math.exp(-dt / 180))
+      wakeX *= Math.pow(0.88, dt / 16.7)
+      wakeY *= Math.pow(0.88, dt / 16.7)
+      pointerSpeed += (targetPointerSpeed - pointerSpeed) * (1 - Math.exp(-dt / 80))
+      targetPointerSpeed *= Math.pow(0.82, dt / 16.7)
+      trailPresence *= Math.exp(-dt / 84)
 
-      if (index < 2) {
-        const t = ((now * (0.00012 + index * 0.000035) + index * 0.34) % 1 + 1) % 1
-        const px = cubicPoint(a.x, c1x, c2x, b.x, t)
-        const py = cubicPoint(a.y, c1y, c2y, b.y, t)
-        ctx.beginPath()
-        ctx.arc(px, py, 1.25, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(220,238,255,${(0.62 + threadBoost * 0.28) * alpha})`
-        ctx.fill()
-      }
-
-      if (index === 0 && clickPulseStart >= 0) {
-        const progress = Math.min(1, (now - clickPulseStart) / 850)
-        const px = cubicPoint(a.x, c1x, c2x, b.x, progress)
-        const py = cubicPoint(a.y, c1y, c2y, b.y, progress)
-        ctx.beginPath()
-        ctx.arc(px, py, 1.9, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(220,238,255,${(1 - progress) * alpha})`
-        ctx.fill()
-        if (progress >= 1) clickPulseStart = -1
-      }
-    }
-
-    function frame(now: number) {
-      const dt = Math.min(34, now - previousFrame || 16.7)
-      previousFrame = now
-      pointerX += (targetX - pointerX) * Math.min(1, dt * 0.009)
-      pointerY += (targetY - pointerY) * Math.min(1, dt * 0.009)
-      presence += (targetPresence - presence) * Math.min(1, dt * 0.006)
-      quiet += (quietTarget - quiet) * Math.min(1, dt * 0.01)
-      speed *= 0.965
-      trailStrength *= now - lastMoveAt > 80 ? 0.945 : 0.992
+      const clickProgress = clickStart < 0 ? 1 : Math.min(1, (now - clickStart) / 360)
+      cursorEl.style.setProperty('--cursor-click', (1 - clickProgress).toFixed(3))
+      cursorEl.style.setProperty('--cursor-click-scale', (0.35 + clickProgress * 0.65).toFixed(3))
+      cursorEl.style.transform = `translate3d(${(pointerX - 9).toFixed(2)}px, ${(pointerY - 9).toFixed(2)}px, 0)`
+      cursorEl.style.opacity = cursorMode === 'text' ? '0' : presence.toFixed(3)
+      if (clickProgress >= 1) clickStart = -1
 
       ctx.clearRect(0, 0, width, height)
-      const alpha = presence * quiet
-      if (alpha > 0.005) {
-        drawTrail(alpha * trailStrength)
+      drawContours(now)
+      drawTrail()
 
-        const flowX = Number.parseFloat(
-          document.documentElement.style.getPropertyValue('--flow-thread-x')
-        )
-        const flowY = Number.parseFloat(
-          document.documentElement.style.getPropertyValue('--flow-thread-y')
-        )
-        const flowDistance =
-          Number.isFinite(flowX) && Number.isFinite(flowY)
-            ? Math.hypot(flowX - pointerX, flowY - pointerY)
-            : Infinity
-        const threadBoost = flowDistance < 150 ? 1 - flowDistance / 150 : 0
-        const driftTime = now * 0.00008
-
-        for (let index = 0; index < nodes.length; index++) {
-          const node = nodes[index]
-          let targetNodeX = pointerX + Math.cos(node.angle + driftTime) * node.radius
-          let targetNodeY = pointerY + Math.sin(node.angle + driftTime) * node.radius * 0.68
-
-          if (node.role === 0) {
-            targetNodeX = pointerX + Math.cos(node.angle) * node.radius * 0.42
-            targetNodeY = pointerY + Math.sin(node.angle) * node.radius * 0.3
-          } else if (node.role === 1) {
-            const orbit = node.angle + driftTime * 8
-            targetNodeX = pointerX + Math.cos(orbit) * node.radius * 0.72
-            targetNodeY = pointerY + Math.sin(orbit) * node.radius * 0.5
-          } else if (trailCount > 2) {
-            const trailIndex = Math.min(trailCount - 1, 2 + (index % Math.max(2, trailCount - 2)))
-            targetNodeX = trailX[trailIndex] + Math.cos(node.angle) * 18
-            targetNodeY = trailY[trailIndex] + Math.sin(node.angle) * 18
-          }
-
-          if (threadBoost > 0 && index % 4 === 0) {
-            targetNodeX += (flowX - targetNodeX) * threadBoost * 0.28
-            targetNodeY += (flowY - targetNodeY) * threadBoost * 0.28
-          }
-
-          node.vx += (targetNodeX - node.x) * 0.0018 * dt
-          node.vy += (targetNodeY - node.y) * 0.0018 * dt
-          node.vx *= Math.pow(0.9, dt / 16.7)
-          node.vy *= Math.pow(0.9, dt / 16.7)
-          node.x += node.vx * (dt / 16.7)
-          node.y += node.vy * (dt / 16.7)
-          const localDx = node.x - pointerX
-          const localDy = node.y - pointerY
-          const localDistance = Math.hypot(localDx, localDy)
-          if (localDistance > 310) {
-            node.x = pointerX + (localDx / localDistance) * 310
-            node.y = pointerY + (localDy / localDistance) * 310
-            node.vx *= 0.45
-            node.vy *= 0.45
-          }
-
-          ctx.beginPath()
-          ctx.arc(node.x, node.y, node.size, 0, Math.PI * 2)
-          ctx.fillStyle = `rgba(176,218,255,${node.alpha * alpha})`
-          ctx.fill()
-        }
-
-        for (let index = 0; index < FILAMENTS.length; index++) {
-          const pair = FILAMENTS[index]
-          drawFilament(nodes[pair[0]], nodes[pair[1]], index, alpha, now, threadBoost)
-        }
-
-        for (const spark of sparks) {
-          if (spark.life <= 0) continue
-          spark.x += spark.vx * dt
-          spark.y += spark.vy * dt
-          spark.life -= dt / 520
-          ctx.beginPath()
-          ctx.arc(spark.x, spark.y, 0.8, 0, Math.PI * 2)
-          ctx.fillStyle = `rgba(220,238,255,${Math.max(0, spark.life) * alpha})`
-          ctx.fill()
-        }
-
-        if (waveStart >= 0) {
-          const progress = Math.min(1, (now - waveStart) / 850)
-          ctx.beginPath()
-          ctx.arc(targetX, targetY, 18 + progress * 128, 0, Math.PI * 2)
-          ctx.strokeStyle = `rgba(0,137,255,${(1 - progress) * 0.32 * quiet})`
-          ctx.lineWidth = 1.1
-          ctx.stroke()
-          if (progress >= 1) waveStart = -1
-        }
+      const pointerIdle = now - lastMoveAt > 1200
+      const scrollIdle = now - lastScrollAt > 240
+      const settled =
+        Math.abs(targetX - pointerX) < 0.05 &&
+        Math.abs(targetY - pointerY) < 0.05 &&
+        Math.abs(targetScrollPhase - scrollPhase) < 0.00005
+      if (pointerIdle && scrollIdle && settled && rippleStart < 0 && clickStart < 0) {
+        return false
       }
-
-      const idle = now - lastMoveAt > 2600 && waveStart < 0 && clickPulseStart < 0
-      if (idle && targetPresence > 0.5) {
-        running = false
-        return
+      if (targetPresence < 0.01 && presence < 0.01 && scrollIdle && rippleStart < 0) {
+        return false
       }
-      if (targetPresence < 0.01 && presence < 0.01) {
-        ctx.clearRect(0, 0, width, height)
-        running = false
-        return
-      }
-      raf = requestAnimationFrame(frame)
+      return true
     }
 
+    const onScrollSignal = () => {
+      targetScrollPhase = readScrollSignal().progress
+      lastScrollAt = performance.now()
+      wake()
+    }
     const onVisibility = () => {
-      if (document.hidden) {
-        running = false
-        cancelAnimationFrame(raf)
-      } else if (targetPresence > 0 || presence > 0) {
-        wake()
-      }
+      if (!document.hidden) wake()
     }
 
+    resize()
+    canvas.dataset.motionProfile = profile.level
+    canvas.dataset.trailPoints = String(trailCount)
+    canvas.dataset.contourPoints = String(pointCount)
+    animation = createManagedFrameLoop(frame)
+    const unsubscribe = subscribeScrollSignal(onScrollSignal)
     window.addEventListener('pointermove', onMove, { passive: true })
     window.addEventListener('pointerdown', onDown, { passive: true })
     document.addEventListener('pointerleave', onLeave)
     window.addEventListener('resize', resize)
     document.addEventListener('visibilitychange', onVisibility)
+    document.documentElement.dataset.signalCursor = 'true'
+    document.documentElement.dataset.contourActive = 'true'
+    wake()
 
     return () => {
-      running = false
-      cancelAnimationFrame(raf)
+      animation?.destroy()
+      unsubscribe()
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerdown', onDown)
       document.removeEventListener('pointerleave', onLeave)
       window.removeEventListener('resize', resize)
       document.removeEventListener('visibilitychange', onVisibility)
+      delete document.documentElement.dataset.signalCursor
+      delete document.documentElement.dataset.contourActive
     }
-  }, [enabled])
+  }, [enabled, profile])
 
   if (!enabled) return null
 
   return (
-    <canvas
-      ref={canvasRef}
-      data-signal-playground
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 max-w-full"
-      style={{ zIndex: 1 }}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        data-signal-playground
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 max-w-full"
+        style={{ zIndex: 1 }}
+      />
+      <div
+        ref={cursorRef}
+        data-signal-cursor
+        data-cursor-mode="field"
+        aria-hidden="true"
+        className="pointer-events-none fixed left-0 top-0 z-[70] h-[18px] w-[18px] opacity-0 will-change-transform"
+        style={{ ['--cursor-click' as string]: 0, ['--cursor-click-scale' as string]: 1 }}
+      >
+        <span className="signal-cursor-target absolute left-1/2 top-1/2 rounded-full" />
+        <span className="signal-cursor-dot absolute left-1/2 top-1/2 rounded-full" />
+        <span className="signal-cursor-click absolute left-1/2 top-1/2 rounded-full" />
+      </div>
+    </>
   )
 }

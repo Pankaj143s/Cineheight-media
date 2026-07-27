@@ -70,7 +70,7 @@ export const services: Service[] = [
     id: 'brand-identity',
     index: '01',
     title: 'Brand Identity & Design',
-    description: 'Distinctive brand identities that capture your essence and resonate with your audience.',
+    description: 'Brand identities built to be recognised, remembered and ready to grow.',
     detail:
       'Positioning, naming systems, logo and visual identity, brand guidelines and the design language your audience will remember you by.',
     image: '/generated/services-final/brand-identity.webp',
@@ -79,7 +79,7 @@ export const services: Service[] = [
     id: 'social-media',
     index: '02',
     title: 'Social Media Management',
-    description: 'Strategic social presence that builds community and converts followers into customers.',
+    description: 'Social strategy and content systems that build community and demand.',
     detail:
       'Monthly content calendars, platform strategy, community management and consistent brand presentation across every channel.',
     image: '/generated/services-final/social-media.webp',
@@ -88,7 +88,7 @@ export const services: Service[] = [
     id: 'graphic-design',
     index: '03',
     title: 'Graphic Design & Visuals',
-    description: 'Eye-catching visual content that communicates your message and stops the scroll.',
+    description: 'Campaign visuals designed for clarity, consistency and attention.',
     detail:
       'Campaign creatives, social posts, infographics and print — visuals built on one coherent system, not one-off graphics.',
     image: '/generated/services-final/graphic-design.webp',
@@ -97,7 +97,7 @@ export const services: Service[] = [
     id: 'video-production',
     index: '04',
     title: 'Video Production & Editing',
-    description: 'Cinematic storytelling that captivates your audience from concept to final cut.',
+    description: 'Story-led films and reels, from concept to final cut.',
     detail:
       'Product films, reels, campaign videos and testimonials — shot, edited and graded for the platforms they live on.',
     image: '/generated/services-final/video-production.webp',
@@ -106,7 +106,7 @@ export const services: Service[] = [
     id: 'performance-marketing',
     index: '05',
     title: 'Performance Marketing',
-    description: 'Data-driven campaigns that deliver measurable results and real growth.',
+    description: 'Targeted campaigns optimised for qualified leads and growth.',
     detail:
       'Targeted campaigns, lead funnels and continuous optimisation — the discipline that turns attention into enquiries and sales.',
     image: '/generated/services-final/performance-marketing.webp',
@@ -115,7 +115,7 @@ export const services: Service[] = [
     id: 'content-creation',
     index: '06',
     title: 'Content Creation',
-    description: 'Compelling content that tells your story through photography, video, and copy.',
+    description: 'Photography, short-form video and copy built as one system.',
     detail:
       'Photography, short-form video and copywriting produced as one connected stream — so every post sounds and looks like you.',
     image: '/generated/services-final/content-creation.webp',
@@ -134,9 +134,9 @@ export interface ProcessStep {
 
 export const processSteps: ProcessStep[] = [
   { index: '01', title: 'Discover', description: 'Understand goals, audience and brand essence.' },
-  { index: '02', title: 'Strategize', description: 'A roadmap combining creativity with marketing insights.' },
-  { index: '03', title: 'Create', description: 'Design and content teams bring ideas to life.' },
-  { index: '04', title: 'Deliver', description: 'Launch, publish and manage campaigns — then monitor and refine for better outcomes.' },
+  { index: '02', title: 'Strategize', description: 'Turn insight into a focused creative roadmap.' },
+  { index: '03', title: 'Create', description: 'Bring the strongest ideas to life.' },
+  { index: '04', title: 'Deliver', description: 'Launch, measure and refine for better outcomes.' },
 ]
 
 // ----------------------------------------------------------------- about

@@ -36,16 +36,10 @@ export default function SocialIconLink({
 }: {
   platform: SocialPlatform
   label: string
-  href: string
+  href: string | null
 }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={`${label} — opens in a new tab`}
-      className="group relative flex h-11 w-11 items-center justify-center rounded-full text-text-300 transition-all duration-300 hover:-translate-y-0.5 hover:text-[var(--blue-200)] focus-visible:-translate-y-0.5 focus-visible:text-[var(--blue-200)]"
-    >
+  const content = (
+    <>
       <span
         aria-hidden="true"
         className="absolute inset-0 rounded-full border transition-colors duration-300 group-hover:border-[var(--blue-500)] group-focus-visible:border-[var(--blue-500)]"
@@ -58,6 +52,31 @@ export default function SocialIconLink({
       <svg width="18" height="18" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
         <SocialGlyph platform={platform} />
       </svg>
+    </>
+  )
+
+  if (!href) {
+    return (
+      <span
+        role="img"
+        aria-label={`${label} profile is not yet configured`}
+        title={`${label} profile coming soon`}
+        className="relative flex h-11 w-11 cursor-not-allowed items-center justify-center rounded-full text-text-500 opacity-55"
+      >
+        {content}
+      </span>
+    )
+  }
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`${label} — opens in a new tab`}
+      className="group relative flex h-11 w-11 items-center justify-center rounded-full text-text-300 transition-all duration-300 hover:-translate-y-0.5 hover:text-[var(--blue-200)] focus-visible:-translate-y-0.5 focus-visible:text-[var(--blue-200)]"
+    >
+      {content}
     </a>
   )
 }

@@ -318,7 +318,7 @@ async function measure(cdp) {
 /** Where the signal tip sits in the viewport, as a fraction (target 0.58–0.66). */
 async function signalTip(cdp) {
   return cdp.eval(`(() => {
-    const path = document.querySelector('svg path[stroke="#0089FF"]')
+    const path = document.querySelector('[data-flow-thread-path]')
     if (!path) return null
     // The browser normalises inline rgb() with spaces, so match on the numbers.
     const dot = [...document.querySelectorAll('div')].find(
@@ -411,6 +411,104 @@ if (hasFlag('probe')) {
 
   // ---- signal tip tracking, forwards and in reverse --------------------
   await goto(cdp, BASE + '/')
+  const fontState = await cdp.eval(`(async () => {
+    await document.fonts.ready
+    const style = getComputedStyle(document.documentElement)
+    const family = (selector) => {
+      const element = document.querySelector(selector)
+      return element ? getComputedStyle(element).fontFamily : ''
+    }
+    return {
+      status: document.fonts.status,
+      hero: family('.font-hero'),
+      display: family('.font-display'),
+      body: family('.font-body'),
+      bebas: style.getPropertyValue('--font-bebas').trim(),
+      satoshi: style.getPropertyValue('--font-satoshi').trim(),
+      poppins: style.getPropertyValue('--font-poppins').trim(),
+    }
+  })()`)
+  check(
+    'Bebas, Satoshi and Poppins typography is loaded and mapped distinctly',
+    fontState.status === 'loaded' &&
+      fontState.hero && fontState.display && fontState.body &&
+      fontState.bebas && fontState.satoshi && fontState.poppins &&
+      fontState.hero !== fontState.display &&
+      fontState.display !== fontState.body,
+    JSON.stringify(fontState)
+  )
+
+  // The compact process journey uses its original one-time activation rather
+  // than scrubbing its typography backward and forward with scroll.
+  const processState = await cdp.eval(`(async () => {
+    const root = document.querySelector('#process')
+    const path = root?.querySelector('[data-process-path]')
+    const title = root?.querySelector('[data-process-title]')
+    if (!root || !path || !title) return null
+    const before = {
+      dash: Number.parseFloat(getComputedStyle(path).strokeDashoffset),
+      titleOpacity: Number.parseFloat(getComputedStyle(title).opacity),
+    }
+    root.scrollIntoView({ block: 'center' })
+    await new Promise(r => setTimeout(r, 3100))
+    const completed = {
+      dash: Number.parseFloat(getComputedStyle(path).strokeDashoffset),
+      titleOpacity: Number.parseFloat(getComputedStyle(title).opacity),
+    }
+    window.scrollTo(0, 0)
+    await new Promise(r => setTimeout(r, 350))
+    root.scrollIntoView({ block: 'center' })
+    await new Promise(r => setTimeout(r, 180))
+    const returned = {
+      dash: Number.parseFloat(getComputedStyle(path).strokeDashoffset),
+      titleOpacity: Number.parseFloat(getComputedStyle(title).opacity),
+    }
+    return { before, completed, returned }
+  })()`)
+  check(
+    'How We Work is readable before activation and remains complete when revisited',
+    processState &&
+      processState.before.dash > 100 &&
+      processState.before.titleOpacity >= 0.7 &&
+      Math.abs(processState.completed.dash) < 1 &&
+      processState.completed.titleOpacity > 0.98 &&
+      Math.abs(processState.returned.dash) < 1 &&
+      processState.returned.titleOpacity > 0.98,
+    JSON.stringify(processState)
+  )
+
+  const marqueeState = await cdp.eval(`(async () => {
+    const root = document.querySelector('[aria-label="Brands we have worked with"]')
+    const forward = root?.querySelector('[data-client-marquee-track="forward"]')
+    const reverse = root?.querySelector('[data-client-marquee-track="reverse"]')
+    if (!root || !forward || !reverse) return null
+    const x = (element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m41
+    root.scrollIntoView({ block: 'center' })
+    await new Promise(r => setTimeout(r, 300))
+    const first = { forward: x(forward), reverse: x(reverse) }
+    await new Promise(r => setTimeout(r, 650))
+    const second = { forward: x(forward), reverse: x(reverse) }
+    root.dispatchEvent(new PointerEvent('pointerenter'))
+    await new Promise(r => setTimeout(r, 80))
+    const pausedA = { forward: x(forward), reverse: x(reverse) }
+    await new Promise(r => setTimeout(r, 420))
+    const pausedB = { forward: x(forward), reverse: x(reverse) }
+    root.dispatchEvent(new PointerEvent('pointerleave'))
+    return { first, second, pausedA, pausedB }
+  })()`)
+  check(
+    'client carousel runs two seamless tracks in opposing directions and pauses on hover',
+    marqueeState &&
+      marqueeState.second.forward < marqueeState.first.forward &&
+      marqueeState.second.reverse > marqueeState.first.reverse &&
+      Math.abs(marqueeState.second.forward - marqueeState.first.forward) >
+        Math.abs(marqueeState.second.reverse - marqueeState.first.reverse) &&
+      Math.abs(marqueeState.pausedB.forward - marqueeState.pausedA.forward) < 0.5 &&
+      Math.abs(marqueeState.pausedB.reverse - marqueeState.pausedA.reverse) < 0.5,
+    JSON.stringify(marqueeState)
+  )
+
+  await goto(cdp, BASE + '/')
   await primeScroll(cdp, 0)
   const tips = []
   for (const frac of [0.2, 0.4, 0.6, 0.8, 0.55, 0.3, 0.1]) {
@@ -445,6 +543,16 @@ if (hasFlag('probe')) {
   // ---- pointer canvas: DPR cap, idle sleep, visibility sleep ------------
   await cdp.eval(`document.querySelector('#what-we-do')?.scrollIntoView({ block: 'center' })`)
   await sleep(700)
+  const textLayerState = await cdp.eval(`(() => {
+    const section = document.querySelector('#what-we-do')
+    const layer = section?.querySelector('[data-text-layer-active]')
+    return layer ? getComputedStyle(layer).willChange : ''
+  })()`)
+  check(
+    'visible transformed typography receives compositor promotion',
+    textLayerState.includes('transform'),
+    textLayerState
+  )
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 720, y: 450 })
   await sleep(500)
   const canvasDpr = await cdp.eval(`(() => {
@@ -454,12 +562,25 @@ if (hasFlag('probe')) {
       x: Number((canvas.width / canvas.clientWidth).toFixed(2)),
       y: Number((canvas.height / canvas.clientHeight).toFixed(2)),
       device: devicePixelRatio,
+      profile: canvas.dataset.motionProfile,
+      trailPoints: Number(canvas.dataset.trailPoints),
+      contourPoints: Number(canvas.dataset.contourPoints),
     }
   })()`)
   check(
     'pointer canvas caps backing DPR at 1.5',
     canvasDpr && canvasDpr.x <= 1.5 && canvasDpr.y <= 1.5 && canvasDpr.device === 2,
     canvasDpr ? `${canvasDpr.x}x / ${canvasDpr.y}x at device ${canvasDpr.device}` : 'canvas missing'
+  )
+  check(
+    'adaptive pointer profile keeps the refined curved trail',
+    canvasDpr &&
+      ['high', 'balanced'].includes(canvasDpr.profile) &&
+      canvasDpr.trailPoints >= 12 &&
+      canvasDpr.contourPoints >= 21,
+    canvasDpr
+      ? `${canvasDpr.profile}; trail=${canvasDpr.trailPoints}; contour=${canvasDpr.contourPoints}`
+      : 'canvas missing'
   )
 
   const canvasHash = `(() => {
@@ -634,12 +755,42 @@ if (hasFlag('probe')) {
     const link = [...document.querySelectorAll('a[href="/work"]')][0]
     if (!link) return 'no link'
     link.click()
-    await new Promise(r => setTimeout(r, 120))
-    const overlayDuring = !!document.querySelector('div[aria-hidden="true"][class*="z-[80]"]')
-    await new Promise(r => setTimeout(r, 1200))
-    return (location.pathname === '/work' ? 'navigated' : 'stuck:' + location.pathname) + (overlayDuring ? '+overlay' : '+no-overlay')
+    const samples = []
+    for (let i = 0; i < 24; i++) {
+      await new Promise(r => setTimeout(r, 50))
+      const overlay = document.querySelector('[data-route-loader]')
+      if (overlay) samples.push(Number(overlay.dataset.routeProgress || 0))
+    }
+    return {
+      path: location.pathname,
+      samples,
+      busy: document.body.getAttribute('aria-busy'),
+    }
   })()`)
-  check('internal link transitions and navigates', navResult.startsWith('navigated'), navResult)
+  check(
+    'internal link transitions and navigates',
+    navResult.path === '/work' && navResult.samples.length > 0,
+    JSON.stringify(navResult)
+  )
+  check(
+    'route loader progress is monotonic and completes',
+    navResult.samples.includes(100) &&
+      navResult.samples.every((value, index, values) => index === 0 || value >= values[index - 1]),
+    navResult.samples.join(' â†’ ')
+  )
+
+  const backResult = await cdp.eval(`(async () => {
+    history.back()
+    await new Promise(r => setTimeout(r, 80))
+    const overlay = !!document.querySelector('[data-route-loader]')
+    await new Promise(r => setTimeout(r, 1100))
+    return { path: location.pathname, overlay }
+  })()`)
+  check(
+    'browser back navigation shows the loader without blocking history',
+    backResult.path === '/' && backResult.overlay,
+    JSON.stringify(backResult)
+  )
 
   await cdp.send('Page.navigate', { url: BASE + '/work' })
   await sleep(1200)
@@ -654,6 +805,29 @@ if (hasFlag('probe')) {
     return !defaultPrevented
   })()`)
   check('mailto/tel links are not intercepted', externalUntouched)
+
+  // Reduced motion keeps navigation feedback but removes continuous pointer
+  // motion and loader sweeps.
+  await cdp.send('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+  })
+  await goto(cdp, BASE + '/')
+  const reducedRoute = await cdp.eval(`(async () => {
+    await new Promise(r => setTimeout(r, 180))
+    const noCanvas = !document.querySelector('[data-signal-playground]')
+    document.querySelector('a[href="/work"]')?.click()
+    await new Promise(r => setTimeout(r, 45))
+    const loader = document.querySelector('[data-route-loader]')
+    const mark = loader?.querySelector('.route-loader-mark')
+    const staticLoader = !!loader && getComputedStyle(mark).animationName === 'none'
+    await new Promise(r => setTimeout(r, 500))
+    return { noCanvas, staticLoader, path: location.pathname }
+  })()`)
+  check(
+    'reduced motion uses native pointer and a static route loader',
+    reducedRoute.noCanvas && reducedRoute.staticLoader && reducedRoute.path === '/work',
+    JSON.stringify(reducedRoute)
+  )
 
   console.log('\n──── PROBES ────')
   let failed = 0
@@ -684,6 +858,33 @@ if (hasFlag('refinement')) {
     await sleep(900)
   }
 
+  await goto(cdp, BASE + '/')
+  await cdp.eval(`(() => {
+    const root = document.querySelector('#process')
+    const rect = root.getBoundingClientRect()
+    window.scrollTo(0, Math.max(0, rect.top + scrollY - innerHeight * 0.86))
+  })()`)
+  await sleep(280)
+  await shoot(cdp, 'refinement/process-before__1440x900.png')
+  await cdp.eval(`(() => {
+    const root = document.querySelector('#process')
+    const rect = root.getBoundingClientRect()
+    window.scrollTo(0, Math.max(0, rect.top + scrollY - innerHeight * 0.58))
+  })()`)
+  await sleep(780)
+  await shoot(cdp, 'refinement/process-mid__1440x900.png')
+  await sleep(2200)
+  await shoot(cdp, 'refinement/process-complete__1440x900.png')
+
+  await centre('/', '#work')
+  await shoot(cdp, 'refinement/featured-work-type__1440x900.png')
+
+  await centre('/', '[aria-label="Brands we have worked with"]')
+  await shoot(cdp, 'refinement/client-carousel__1440x900.png')
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1030, y: 510 })
+  await sleep(450)
+  await shoot(cdp, 'refinement/client-carousel-depth__1440x900.png')
+
   await centre('/', '#what-we-do')
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 720, y: 450 })
   await sleep(550)
@@ -708,6 +909,11 @@ if (hasFlag('refinement')) {
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 590, y: 610, button: 'left', clickCount: 1 })
   await sleep(190)
   await shoot(cdp, 'refinement/pointer-click__1440x900.png')
+
+  await goto(cdp, BASE + '/')
+  await cdp.eval(`document.querySelector('a[href="/work"]')?.click()`)
+  await sleep(250)
+  await shoot(cdp, 'refinement/route-loader-progress__1440x900.png')
 
   await centre('/services', '[aria-label="Video Production & Editing"]')
   await shoot(cdp, 'refinement/service-active-video__1440x900.png')

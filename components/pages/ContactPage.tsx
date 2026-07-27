@@ -5,8 +5,10 @@ import { contact, closing } from '@/content/siteContent'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import ProjectContactForm from '@/components/contact/ProjectContactForm'
+import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects, useIsMobileTier } from '@/lib/useMediaPreferences'
+import { observeVisibleLayerPromotion } from '@/lib/visibleLayerPromotion'
 
 /**
  * The destination. One large project-start statement and the real channels
@@ -23,21 +25,21 @@ const CHANNELS = [
     label: 'Email',
     value: contact.email,
     href: `mailto:${contact.email}`,
-    hint: 'Best for project briefs — tell us where your brand is and where it should be.',
+    hint: 'Best for briefs and project details.',
     drift: { x: -1, y: -1 },
   },
   {
     label: 'Phone',
     value: contact.phone,
     href: contact.phoneHref,
-    hint: 'Mon–Sat, IST business hours.',
+    hint: 'Mon–Sat, IST.',
     drift: { x: 1, y: -0.6 },
   },
   {
     label: 'WhatsApp',
     value: contact.phone,
     href: contact.whatsapp,
-    hint: 'Quick questions and voice notes welcome.',
+    hint: 'Quick questions and voice notes.',
     external: true,
     drift: { x: -0.6, y: 1 },
   },
@@ -45,7 +47,7 @@ const CHANNELS = [
     label: 'Instagram',
     value: contact.instagramHandle,
     href: contact.instagramUrl,
-    hint: 'Our latest work, as it ships.',
+    hint: 'See our latest work.',
     external: true,
     drift: { x: 1, y: 1 },
   },
@@ -67,24 +69,41 @@ export default function ContactPage() {
 
     const pointer = { x: 0, y: 0 }
     const cur = itemRefs.current.map(() => ({ x: 0, y: 0 }))
-    let raf = 0
-    let last = performance.now()
+    const itemLeft = new Float32Array(itemRefs.current.length)
+    const centerX = new Float32Array(itemRefs.current.length)
+    const centerY = new Float32Array(itemRefs.current.length)
+    let rootLeft = 0
+    let rootTop = 0
+    let rootHeight = 1
+    let measureDirty = true
     let inside = false
 
-    const loop = (now: number) => {
-      const dt = Math.min(50, now - last || 16)
-      last = now
+    const measure = () => {
+      const rootRect = root.getBoundingClientRect()
+      rootLeft = rootRect.left
+      rootTop = rootRect.top
+      rootHeight = rootRect.height
+      itemRefs.current.forEach((el, index) => {
+        if (!el) return
+        const rect = el.getBoundingClientRect()
+        itemLeft[index] = rect.left - cur[index].x
+        centerX[index] = rect.left + rect.width / 2 - cur[index].x
+        centerY[index] = rect.top + rect.height / 2 - cur[index].y
+      })
+      measureDirty = false
+    }
+
+    const animation = createManagedFrameLoop((_now, dt) => {
+      if (measureDirty) measure()
       const f = damp(0.07, dt)
       let nearest = -1
       let nearestD = Infinity
+      let unsettled = false
 
       itemRefs.current.forEach((el, i) => {
         if (!el) return
-        const r = el.getBoundingClientRect()
-        const cx = r.left + r.width / 2
-        const cy = r.top + r.height / 2
-        const dx = pointer.x - cx
-        const dy = pointer.y - cy
+        const dx = pointer.x - centerX[i]
+        const dy = pointer.y - centerY[i]
         const d = Math.hypot(dx, dy)
         if (d < nearestD) {
           nearestD = d
@@ -98,6 +117,7 @@ export default function ContactPage() {
         const ty = inside ? clamp(dy * 0.05 * pull, -14, 14) : 0
         cur[i].x += (tx - cur[i].x) * f
         cur[i].y += (ty - cur[i].y) * f
+        if (Math.abs(tx - cur[i].x) > 0.02 || Math.abs(ty - cur[i].y) > 0.02) unsettled = true
         el.style.transform = `translate3d(${cur[i].x.toFixed(2)}px, ${cur[i].y.toFixed(2)}px, 0)`
       })
 
@@ -105,13 +125,11 @@ export default function ContactPage() {
       const path = threadRef.current
       if (path && nearest >= 0 && inside) {
         const el = itemRefs.current[nearest]
-        const rootRect = root.getBoundingClientRect()
         if (el) {
-          const r = el.getBoundingClientRect()
-          const x2 = r.left - rootRect.left + 6
-          const y2 = r.top - rootRect.top + r.height / 2
+          const x2 = itemLeft[nearest] - rootLeft + 6
+          const y2 = centerY[nearest] - rootTop
           const x1 = 0
-          const y1 = rootRect.height * 0.26
+          const y1 = rootHeight * 0.26
           path.setAttribute(
             'd',
             `M ${x1} ${y1} C ${x1 + (x2 - x1) * 0.45} ${y1}, ${x2 - (x2 - x1) * 0.3} ${y2}, ${x2} ${y2}`
@@ -122,25 +140,38 @@ export default function ContactPage() {
         path.style.opacity = '0'
       }
 
-      raf = requestAnimationFrame(loop)
-    }
+      return unsettled
+    })
 
     const onMove = (e: PointerEvent) => {
       pointer.x = e.clientX
       pointer.y = e.clientY
       inside = !(e.target as HTMLElement | null)?.closest('[data-interaction-quiet]')
+      animation.wake()
     }
     const onLeave = () => {
       inside = false
+      animation.wake()
+    }
+    const onLayoutChange = () => {
+      measureDirty = true
+      animation.wake()
     }
 
     root.addEventListener('pointermove', onMove)
     root.addEventListener('pointerleave', onLeave)
-    raf = requestAnimationFrame(loop)
+    window.addEventListener('resize', onLayoutChange)
+    window.addEventListener('scroll', onLayoutChange, { passive: true })
+    const stopPromotion = observeVisibleLayerPromotion(
+      itemRefs.current.filter((element): element is HTMLLIElement => Boolean(element))
+    )
     return () => {
       root.removeEventListener('pointermove', onMove)
       root.removeEventListener('pointerleave', onLeave)
-      cancelAnimationFrame(raf)
+      window.removeEventListener('resize', onLayoutChange)
+      window.removeEventListener('scroll', onLayoutChange)
+      stopPromotion()
+      animation.destroy()
     }
   }, [rich])
 
@@ -170,8 +201,7 @@ export default function ContactPage() {
           style={{ fontSize: 'clamp(2.6rem, 10vw, 9rem)', lineHeight: 0.88, letterSpacing: '-0.04em' }}
         />
         <p className="font-body measure mt-9 text-base leading-relaxed text-text-300 sm:text-lg">
-          One conversation is enough to find out whether we are the right team for your brand. Reach us on any
-          channel — a real person answers, not a ticket queue.
+          Tell us what you are building. A real person will reply and help you find the right next step.
         </p>
       </header>
 
@@ -184,7 +214,7 @@ export default function ContactPage() {
                 ref={(el) => {
                   itemRefs.current[i] = el
                 }}
-                className="list-none will-change-transform"
+                className="list-none"
                 style={{ marginTop: mobile ? 0 : `${[0, 2.5, 1, 3.5][i] ?? 0}rem` }}
               >
                 <a

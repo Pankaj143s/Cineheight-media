@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { clamp } from '@/lib/utils'
 import { useIsNarrow, useReducedMotion } from '@/lib/useMediaPreferences'
+import { readScrollSignal, subscribeScrollSignal } from '@/lib/scrollSignal'
 
 /**
  * The continuous #0089FF signal thread.
@@ -194,12 +195,19 @@ export default function FlowThread() {
     const path = pathRef.current
     if (!path) return
 
-    let raf = 0
+    let measureRaf = 0
+    let motionRaf = 0
+    let running = false
+    let targetTipY = readScrollSignal().y + window.innerHeight * 0.62
+    let currentTipY = targetTipY
+    let lastFrame = performance.now()
     const schedule = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => {
+      cancelAnimationFrame(measureRaf)
+      measureRaf = requestAnimationFrame(() => {
         measure()
-        draw()
+        targetTipY = readScrollSignal().y + window.innerHeight * 0.62
+        currentTipY = targetTipY
+        paint(currentTipY)
       })
     }
 
@@ -236,7 +244,7 @@ export default function FlowThread() {
       }
     }
 
-    const draw = () => {
+    const paint = (tipY: number) => {
       const { length } = geo.current
       if (!length) return
 
@@ -245,8 +253,6 @@ export default function FlowThread() {
         return
       }
 
-      // Keep the leading light ~62% down the viewport as the page moves.
-      const tipY = window.scrollY + window.innerHeight * 0.62
       const hit = lengthAtY(tipY)
       if (!hit) return
 
@@ -256,7 +262,10 @@ export default function FlowThread() {
       // read the thread's current tip without measuring the SVG themselves —
       // one extra setProperty call inside a rAF-gated handler that already runs.
       document.documentElement.style.setProperty('--flow-thread-x', `${hit.x.toFixed(1)}px`)
-      document.documentElement.style.setProperty('--flow-thread-y', `${(hit.y - window.scrollY).toFixed(1)}px`)
+      document.documentElement.style.setProperty(
+        '--flow-thread-y',
+        `${(hit.y - readScrollSignal().y).toFixed(1)}px`
+      )
 
       const dot = dotRef.current
       if (dot) {
@@ -270,18 +279,36 @@ export default function FlowThread() {
       }
     }
 
-    let ticking = false
-    const onScroll = () => {
-      if (ticking) return
-      ticking = true
-      requestAnimationFrame(() => {
-        ticking = false
-        draw()
-      })
+    const frame = (now: number) => {
+      const dt = Math.min(50, now - lastFrame || 16.7)
+      lastFrame = now
+      // Keep the original ~62% viewport position during fast reversals while
+      // still damping individual wheel/trackpad spikes.
+      currentTipY += (targetTipY - currentTipY) * (1 - Math.exp(-dt / 72))
+      paint(currentTipY)
+      if (Math.abs(targetTipY - currentTipY) > 0.08 && !document.hidden) {
+        motionRaf = requestAnimationFrame(frame)
+      } else {
+        currentTipY = targetTipY
+        paint(currentTipY)
+        running = false
+      }
+    }
+
+    const wake = () => {
+      targetTipY = readScrollSignal().y + window.innerHeight * 0.62
+      if (reduced) {
+        paint(targetTipY)
+        return
+      }
+      if (running || document.hidden) return
+      running = true
+      lastFrame = performance.now()
+      motionRaf = requestAnimationFrame(frame)
     }
 
     measure()
-    draw()
+    paint(currentTipY)
 
     // Fonts and late-loading media change the document height; ResizeObserver
     // on <body> catches both without polling.
@@ -298,10 +325,17 @@ export default function FlowThread() {
     const t1 = window.setTimeout(schedule, 700)
     const t2 = window.setTimeout(schedule, 2000)
 
-    window.addEventListener('scroll', onScroll, { passive: true })
+    const unsubscribe = subscribeScrollSignal(wake)
     window.addEventListener('resize', schedule)
     window.addEventListener('orientationchange', schedule)
-    const onVis = () => { if (!document.hidden) onScroll() }
+    const onVis = () => {
+      if (document.hidden) {
+        cancelAnimationFrame(motionRaf)
+        running = false
+      } else {
+        wake()
+      }
+    }
     document.addEventListener('visibilitychange', onVis)
 
     return () => {
@@ -311,9 +345,10 @@ export default function FlowThread() {
       document.querySelectorAll('video').forEach((v) =>
         v.removeEventListener('loadedmetadata', onMediaSettled)
       )
-      cancelAnimationFrame(raf)
+      cancelAnimationFrame(measureRaf)
+      cancelAnimationFrame(motionRaf)
       ro.disconnect()
-      window.removeEventListener('scroll', onScroll)
+      unsubscribe()
       window.removeEventListener('resize', schedule)
       document.removeEventListener('visibilitychange', onVis)
       document.documentElement.style.removeProperty('--flow-thread-x')
@@ -339,6 +374,7 @@ export default function FlowThread() {
       >
         <path
           ref={pathRef}
+          data-flow-thread-path
           d=""
           stroke="#0089FF"
           strokeWidth={narrow ? 1.75 : 2.25}

@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import Lenis from 'lenis'
 import { gsap, ScrollTrigger } from '@/lib/gsap'
+import { publishScrollSignal } from '@/lib/scrollSignal'
 
 /**
  * The ONE smooth-scroll instance for the whole site. Mounted once in
@@ -19,21 +20,45 @@ import { gsap, ScrollTrigger } from '@/lib/gsap'
  */
 export default function SmoothScrollProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const publishNative = () => {
+      const limit = Math.max(1, document.documentElement.scrollHeight - window.innerHeight)
+      publishScrollSignal({
+        y: window.scrollY,
+        progress: Math.min(1, Math.max(0, window.scrollY / limit)),
+        velocity: 0,
+        direction: 0,
+      })
+    }
+    if (reduced) {
+      publishNative()
+      window.addEventListener('scroll', publishNative, { passive: true })
+      return () => window.removeEventListener('scroll', publishNative)
+    }
 
     const lenis = new Lenis({
-      duration: 1.05,
+      duration: 1.3,
       // Gentle exponential ease-out — no overshoot, no rubber band.
       easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       // Touch devices keep their native momentum; hijacking it feels wrong and
       // breaks pull-to-refresh.
       smoothWheel: true,
+      syncTouch: false,
       touchMultiplier: 1,
-      wheelMultiplier: 1,
+      wheelMultiplier: 0.88,
     })
 
-    const onScroll = () => ScrollTrigger.update()
+    const onScroll = (state: Lenis) => {
+      publishScrollSignal({
+        y: state.scroll,
+        progress: state.progress,
+        velocity: state.velocity,
+        direction: state.direction < 0 ? -1 : state.direction > 0 ? 1 : 0,
+      })
+      ScrollTrigger.update()
+    }
     lenis.on('scroll', onScroll)
+    onScroll(lenis)
 
     const tick = (time: number) => lenis.raf(time * 1000)
     gsap.ticker.add(tick)

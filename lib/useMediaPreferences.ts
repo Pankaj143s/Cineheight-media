@@ -2,6 +2,40 @@
 
 import { useEffect, useState } from 'react'
 
+export type MotionCapabilityLevel = 'high' | 'balanced' | 'static'
+
+export interface MotionCapabilityProfile {
+  level: MotionCapabilityLevel
+  interactive: boolean
+  canvasDprCap: number
+  contourPointCount: number
+  trailPointCount: number
+}
+
+const STATIC_MOTION_PROFILE: MotionCapabilityProfile = {
+  level: 'static',
+  interactive: false,
+  canvasDprCap: 1,
+  contourPointCount: 0,
+  trailPointCount: 0,
+}
+
+const BALANCED_MOTION_PROFILE: MotionCapabilityProfile = {
+  level: 'balanced',
+  interactive: true,
+  canvasDprCap: 1.25,
+  contourPointCount: 21,
+  trailPointCount: 12,
+}
+
+const HIGH_MOTION_PROFILE: MotionCapabilityProfile = {
+  level: 'high',
+  interactive: true,
+  canvasDprCap: 1.5,
+  contourPointCount: 25,
+  trailPointCount: 14,
+}
+
 /** SSR-safe media-query hook. Returns `fallback` until mounted. */
 function useMediaQuery(query: string, fallback = false): boolean {
   const [matches, setMatches] = useState(fallback)
@@ -43,17 +77,36 @@ export function useIsFinePointer(): boolean {
  * Returns false until mounted, so the heavy path is always opt-in.
  */
 export function useCanRunRichEffects(): boolean {
+  return useMotionCapabilityProfile().interactive
+}
+
+/**
+ * Rendering precision for decorative motion. Lower tiers retain the same
+ * composition and interactions, but spend fewer pixels and curve samples.
+ * Static is the existing touch/reduced-motion/low-power fallback.
+ */
+export function useMotionCapabilityProfile(): MotionCapabilityProfile {
   const fine = useIsFinePointer()
   const reduced = useReducedMotion()
   const narrow = useIsNarrow(1023)
-  const [capable, setCapable] = useState(false)
+  const [level, setLevel] = useState<MotionCapabilityLevel>('static')
 
   useEffect(() => {
+    if (!fine || reduced || narrow) {
+      setLevel('static')
+      return
+    }
+
     const cores = navigator.hardwareConcurrency ?? 8
     // `deviceMemory` is Chromium-only; absence is treated as "enough".
     const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8
-    setCapable(cores > 4 && mem >= 4)
-  }, [])
+    const saveData =
+      (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true
+    const high = cores >= 8 && mem >= 8 && !saveData
+    setLevel(cores > 4 && mem >= 4 ? (high ? 'high' : 'balanced') : 'static')
+  }, [fine, reduced, narrow])
 
-  return capable && fine && !reduced && !narrow
+  if (level === 'high') return HIGH_MOTION_PROFILE
+  if (level === 'balanced') return BALANCED_MOTION_PROFILE
+  return STATIC_MOTION_PROFILE
 }

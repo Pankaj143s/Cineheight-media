@@ -137,10 +137,10 @@ export default function CreativeOrbit({
     const m: OrbitLayout = N >= 5 ? 'orbit' : N >= 3 ? 'arc' : 'stack'
 
     // Fewer cards ⇒ larger cards, so three creatives still command the stage.
-    const sizeFactor = m === 'orbit' ? (sm ? 0.38 : 0.24) : sm ? 0.5 : 0.3
+    const sizeFactor = m === 'orbit' ? (sm ? 0.44 : 0.28) : sm ? 0.56 : 0.34
     const w = sm
-      ? clamp(Math.round(w0 * sizeFactor), 150, 240)
-      : clamp(Math.round(w0 * sizeFactor), 230, 320)
+      ? clamp(Math.round(w0 * sizeFactor), 170, 275)
+      : clamp(Math.round(w0 * sizeFactor), 260, 380)
     const h = Math.round((w * 4) / 3)
 
     if (m === 'orbit') {
@@ -158,7 +158,7 @@ export default function CreativeOrbit({
         cardH: h,
         radius: r,
         theta: step,
-        stageH: Math.round(Math.max(h * 1.28, h + r * 0.24 + 40)),
+        stageH: Math.round(Math.max(h * 1.4, h + r * 0.28 + 56)),
         small: sm,
         layout: m,
       }
@@ -176,7 +176,7 @@ export default function CreativeOrbit({
       cardH: h,
       radius: r,
       theta: step,
-      stageH: Math.round(Math.max(h * 1.22, h + 90)),
+      stageH: Math.round(Math.max(h * 1.34, h + 112)),
       small: sm,
       layout: m,
     }
@@ -567,7 +567,8 @@ export default function CreativeOrbit({
           height: stageH,
           // Capped: full-width made the installation read as a standalone
           // demonstration rather than part of the case-study narrative.
-          maxWidth: narrow ? 640 : 1180,
+          width: '100%',
+          maxWidth: narrow ? 720 : 1480,
           marginTop: narrow ? 0 : 'clamp(5rem, 12vh, 10rem)',
           perspective: small ? '1100px' : '1700px',
           perspectiveOrigin: narrow ? '50% 34%' : '54% 32%',
@@ -587,6 +588,36 @@ export default function CreativeOrbit({
         onFocus={pauseIdle('focus')}
         onBlur={resumeIdle('focus')}
       >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 top-1/2 rounded-[50%]"
+          style={{
+            width: `${Math.round(Math.min((stageW || 1100) * 0.92, cardW * 4.5))}px`,
+            height: `${Math.round(cardH * 0.78)}px`,
+            transform: 'translate(-50%, -50%) rotate(-7deg)',
+            border: `1px solid ${accent}42`,
+            boxShadow: `inset 0 0 70px ${accent}12, 0 0 70px ${accent}10`,
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 top-1/2 rounded-[50%]"
+          style={{
+            width: `${Math.round(Math.min((stageW || 1100) * 0.86, cardW * 4.1))}px`,
+            height: `${Math.round(cardH * 0.34)}px`,
+            transform: 'translate(-50%, -50%) rotate(9deg)',
+            border: '1px solid rgba(255,255,255,0.09)',
+            background: `radial-gradient(ellipse at center, ${accent}12, transparent 68%)`,
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 top-[18%] h-[64%] w-px -translate-x-1/2"
+          style={{
+            background: `linear-gradient(to bottom, transparent, ${accent}5c, rgba(255,255,255,0.14), transparent)`,
+            boxShadow: `0 0 24px ${accent}44`,
+          }}
+        />
         <div
           aria-hidden="true"
           className="pointer-events-none absolute left-1/2 -translate-x-1/2"
