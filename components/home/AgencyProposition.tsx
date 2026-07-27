@@ -92,23 +92,48 @@ export default function AgencyProposition() {
         />
       )}
 
-      <div ref={depthRef} className="flow-gutter relative will-change-transform">
-        <KineticLabel text="WHAT WE DO" />
+      {/* slow background crop/mask shift — independent of the pointer light above */}
+      <div
+        aria-hidden="true"
+        data-parallax-scale="0.02"
+        data-parallax-y="0.03"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: 'radial-gradient(ellipse 70% 50% at 78% 30%, rgba(0,137,255,0.045), transparent 68%)',
+        }}
+      />
 
-        <SplitLineReveal
-          as="h2"
-          lines={['We build brands people', 'notice, trust and choose.']}
-          srLabel="We build brands people notice, trust and choose."
-          className="type-display-1 font-display mt-7 font-bold uppercase text-text-100"
-          style={{ maxWidth: '20ch' }}
+      <div ref={depthRef} className="flow-gutter relative will-change-transform">
+        <div data-parallax-y="0.09">
+          <KineticLabel text="WHAT WE DO" />
+        </div>
+
+        <div data-parallax-y="0.16">
+          <SplitLineReveal
+            as="h2"
+            lines={['We build brands people', 'notice, trust and choose.']}
+            srLabel="We build brands people notice, trust and choose."
+            className="type-display-1 font-display mt-7 font-bold uppercase text-text-100"
+            style={{ maxWidth: '20ch' }}
+          />
+        </div>
+
+        <div
+          aria-hidden="true"
+          data-parallax-y="0.24"
+          data-parallax-x="0.05"
+          className="mt-8 h-px w-24 origin-left"
+          style={{ background: 'linear-gradient(to right, var(--blue-500), rgba(0,137,255,0))' }}
         />
 
-        <p className="font-body measure-wide mt-9 text-base leading-relaxed text-text-200 sm:text-lg">
-          Cineheight is a full-service creative and growth agency. We combine brand strategy and identity design
-          with social media management, content creation, video and reel production, campaign execution and
-          performance marketing — turning growing businesses into brands people remember, and attention into
-          measurable growth.
-        </p>
+        <div data-parallax-y="0.06">
+          <p className="font-body measure-wide mt-6 text-base leading-relaxed text-text-200 sm:text-lg">
+            Cineheight is a full-service creative and growth agency. We combine brand strategy and identity design
+            with social media management, content creation, video and reel production, campaign execution and
+            performance marketing — turning growing businesses into brands people remember, and attention into
+            measurable growth.
+          </p>
+        </div>
 
         <div className="mt-10 flex flex-wrap items-center gap-x-10 gap-y-4">
           <Link

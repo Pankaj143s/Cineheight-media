@@ -5,9 +5,10 @@ import Link from 'next/link'
 import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { caseStudies } from '@/content/caseStudies'
+import { featuredWorkSlots, featuredWorkMobileSlots } from '@/content/mediaSlots'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
-import OrientationMedia from '@/components/media/OrientationMedia'
+import MediaSpecPlaceholder from '@/components/media/MediaSpecPlaceholder'
 import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 
@@ -15,11 +16,11 @@ import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/u
  * Selected work — one full-viewport-width media stage the three projects pass
  * through, rather than three articles stacked with gaps.
  *
- * The previous version forced square client reels into a landscape stage with
- * `object-cover`, cropping ~45% off each side of real client work, and left a
- * small square floating in a large empty field. Both are fixed here by
- * `OrientationMedia`: square footage is shown complete and centred over a
- * blurred, darkened copy of itself that fills the width.
+ * The client is producing final media specifically for this design, so the
+ * stage renders a `MediaSpecPlaceholder` per project (see `content/mediaSlots`)
+ * rather than the real client reels — swapping a slot's `status` to `'ready'`
+ * later needs no layout change here. Real media stays untouched on the
+ * individual `/work/[slug]` case-study pages.
  *
  * Desktop uses CSS `position: sticky` (not `ScrollTrigger.pin`) so there is no
  * pin-spacer fighting Lenis and no scroll rewriting. Mobile drops the sticky
@@ -27,9 +28,6 @@ import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/u
  */
 
 const PROJECTS = caseStudies
-
-/** Real orientation of each project's preview, from the verified content. */
-const orientationOf = (cs: (typeof caseStudies)[number]) => cs.heroMedia.orientation
 
 function ProjectCopy({
   cs,
@@ -318,20 +316,19 @@ export default function FeaturedWorkJourney() {
           >
             <Link href={`/work/${cs.id}`} className="block" aria-label={`${cs.client} — ${cs.tagline}`}>
               <div className="relative w-full" style={{ height: '62svh' }}>
-                <OrientationMedia
+                <MediaSpecPlaceholder
                   ref={(el) => { videoRefs.current[i] = el }}
-                  poster={cs.heroMedia.poster}
-                  src={active === i ? cs.heroMedia.src : undefined}
-                  orientation={orientationOf(cs)}
+                  spec={featuredWorkMobileSlots[cs.id]}
+                  kind="video"
                   alt={`${cs.client} campaign preview`}
-                  accent={cs.accentColor}
+                  priority={i === 0}
                 >
                   <div
                     aria-hidden="true"
                     className="pointer-events-none absolute inset-0"
                     style={{ background: 'linear-gradient(to top, var(--bg-950) 1%, rgba(2,3,6,0.3) 32%, transparent 58%)' }}
                   />
-                </OrientationMedia>
+                </MediaSpecPlaceholder>
               </div>
             </Link>
             <div data-copy className="flow-gutter relative -mt-[7vh]">
@@ -367,14 +364,15 @@ export default function FeaturedWorkJourney() {
                 className="h-full w-full"
                 style={{ transform: 'translate3d(var(--media-x), var(--media-y), 0)', transition: 'transform 0.5s cubic-bezier(0.22,1,0.36,1)' }}
               >
-                <OrientationMedia
-                  ref={(el) => { videoRefs.current[i] = el }}
-                  poster={cs.heroMedia.poster}
-                  src={active === i ? cs.heroMedia.src : undefined}
-                  orientation={orientationOf(cs)}
-                  alt={`${cs.client} campaign preview`}
-                  accent={cs.accentColor}
-                />
+                <div className="h-full w-full" data-parallax-scale="0.02">
+                  <MediaSpecPlaceholder
+                    ref={(el) => { videoRefs.current[i] = el }}
+                    spec={featuredWorkSlots[cs.id]}
+                    kind="video"
+                    alt={`${cs.client} campaign preview`}
+                    priority={i === 0}
+                  />
+                </div>
               </div>
               {/* readability field for the copy column */}
               <div

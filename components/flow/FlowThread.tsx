@@ -252,6 +252,12 @@ export default function FlowThread() {
 
       path.style.strokeDashoffset = `${(length - hit.len).toFixed(2)}`
 
+      // Cheap contract for other flow systems (the pointer signal field) to
+      // read the thread's current tip without measuring the SVG themselves —
+      // one extra setProperty call inside a rAF-gated handler that already runs.
+      document.documentElement.style.setProperty('--flow-thread-x', `${hit.x.toFixed(1)}px`)
+      document.documentElement.style.setProperty('--flow-thread-y', `${(hit.y - window.scrollY).toFixed(1)}px`)
+
       const dot = dotRef.current
       if (dot) {
         const drawn = hit.len / length
@@ -333,7 +339,7 @@ export default function FlowThread() {
           ref={pathRef}
           d=""
           stroke="#0089FF"
-          strokeWidth={narrow ? 1.1 : 1.4}
+          strokeWidth={narrow ? 1.75 : 2.25}
           strokeLinecap="round"
           fill="none"
           style={{
@@ -352,8 +358,8 @@ export default function FlowThread() {
           ref={dotRef}
           className="absolute left-0 top-0 will-change-transform"
           style={{
-            width: 8,
-            height: 8,
+            width: narrow ? 2.5 : 3.2,
+            height: narrow ? 2.5 : 3.2,
             borderRadius: '9999px',
             background: '#DCEEFF',
             boxShadow: '0 0 6px 2px rgba(0,137,255,0.85), 0 0 18px 7px rgba(0,137,255,0.4)',

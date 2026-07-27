@@ -103,15 +103,17 @@ export default function ClosingScene() {
       )}
 
       <div className="flow-gutter relative">
-        <ScrollHeadline
-          as="h2"
-          text={closing.question}
-          accent={['RISE']}
-          className="font-display max-w-[16ch] font-bold uppercase text-text-100"
-          style={{ fontSize: 'clamp(2.4rem, 8.4vw, 8.4rem)', lineHeight: 0.9, letterSpacing: '-0.035em' }}
-          from={0.18}
-          end="top 32%"
-        />
+        <div data-parallax-y="0.1">
+          <ScrollHeadline
+            as="h2"
+            text={closing.question}
+            accent={['RISE']}
+            className="font-display max-w-[16ch] font-bold uppercase text-text-100"
+            style={{ fontSize: 'clamp(2.4rem, 8.4vw, 8.4rem)', lineHeight: 0.9, letterSpacing: '-0.035em' }}
+            from={0.18}
+            end="top 32%"
+          />
+        </div>
 
         <div data-cta className="mt-12" style={{ opacity: reduced ? 1 : 0 }}>
           <MagneticLink
@@ -130,22 +132,28 @@ export default function ClosingScene() {
         </div>
 
         {/* channels as part of the composition, not a contact card grid */}
-        <ul className="mt-16 flex flex-wrap gap-x-14 gap-y-9">
-          {channels.map((ch) => (
-            <li key={ch.label} data-channel className="list-none" style={{ opacity: reduced ? 1 : 0 }}>
-              <p className="font-display text-[10px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.28em' }}>
-                {ch.label}
-              </p>
-              <a
-                href={ch.href}
-                {...(ch.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-                className="font-display mt-2 flex min-h-[44px] items-center text-lg font-medium text-text-200 transition-colors duration-300 hover:text-[var(--blue-200)] sm:text-xl"
-              >
-                {ch.value}
-              </a>
-            </li>
-          ))}
-        </ul>
+        <div data-parallax-y="0.05">
+          <ul className="mt-16 flex flex-wrap gap-x-14 gap-y-9">
+            {channels.map((ch) => (
+              <li key={ch.label} data-channel className="group list-none" style={{ opacity: reduced ? 1 : 0 }}>
+                <p className="font-display text-[10px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.28em' }}>
+                  {ch.label}
+                </p>
+                <a
+                  href={ch.href}
+                  {...(ch.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                  className="font-display mt-2 inline-flex min-h-[44px] items-center text-xl font-medium text-text-100 transition-colors duration-300 hover:text-[var(--blue-200)] sm:text-2xl"
+                >
+                  {ch.value}
+                </a>
+                <span
+                  aria-hidden="true"
+                  className="mt-2 block h-px w-full origin-left scale-x-[0.25] bg-[var(--blue-500)] opacity-40 transition-transform duration-500 ease-out group-hover:scale-x-100 group-hover:opacity-90"
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       {/* the footer emerges out of the same field */}

@@ -126,28 +126,30 @@ export default function ClientStories() {
         className="relative mt-10 w-full overflow-hidden will-change-transform"
         style={{ height: mobile ? '62svh' : 'clamp(30rem, 82svh, 62rem)' }}
       >
-        <OrientationMedia
-          ref={videoRef}
-          poster={film.poster}
-          src={film.src}
-          orientation={film.orientation as 'landscape' | 'square' | 'portrait'}
-          alt={`${film.title} — ${film.client}`}
-          accent={film.accent}
-          muted={muted}
-        >
-          {/* safe overlay zone for the attribution and controls */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                'linear-gradient(to top, rgba(2,3,6,0.92) 0%, rgba(2,3,6,0.5) 22%, transparent 52%)',
-            }}
-          />
-          <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-[3px]" style={{ background: `${film.accent}cc` }} />
-        </OrientationMedia>
+        <div className="absolute inset-[-3%]" data-parallax-y="0.1" data-parallax-scale="0.015">
+          <OrientationMedia
+            ref={videoRef}
+            poster={film.poster}
+            src={film.src}
+            orientation={film.orientation as 'landscape' | 'square' | 'portrait'}
+            alt={`${film.title} — ${film.client}`}
+            accent={film.accent}
+            muted={muted}
+          >
+            {/* safe overlay zone for the attribution and controls */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background:
+                  'linear-gradient(to top, rgba(2,3,6,0.92) 0%, rgba(2,3,6,0.5) 22%, transparent 52%)',
+              }}
+            />
+            <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-[3px]" style={{ background: `${film.accent}cc` }} />
+          </OrientationMedia>
+        </div>
 
-        <div className="flow-gutter absolute inset-x-0 bottom-0 pb-[clamp(1.25rem,4vh,2.75rem)]">
+        <div className="flow-gutter absolute inset-x-0 bottom-0 pb-[clamp(1.25rem,4vh,2.75rem)]" data-parallax-y="0.04">
           <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-6">
             <div className="min-w-0">
               <p

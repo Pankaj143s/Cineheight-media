@@ -396,7 +396,9 @@ export default function HomeCapabilities() {
       <div className="flow-gutter relative mt-10 grid grid-cols-12 items-center gap-x-12 sm:mt-14">
         <div className="col-span-12 lg:col-span-7">{index}</div>
         {!mobile && (
-          <div className="col-span-12 lg:col-span-5">{mediaStage}</div>
+          <div className="col-span-12 lg:col-span-5" data-parallax-y="0.08" data-parallax-scale="0.012">
+            {mediaStage}
+          </div>
         )}
       </div>
 

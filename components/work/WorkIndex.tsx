@@ -6,9 +6,10 @@ import Image from 'next/image'
 import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { caseStudies } from '@/content/caseStudies'
-import { caseCover } from '@/content/presentationMedia'
+import { workIndexSlots, workIndexMobileSlots } from '@/content/mediaSlots'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
+import MediaSpecPlaceholder from '@/components/media/MediaSpecPlaceholder'
 import CountUp from '@/components/ui/CountUp'
 import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
@@ -168,21 +169,18 @@ export default function WorkIndex() {
                 willChange: rich ? 'transform' : undefined,
               }}
             >
-              {/* Art-directed covers per client — a square reel poster blown
-                  up to a full viewport cropped the real work severely. */}
+              {/* Client is producing final index covers for this design — a
+                  designed placeholder ships until they land (see
+                  content/mediaSlots.ts + docs/FINAL-WORK-MEDIA-SPECS.md). */}
               <div data-scene-media className="absolute inset-[-10%]">
-                <picture>
-                  <source media="(max-width: 767px)" srcSet={caseCover(cs.id).mobile.src} />
-                  <source media="(min-width: 768px)" srcSet={caseCover(cs.id).desktop.src} />
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={caseCover(cs.id).desktop.src}
-                    alt={`${cs.client} campaign work`}
-                    className="h-full w-full object-cover"
-                    loading={i === 0 ? 'eager' : 'lazy'}
-                    decoding="async"
-                  />
-                </picture>
+                <MediaSpecPlaceholder
+                  spec={workIndexSlots[cs.id]}
+                  mobileSpec={workIndexMobileSlots[cs.id]}
+                  kind="image"
+                  alt={`${cs.client} campaign work`}
+                  priority={i === 0}
+                  className="h-full w-full"
+                />
               </div>
               <div
                 aria-hidden="true"

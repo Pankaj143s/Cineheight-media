@@ -219,16 +219,20 @@ export default function ClientMarquee() {
           transition: 'transform 0.6s cubic-bezier(0.22,1,0.36,1)',
         }}
       >
-        <ul ref={rowARef} className="flex w-max min-w-full items-center justify-center will-change-transform">
-          {ROW_A.map((c) => (
-            <LogoMark key={c.name} client={c} tier={tier} />
-          ))}
-        </ul>
-        <ul ref={rowBRef} className="flex w-max min-w-full items-center justify-center will-change-transform">
-          {ROW_B.map((c) => (
-            <LogoMark key={c.name} client={c} tier={tier} />
-          ))}
-        </ul>
+        <div data-parallax-y="0.07">
+          <ul ref={rowARef} className="flex w-max min-w-full items-center justify-center will-change-transform">
+            {ROW_A.map((c) => (
+              <LogoMark key={c.name} client={c} tier={tier} />
+            ))}
+          </ul>
+        </div>
+        <div data-parallax-y="-0.1">
+          <ul ref={rowBRef} className="flex w-max min-w-full items-center justify-center will-change-transform">
+            {ROW_B.map((c) => (
+              <LogoMark key={c.name} client={c} tier={tier} />
+            ))}
+          </ul>
+        </div>
 
         {/* edge feathers so overflowing rows dissolve rather than being cut */}
         <div

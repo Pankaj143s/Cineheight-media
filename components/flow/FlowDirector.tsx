@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { useEffect } from 'react'
 import { ScrollTrigger } from '@/lib/gsap'
 import { useCanRunRichEffects } from '@/lib/useMediaPreferences'
+import { useParallaxField } from '@/lib/useParallaxField'
 import AtmosphereLayer from './AtmosphereLayer'
 import FlowThread from './FlowThread'
 
@@ -24,6 +25,8 @@ const PointerAtmosphere = dynamic(() => import('./PointerAtmosphere'), { ssr: fa
  */
 export default function FlowDirector({ accent }: { accent?: string }) {
   const rich = useCanRunRichEffects()
+
+  useParallaxField()
 
   useEffect(() => {
     let cancelled = false
