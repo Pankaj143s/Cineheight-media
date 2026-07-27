@@ -125,28 +125,83 @@ export const about = {
 // ------------------------------------------------------- trusted clients
 export interface TrustedClient {
   name: string
+  /** Trimmed copy — see scripts/trim-logos.mjs. Originals stay in /logos. */
   logo: string
-  maxW: number
-  maxH: number
+  /** Intrinsic size of the TRIMMED artwork (measured, not guessed). */
+  w: number
+  h: number
+  /**
+   * Per-mark optical correction. Area normalisation gets it ~90% right; this
+   * nudges the marks whose perceived weight differs from their bounding box —
+   * a thin wordmark reads lighter than a solid roundel of the same area.
+   */
+  scale?: number
   /** Dark/colour-on-transparent marks need a faint light plate to read */
   needsLightPlate?: boolean
 }
 
+/**
+ * Logos point at the TRIMMED copies. The four `trusted/*` marks were 67–81%
+ * transparent padding, so at a shared max-height they rendered roughly a third
+ * the size of everything else. See `logoBox` below for how they are sized.
+ */
 export const trustedClients: TrustedClient[] = [
-  { name: 'Sapale Yamaha', logo: '/logos/yamaha-logo.png', maxW: 155, maxH: 45 },
-  { name: 'Sindhudurg Education Society', logo: '/logos/ses-white-text-logo.png', maxW: 148, maxH: 43 },
-  { name: 'Divija Old Age Home', logo: '/logos/divija-logo.png', maxW: 46, maxH: 60, needsLightPlate: true },
-  { name: 'ONGC', logo: '/logos/ongc-logo.png', maxW: 56, maxH: 58, needsLightPlate: true },
-  { name: 'WetNJoy', logo: '/logos/wetnjoy-logo-footer.png', maxW: 130, maxH: 46 },
-  { name: 'Walkswagon', logo: '/logos/walkswagon-logo.png', maxW: 58, maxH: 58, needsLightPlate: true },
-  { name: 'Askara', logo: '/logos/askara-logo.png', maxW: 160, maxH: 36 },
-  { name: 'DJI', logo: '/logos/dji-blue-logo.png', maxW: 110, maxH: 63, needsLightPlate: true },
-  { name: 'Sapale', logo: '/logos/sapale-logo.png', maxW: 150, maxH: 42 },
-  { name: 'Dave and Busters', logo: '/logos/trusted/dave-and-busters.png', maxW: 130, maxH: 46 },
-  { name: 'Election Commission of India', logo: '/logos/trusted/election-commission.png', maxW: 130, maxH: 46 },
-  { name: 'Imagica', logo: '/logos/trusted/imagica.png', maxW: 130, maxH: 46 },
-  { name: 'NHAI', logo: '/logos/trusted/nhai.png', maxW: 130, maxH: 46 },
+  { name: 'Sapale Yamaha', logo: '/logos/optimized/yamaha-logo.png', w: 1096, h: 299 },
+  { name: 'Sindhudurg Education Society', logo: '/logos/optimized/ses-white-text-logo.png', w: 874, h: 233 },
+  { name: 'Divija Old Age Home', logo: '/logos/optimized/divija-logo.png', w: 384, h: 500, needsLightPlate: true, scale: 0.92 },
+  { name: 'ONGC', logo: '/logos/optimized/ongc-logo.png', w: 850, h: 906, needsLightPlate: true, scale: 0.92 },
+  { name: 'WetNJoy', logo: '/logos/optimized/wetnjoy-logo-footer.png', w: 400, h: 154 },
+  { name: 'Walkswagon', logo: '/logos/optimized/walkswagon-logo.png', w: 572, h: 572, needsLightPlate: true, scale: 0.9 },
+  // Already the widest mark; the height floor gives it enough presence.
+  { name: 'Askara', logo: '/logos/optimized/askara-logo.png', w: 300, h: 66 },
+  { name: 'DJI', logo: '/logos/optimized/dji-blue-logo.png', w: 835, h: 481, needsLightPlate: true, scale: 0.95 },
+  { name: 'Sapale', logo: '/logos/optimized/sapale-logo.png', w: 701, h: 198 },
+  { name: 'Dave and Busters', logo: '/logos/optimized/trusted-dave-and-busters.png', w: 78, h: 78, scale: 0.95 },
+  { name: 'Election Commission of India', logo: '/logos/optimized/trusted-election-commission.png', w: 93, h: 88, scale: 0.95 },
+  { name: 'Imagica', logo: '/logos/optimized/trusted-imagica.png', w: 159, h: 66 },
+  { name: 'NHAI', logo: '/logos/optimized/trusted-nhai.png', w: 106, h: 70 },
 ]
+
+/**
+ * Optical sizing for a logo.
+ *
+ * Sizing every mark to a constant HEIGHT makes wide wordmarks dominate and
+ * square roundels vanish; sizing to a constant WIDTH does the opposite. Sizing
+ * to a constant ink AREA is what actually makes a 4.5:1 wordmark and a 1:1
+ * roundel feel like they carry the same weight — then the result is clamped
+ * into the allowed box so nothing runs away.
+ *
+ * Aspect ratio is always preserved; the returned box is what the <img> is
+ * constrained to, never a stretch.
+ */
+export function logoBox(
+  client: TrustedClient,
+  /** Multiplier for the tier (mobile rows are smaller than desktop). */
+  tier = 1
+): { width: number; height: number } {
+  const MAX_W = 175
+  const MIN_W = 110
+  const MAX_H = 68
+  const MIN_H = 38
+  /** Target ink area in px² — tuned so the mid-ratio marks land mid-box. */
+  const TARGET_AREA = 4300
+
+  const ratio = client.w / client.h
+  // area = w * h and w = ratio * h  ⇒  h = sqrt(area / ratio)
+  let h = Math.sqrt(TARGET_AREA / ratio) * (client.scale ?? 1) * tier
+  let w = h * ratio
+
+  // Clamp into the box, preserving the ratio on whichever axis binds first.
+  if (w > MAX_W) { w = MAX_W; h = w / ratio }
+  if (h > MAX_H) { h = MAX_H; w = h * ratio }
+  if (h < MIN_H) { h = MIN_H; w = h * ratio }
+  if (w > MAX_W) { w = MAX_W; h = w / ratio }
+  // MIN_W is a floor for the *slot*, not a stretch — a tall mark may be narrower.
+  return { width: Math.round(w), height: Math.round(h) }
+}
+
+/** Consistent slot width so the rows read as an even rhythm. */
+export const LOGO_SLOT_MIN_W = 110
 
 // -------------------------------------------------------------- showreel
 export const showreel = {

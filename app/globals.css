@@ -110,33 +110,55 @@ body {
    Route transition — a dark mask wipes away while the signal
    line runs ahead of its trailing edge (components/flow/RouteTransition)
    ============================================================ */
-@keyframes route-mask {
-  0% {
-    transform: scaleY(1);
-    opacity: 1;
+/* Leaving: the mask closes down over the current page. */
+@keyframes route-close {
+  from {
+    clip-path: inset(0 0 100% 0);
   }
-  100% {
-    transform: scaleY(0);
-    transform-origin: top;
-    opacity: 0;
+  to {
+    clip-path: inset(0 0 0 0);
   }
 }
-@keyframes route-line {
-  0% {
-    top: 0;
+/* Arriving: the mask clips away downward, revealing the destination. */
+@keyframes route-open {
+  from {
+    clip-path: inset(0 0 0 0);
+  }
+  to {
+    clip-path: inset(100% 0 0 0);
+  }
+}
+/* The signal runs just ahead of the mask's edge in both directions. */
+@keyframes route-signal-down {
+  from {
+    top: -2px;
     opacity: 0;
   }
-  12% {
+  15% {
     opacity: 1;
   }
-  100% {
+  to {
+    top: 100%;
+    opacity: 1;
+  }
+}
+@keyframes route-signal-up {
+  from {
+    top: 0;
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  to {
     top: 100%;
     opacity: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  [style*='route-mask'],
-  [style*='route-line'] {
+  [style*='route-close'],
+  [style*='route-open'],
+  [style*='route-signal'] {
     animation: none !important;
     display: none !important;
   }
@@ -146,11 +168,80 @@ body {
    Flow composition helpers
    ============================================================ */
 
-/* The shared safe gutter. Type and media may run to these edges; nothing is
-   forced into one centred container. */
+/* The shared safe gutter, as a variable so components that position against
+   the content column (a media panel pinned to its right edge, for instance)
+   use exactly the same value.
+
+   Beyond ~104rem the gutter absorbs the extra width instead of letting the
+   column stretch: on a 5K display a 2000px line of body copy is unreadable,
+   and a media panel pinned to the far edge opens a dead gap in the middle of
+   the row. Full-bleed media does not use this class and still runs edge to
+   edge. Safe-area insets are respected for landscape phones. */
+:root {
+  --gutter: max(clamp(1.25rem, 4vw, 7rem), calc((100vw - 104rem) / 2));
+}
 .flow-gutter {
-  padding-left: clamp(1.25rem, 4vw, 4.5rem);
-  padding-right: clamp(1.25rem, 4vw, 4.5rem);
+  padding-left: max(var(--gutter), env(safe-area-inset-left));
+  padding-right: max(var(--gutter), env(safe-area-inset-right));
+}
+
+/* ============================================================
+   Display typography
+   ============================================================ */
+
+/* Every large heading: balanced wrapping where supported, never a broken word,
+   and a hyphenation guard so a long client name cannot be split mid-word. */
+.display-type {
+  text-wrap: balance;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+/* `balance` only applies to short blocks in some engines; `pretty` is the
+   graceful fallback for longer statements. */
+@supports (text-wrap: pretty) {
+  .display-type-long {
+    text-wrap: pretty;
+  }
+}
+
+/* ------------------------------------------------------------
+   Short-viewport corrections.
+
+   A 1920x600 or 1440x700 window has the width for large display type but not
+   the height. Rather than let headings clip or push their scene past the fold,
+   step the display scale and the vertical rhythm down. `--display-scale` is
+   consumed by the scenes' clamp() sizes; `--scene-gap` by their spacing.
+   ------------------------------------------------------------ */
+:root {
+  --display-scale: 1;
+  --scene-gap: 1;
+}
+@media (max-height: 760px) {
+  :root {
+    --display-scale: 0.88;
+    --scene-gap: 0.78;
+  }
+}
+@media (max-height: 650px) {
+  :root {
+    --display-scale: 0.78;
+    --scene-gap: 0.62;
+  }
+}
+@media (max-height: 560px) {
+  :root {
+    --display-scale: 0.68;
+    --scene-gap: 0.5;
+  }
+}
+/* Phones in portrait are short but must NOT be shrunk — the rule above is for
+   short *landscape* windows, so restore full scale on narrow portrait screens. */
+@media (max-width: 767px) and (orientation: portrait) {
+  :root {
+    --display-scale: 1;
+    --scene-gap: 1;
+  }
 }
 
 /* Oversized editorial numerals used as chapter markers — they sit BEHIND the
@@ -163,12 +254,46 @@ body {
   -webkit-text-stroke: 1px rgba(255, 255, 255, 0.13);
 }
 
-/* Long-form measure — keeps body copy readable without a global container. */
+/* ------------------------------------------------------------
+   The display type scale.
+
+   Components use these instead of hand-rolling a clamp() each time, so every
+   heading on the site responds to width AND to short viewports through
+   --display-scale, in one place. Capped at the top end so a 5K display does
+   not produce absurd type.
+   ------------------------------------------------------------ */
+.type-display-1,
+.type-display-2,
+.type-display-3 {
+  text-wrap: balance;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+.type-display-1 {
+  font-size: calc(clamp(2.4rem, 7.2vw, 7.5rem) * var(--display-scale));
+  line-height: 0.92;
+  letter-spacing: -0.035em;
+}
+.type-display-2 {
+  font-size: calc(clamp(1.9rem, 4.8vw, 4.6rem) * var(--display-scale));
+  line-height: 0.98;
+  letter-spacing: -0.028em;
+}
+.type-display-3 {
+  font-size: calc(clamp(1.35rem, 2.6vw, 2.5rem) * var(--display-scale));
+  line-height: 1.08;
+  letter-spacing: -0.018em;
+}
+
+/* Long-form measure — keeps body copy readable without a global container.
+   `ch` alone keeps growing with the font size on huge displays, so the rem cap
+   holds the line length in the comfortable range. */
 .measure {
-  max-width: 46ch;
+  max-width: min(46ch, 34rem);
 }
 .measure-wide {
-  max-width: 62ch;
+  max-width: min(62ch, 46rem);
 }
 
 /* Screen-reader-only utility */

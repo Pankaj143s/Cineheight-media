@@ -9,3 +9,6 @@ next-env.d.ts
 
 # Packaged build artefact — regenerated on demand, never versioned
 *.zip
+
+# Local verification screenshots
+.shots/

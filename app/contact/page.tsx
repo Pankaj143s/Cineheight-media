@@ -5,7 +5,7 @@ import FlowDirector from '@/components/flow/FlowDirector'
 import ContactPage from '@/components/pages/ContactPage'
 
 export const metadata: Metadata = {
-  title: 'Contact — Let’s Build Your Brand | CINEHEIGHT.media',
+  title: 'Start a Branding or Marketing Project | CINEHEIGHT.media',
   description:
     'Start a project with Cineheight Media — email grow@cineheight.com, call +91 8308765466, or reach us on WhatsApp and Instagram. Kankavli, Maharashtra.',
   alternates: { canonical: '/contact' },

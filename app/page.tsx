@@ -1,31 +1,37 @@
-import dynamic from 'next/dynamic'
 import Navbar from '@/components/Navbar'
 import HeroIntroSequence from '@/components/hero/HeroIntroSequence'
 import ShowreelSection from '@/components/showreel/ShowreelSection'
 import FlowDirector from '@/components/flow/FlowDirector'
-import ClientTrustBridge from '@/components/home/ClientTrustBridge'
+import AgencyProposition from '@/components/home/AgencyProposition'
+import ClientMarquee from '@/components/home/ClientMarquee'
 import FeaturedWorkJourney from '@/components/home/FeaturedWorkJourney'
-import ServicesJourney from '@/components/home/ServicesJourney'
-import ProcessJourney from '@/components/home/ProcessJourney'
-import VoicesScene from '@/components/home/VoicesScene'
+import HomeCapabilities from '@/components/home/HomeCapabilities'
+import ProcessCompact from '@/components/home/ProcessCompact'
+import ClientStories from '@/components/home/ClientStories'
 import ClosingScene from '@/components/home/ClosingScene'
 
-// The two heavy interactive installations load on demand — they sit well below
-// the fold and carry their own physics loops.
-const ReelsScene = dynamic(() => import('@/components/home/ReelsScene'))
-const CreativesScene = dynamic(() => import('@/components/home/CreativesScene'))
-
 /**
- * The homepage is ONE composition, top to bottom.
+ * The homepage answers, in order and without needing another page:
+ * who Cineheight is, what it sells, what the work looks like, what it
+ * achieved, who trusts it, and how to start.
  *
- *   hero → brand statement → showreel        (approved, untouched)
- *   → client field → work journey → phone reels → creative orbit
- *   → services journey → process journey → voices → closing + footer
+ *   hero → showreel                  (approved, untouched)
+ *   → WHAT WE DO                     the proposition, in plain English
+ *   → BRANDS WE HAVE WORKED WITH     compact credibility
+ *   → SELECTED WORK                  full-width work with verified metrics
+ *   → HOW WE HELP BRANDS GROW        three service pillars
+ *   → HOW WE WORK                    four beats, compactly
+ *   → CLIENT STORIES                 the real recorded films
+ *   → the closing ask + footer
  *
- * The scenes below carry no eyebrow-heading blocks, no repeated max-width
- * container and no equal vertical gaps: each one overlaps the last, and the
- * background, signal thread and pointer field (FlowDirector) run continuously
- * behind all of them.
+ * The phone-reel coverflow and the creative orbit deliberately do NOT appear
+ * here — they are installations that belong to the individual case studies,
+ * and on the front door they buried the offering. The components are unchanged
+ * and still used by /work/[slug].
+ *
+ * The scenes carry readable labels but no boxed headers, no repeated container
+ * and no equal gaps: each overlaps the last, and the atmosphere, signal thread
+ * and pointer field (FlowDirector) run continuously behind all of them.
  */
 export default function Home() {
   return (
@@ -36,13 +42,12 @@ export default function Home() {
       <main className="relative z-10">
         <HeroIntroSequence />
         <ShowreelSection />
-        <ClientTrustBridge />
+        <AgencyProposition />
+        <ClientMarquee />
         <FeaturedWorkJourney />
-        <ReelsScene />
-        <CreativesScene />
-        <ServicesJourney />
-        <ProcessJourney />
-        <VoicesScene />
+        <HomeCapabilities />
+        <ProcessCompact />
+        <ClientStories />
         <ClosingScene />
       </main>
       <div className="grain-overlay" aria-hidden="true" />

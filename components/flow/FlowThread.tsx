@@ -55,6 +55,13 @@ interface Pt {
   y: number
 }
 
+/** One entry in the cached arc-length lookup table. */
+interface Sample {
+  len: number
+  x: number
+  y: number
+}
+
 /**
  * Catmull-Rom through `pts`, emitted as cubic Béziers. Horizontal control
  * offsets are capped relative to the segment's height and vertical controls are
@@ -99,7 +106,13 @@ export default function FlowThread() {
   const narrow = useIsNarrow(767)
 
   // Geometry cached between frames — the scroll handler must never measure.
-  const geo = useRef({ length: 0, startY: 0, endY: 0, docH: 0 })
+  const geo = useRef<{
+    length: number
+    startY: number
+    endY: number
+    docH: number
+    samples: Sample[]
+  }>({ length: 0, startY: 0, endY: 0, docH: 0, samples: [] })
 
   /** Re-read anchors and rebuild the path. Runs on mount, resize and reflow. */
   const measure = useCallback(() => {
@@ -132,7 +145,7 @@ export default function FlowThread() {
 
     if (anchors.length < 2) {
       path.setAttribute('d', '')
-      geo.current = { length: 0, startY: 0, endY: 0, docH }
+      geo.current = { length: 0, startY: 0, endY: 0, docH, samples: [] }
       return
     }
 
@@ -153,7 +166,27 @@ export default function FlowThread() {
 
     const length = path.getTotalLength()
     path.style.strokeDasharray = `${length}`
-    geo.current = { length, startY: pts[0].y, endY: pts[pts.length - 1].y, docH }
+
+    /**
+     * Sample the path into a lookup table of {len, x, y}.
+     *
+     * Arc length is NOT proportional to vertical distance: wherever the route
+     * curves sideways it covers a lot of length for very little descent. The
+     * previous linear map from document-Y to arc length therefore under-read
+     * the required length on curved stretches and the glowing tip visibly
+     * lagged above where it should be. Sampling once per rebuild and searching
+     * the table gives the exact length for any target Y, and costs nothing per
+     * scroll frame.
+     */
+    const SAMPLE_COUNT = 360
+    const samples: Sample[] = new Array(SAMPLE_COUNT + 1)
+    for (let i = 0; i <= SAMPLE_COUNT; i++) {
+      const len = (length * i) / SAMPLE_COUNT
+      const pt = path.getPointAtLength(len)
+      samples[i] = { len, x: pt.x, y: pt.y }
+    }
+
+    geo.current = { length, startY: pts[0].y, endY: pts[pts.length - 1].y, docH, samples }
   }, [narrow])
 
   // ---- build + keep in sync with layout -------------------------------
@@ -170,29 +203,62 @@ export default function FlowThread() {
       })
     }
 
-    // Vertical progress → revealed length. The path descends monotonically, so
-    // mapping the tip's document Y linearly onto arc length is accurate enough
-    // and costs one subtraction instead of a search.
+    /**
+     * Find the exact arc length at which the path reaches document-Y `y`.
+     *
+     * The samples are monotonic in Y (the path builder clamps every control
+     * point so vertical progress can never reverse), so a binary search is
+     * valid; the result is then interpolated between the two bracketing
+     * samples so the tip glides rather than stepping between samples.
+     */
+    const lengthAtY = (y: number): { len: number; x: number; y: number } | null => {
+      const { samples } = geo.current
+      if (samples.length < 2) return null
+      if (y <= samples[0].y) return samples[0]
+      const last = samples[samples.length - 1]
+      if (y >= last.y) return last
+
+      let lo = 0
+      let hi = samples.length - 1
+      while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1
+        if (samples[mid].y <= y) lo = mid
+        else hi = mid
+      }
+      const a = samples[lo]
+      const b = samples[hi]
+      const span = b.y - a.y
+      const t = span > 0.0001 ? (y - a.y) / span : 0
+      return {
+        len: a.len + (b.len - a.len) * t,
+        x: a.x + (b.x - a.x) * t,
+        y,
+      }
+    }
+
     const draw = () => {
-      const { length, startY, endY } = geo.current
+      const { length } = geo.current
       if (!length) return
-      const vh = window.innerHeight
-      const tipY = window.scrollY + vh * 0.62
-      const p = clamp((tipY - startY) / Math.max(1, endY - startY), 0, 1)
 
       if (reduced) {
         path.style.strokeDashoffset = '0'
         return
       }
-      path.style.strokeDashoffset = `${length * (1 - p)}`
+
+      // Keep the leading light ~62% down the viewport as the page moves.
+      const tipY = window.scrollY + window.innerHeight * 0.62
+      const hit = lengthAtY(tipY)
+      if (!hit) return
+
+      path.style.strokeDashoffset = `${(length - hit.len).toFixed(2)}`
 
       const dot = dotRef.current
       if (dot) {
-        if (p <= 0.001 || p >= 0.999) {
+        const drawn = hit.len / length
+        if (drawn <= 0.002 || drawn >= 0.998) {
           dot.style.opacity = '0'
         } else {
-          const pt = path.getPointAtLength(length * p)
-          dot.style.transform = `translate3d(${pt.x}px, ${pt.y}px, 0) translate(-50%, -50%)`
+          dot.style.transform = `translate3d(${hit.x.toFixed(1)}px, ${hit.y.toFixed(1)}px, 0) translate(-50%, -50%)`
           dot.style.opacity = '1'
         }
       }
@@ -217,12 +283,28 @@ export default function FlowThread() {
     ro.observe(document.body)
     document.fonts?.ready.then(schedule).catch(() => {})
 
+    // Video metadata arriving can change layout after everything else settled.
+    const onMediaSettled = () => schedule()
+    document.querySelectorAll('video').forEach((v) =>
+      v.addEventListener('loadedmetadata', onMediaSettled, { once: true })
+    )
+    // Two late passes catch anything that reflows after first paint.
+    const t1 = window.setTimeout(schedule, 700)
+    const t2 = window.setTimeout(schedule, 2000)
+
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', schedule)
+    window.addEventListener('orientationchange', schedule)
     const onVis = () => { if (!document.hidden) onScroll() }
     document.addEventListener('visibilitychange', onVis)
 
     return () => {
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+      window.removeEventListener('orientationchange', schedule)
+      document.querySelectorAll('video').forEach((v) =>
+        v.removeEventListener('loadedmetadata', onMediaSettled)
+      )
       cancelAnimationFrame(raf)
       ro.disconnect()
       window.removeEventListener('scroll', onScroll)

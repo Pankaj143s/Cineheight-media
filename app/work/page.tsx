@@ -5,7 +5,7 @@ import FlowDirector from '@/components/flow/FlowDirector'
 import WorkIndex from '@/components/work/WorkIndex'
 
 export const metadata: Metadata = {
-  title: 'Work — Real Client Case Studies | CINEHEIGHT.media',
+  title: 'Selected Branding, Social Media & Video Work | CINEHEIGHT.media',
   description:
     'Sapale Yamaha, Sindhudurg Education Society and Divija Old Age Home — real strategy, content and campaign work with verified results.',
   alternates: { canonical: '/work' },

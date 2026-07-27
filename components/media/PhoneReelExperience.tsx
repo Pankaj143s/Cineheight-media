@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PhoneReelShell, { type PhoneReelItem } from './PhoneReelShell'
+import MediaLightbox, { type LightboxItem } from './MediaLightbox'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import { clamp, damp } from '@/lib/utils'
@@ -67,6 +68,8 @@ export default function PhoneReelExperience({
   const [muted, setMuted] = useState(true)
   const [userPaused, setUserPaused] = useState(false)
   const [inView, setInView] = useState(false)
+  /** Index open in the shared lightbox, or null. */
+  const [expanded, setExpanded] = useState<number | null>(null)
 
   // ---- motion state (never React state) --------------------------------
   const float = useRef(initial)
@@ -94,7 +97,7 @@ export default function PhoneReelExperience({
     const w = stage.clientWidth
     // 9:16 phone, 92 % of the stage height, but never wider than 34 % of the
     // stage so three phones always read on a narrow viewport.
-    const phoneH = Math.min(h * 0.94, (w * 0.34 * 16) / 9)
+    const phoneH = Math.min(h * (mobile ? 0.9 : 0.94), (w * 0.34 * 16) / 9)
     const phoneW = (phoneH * 9) / 16
     spacing.current = phoneW * (mobile ? 0.7 : 0.84)
     stage.style.setProperty('--phone-w', `${Math.round(phoneW)}px`)
@@ -239,6 +242,37 @@ export default function PhoneReelExperience({
     goTo(target.current - carry)
   }
 
+  /**
+   * The lightbox only ever carries REAL reels, so a placeholder can never be
+   * paged into. These maps translate between the installation's index space
+   * (which includes placeholders) and the lightbox's.
+   */
+  const { lightboxItems, realIndexToLightbox, lightboxToRealIndex } = useMemo(() => {
+    const out: LightboxItem[] = []
+    const toLb: Record<number, number> = {}
+    const toReal: Record<number, number> = {}
+    reels.forEach((r, i) => {
+      if (r.isPlaceholder || !r.src) return
+      toLb[i] = out.length
+      toReal[out.length] = i
+      out.push({
+        kind: 'video',
+        src: r.src,
+        poster: r.poster,
+        alt: `${r.client} — ${r.title}`,
+        title: r.title,
+        client: r.client,
+      })
+    })
+    return { lightboxItems: out, realIndexToLightbox: toLb, lightboxToRealIndex: toReal }
+  }, [reels])
+
+  /** Open the active reel in the shared lightbox (never a placeholder). */
+  const openActive = useCallback(() => {
+    if (reels[activeRef.current]?.isPlaceholder) return
+    setExpanded(activeRef.current)
+  }, [reels])
+
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowRight') {
       e.preventDefault()
@@ -246,7 +280,11 @@ export default function PhoneReelExperience({
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault()
       step(-1)
-    } else if (e.key === ' ' || e.key === 'Enter') {
+    } else if (e.key === 'Enter') {
+      // Enter opens the reel full-size; Space stays with the play control.
+      e.preventDefault()
+      openActive()
+    } else if (e.key === ' ') {
       e.preventDefault()
       setUserPaused((p) => !p)
     }
@@ -254,7 +292,8 @@ export default function PhoneReelExperience({
 
   // ---- playback: exactly one video, gated on view + intent --------------
   const item = reels[active]
-  const canPlay = !!item && !item.isPlaceholder && inView && !reduced
+  // The inline reel stands down while the lightbox owns playback.
+  const canPlay = !!item && !item.isPlaceholder && inView && !reduced && expanded === null
 
   useEffect(() => {
     const video = videoRef.current
@@ -290,16 +329,19 @@ export default function PhoneReelExperience({
 
   if (reels.length === 0) return null
 
+  // The heading is NOT capped to a narrow `ch` measure any more: a 15ch cap at
+  // display size forced words like "Short-form" to break at their hyphen and
+  // the fragments were then clipped by the reveal band and covered by the
+  // phones. It now gets real room and the shared display scale.
   const headingBlock = (eyebrow || heading || headingLines) && (
-    <div className="max-w-[15ch]">
+    <div className="max-w-[34rem]">
       {eyebrow && <KineticLabel text={eyebrow} />}
       {(headingLines || heading) && (
         <SplitLineReveal
           as="h2"
           lines={headingLines ?? [heading!]}
           srLabel={heading ?? ''}
-          className="font-display mt-5 font-bold uppercase text-text-100"
-          style={{ fontSize: 'clamp(1.9rem, 4.4vw, 4rem)', lineHeight: 0.98, letterSpacing: '-0.02em' }}
+          className="type-display-3 font-display mt-5 font-bold uppercase text-text-100"
         />
       )}
     </div>
@@ -354,7 +396,7 @@ export default function PhoneReelExperience({
         onPointerCancel={endDrag}
         className="relative mx-auto w-full cursor-grab touch-pan-y select-none active:cursor-grabbing"
         style={{
-          height: mobile ? 'clamp(430px, 64vh, 560px)' : 'clamp(520px, 76vh, 780px)',
+          height: mobile ? 'clamp(540px, 74svh, 760px)' : 'clamp(650px, 84svh, 960px)',
           marginTop: mobile ? '3vh' : 'clamp(6rem, 14vh, 12rem)',
           perspective: mobile ? '1100px' : '1600px',
           perspectiveOrigin: '50% 50%',
@@ -372,7 +414,9 @@ export default function PhoneReelExperience({
               tabIndex={-1}
               aria-label={
                 i === active
-                  ? `${r.client} — ${r.title}. Currently showing; press to play or pause.`
+                  ? r.isPlaceholder
+                    ? `${r.client} — ${r.title}. Awaiting the client file.`
+                    : `${r.client} — ${r.title}. Press to open full size.`
                   : `Show ${r.client} — ${r.title}`
               }
               onClick={() => {
@@ -380,7 +424,8 @@ export default function PhoneReelExperience({
                   dragged.current = false
                   return
                 }
-                if (i === active) setUserPaused((p) => !p)
+                // A side phone comes to the centre; the centre phone opens.
+                if (i === active) openActive()
                 else goTo(i)
               }}
               className="absolute left-1/2 top-1/2 will-change-transform"
@@ -397,10 +442,22 @@ export default function PhoneReelExperience({
                 seed={i + 1}
                 handle={handle}
                 isActive={i === active}
-                mountVideo={i === active && inView && !r.isPlaceholder}
+                mountVideo={i === active && inView && !r.isPlaceholder && expanded === null}
                 muted={muted}
                 compact={Math.abs(i - active) > 1}
               />
+              {/* Restrained expand affordance so the click target is obvious */}
+              {i === active && !r.isPlaceholder && (
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-full text-text-100"
+                  style={{ background: 'rgba(2,3,6,0.55)', border: '1px solid rgba(255,255,255,0.22)' }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                    <path d="M5 1H1v4M9 13h4V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -488,6 +545,20 @@ export default function PhoneReelExperience({
       </p>
 
       {/* The thread passes through the installation here */}
+      <MediaLightbox
+        items={lightboxItems}
+        index={expanded === null ? null : realIndexToLightbox[expanded] ?? null}
+        accent={item.accent}
+        onClose={() => setExpanded(null)}
+        onIndex={(i) => {
+          const realIdx = lightboxToRealIndex[i]
+          if (realIdx != null) {
+            setExpanded(realIdx)
+            goTo(realIdx)
+          }
+        }}
+      />
+
       <div data-flow-anchor={flowAnchor} className="pointer-events-none absolute inset-x-0 top-1/2 h-px" aria-hidden="true" />
     </section>
   )

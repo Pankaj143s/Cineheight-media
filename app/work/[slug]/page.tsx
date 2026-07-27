@@ -14,8 +14,10 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
   const cs = getCaseStudy(params.slug)
   if (!cs) return {}
   return {
-    title: `${cs.client} — Case Study | CINEHEIGHT.media`,
-    description: `${cs.tagline}. ${cs.hook}`,
+    // Real client name, real project category, and the verified hook — no
+    // invented claims and no keyword stuffing.
+    title: `${cs.client} — ${cs.category} Case Study | CINEHEIGHT.media`,
+    description: `${cs.tagline}. ${cs.hook} A ${cs.category.toLowerCase()} project delivered by Cineheight in ${cs.year}.`,
     alternates: { canonical: `/work/${cs.id}` },
     openGraph: {
       title: `${cs.client} — ${cs.tagline}`,

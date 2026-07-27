@@ -17,7 +17,11 @@ import { useCanRunRichEffects } from '@/lib/useMediaPreferences'
  * and the motes have settled, so an untouched page costs nothing.
  */
 
-const MOTE_COUNT = 26
+const MOTE_COUNT = 36
+/** Motes only link to each other inside this radius of the pointer. */
+const LINK_FIELD = 240
+/** …and only to neighbours this close. */
+const LINK_DIST = 110
 
 interface Mote {
   x: number
@@ -104,24 +108,29 @@ export default function PointerAtmosphere() {
 
       ctx.clearRect(0, 0, w, h)
 
-      // Cursor light — one soft radial wash, no blur filter.
+      // Cursor light — one soft radial wash, no blur filter. Deliberately kept
+      // low-alpha: it must never reduce contrast on text it passes over.
       if (presence > 0.01) {
-        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 260)
-        g.addColorStop(0, `rgba(0,137,255,${0.05 * presence})`)
-        g.addColorStop(0.45, `rgba(0,137,255,${0.02 * presence})`)
+        const R = 300
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R)
+        g.addColorStop(0, `rgba(0,137,255,${0.085 * presence})`)
+        g.addColorStop(0.4, `rgba(0,137,255,${0.035 * presence})`)
         g.addColorStop(1, 'rgba(0,137,255,0)')
         ctx.fillStyle = g
-        ctx.fillRect(cx - 260, cy - 260, 520, 520)
+        ctx.fillRect(cx - R, cy - R, R * 2, R * 2)
       }
 
       let moving = presence > 0.01
+      // Motes near the pointer, collected for the linking pass.
+      const near: Mote[] = []
+
       for (const m of motes) {
         const dx = cx - m.x
         const dy = cy - m.y
         const dist = Math.hypot(dx, dy)
-        if (presence > 0.01 && dist < 340 && dist > 1) {
+        if (presence > 0.01 && dist < 380 && dist > 1) {
           // Inverse-ish attraction, capped so motes drift rather than snap.
-          const f = (m.pull * presence * (1 - dist / 340)) / 900
+          const f = (m.pull * presence * (1 - dist / 380)) / 620
           m.vx += dx * f
           m.vy += dy * f
           moving = true
@@ -138,11 +147,32 @@ export default function PointerAtmosphere() {
         else if (m.y > h + 10) m.y = -10
 
         if (Math.abs(m.vx) > 0.02 || Math.abs(m.vy) > 0.02) moving = true
+        if (presence > 0.01 && dist < LINK_FIELD) near.push(m)
 
         ctx.beginPath()
         ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(140,200,255,${m.alpha * (0.35 + presence * 0.65)})`
+        ctx.fillStyle = `rgba(150,205,255,${m.alpha * (0.4 + presence * 0.6)})`
         ctx.fill()
+      }
+
+      // Short constellation lines — only between motes that are BOTH close to
+      // the pointer and close to each other, so the effect stays a local
+      // gathering around the cursor rather than a web across the whole page.
+      if (near.length > 1) {
+        ctx.lineWidth = 1
+        for (let i = 0; i < near.length; i++) {
+          for (let j = i + 1; j < near.length; j++) {
+            const a = near[i]
+            const b = near[j]
+            const d = Math.hypot(a.x - b.x, a.y - b.y)
+            if (d > LINK_DIST) continue
+            ctx.beginPath()
+            ctx.moveTo(a.x, a.y)
+            ctx.lineTo(b.x, b.y)
+            ctx.strokeStyle = `rgba(120,185,255,${(1 - d / LINK_DIST) * 0.16 * presence})`
+            ctx.stroke()
+          }
+        }
       }
 
       // Park the loop once everything has settled; any pointer move wakes it.

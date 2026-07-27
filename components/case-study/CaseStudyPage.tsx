@@ -69,7 +69,7 @@ export default function CaseStudyPage({ slug }: { slug: string }) {
           reels={reels}
           handle={contact.instagramHandle.replace('@', '')}
           eyebrow="THE REELS"
-          headingLines={['Short-form', 'that shipped.']}
+          headingLines={['Short‑form', 'that shipped.']}
           heading="Short-form that shipped."
           label={`${cs.client} reels`}
           flowAnchor="edge-left"

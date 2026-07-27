@@ -34,10 +34,22 @@ const poppins = localFont({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://cineheight.media'),
-  title: 'CINEHEIGHT.media — Branding & Digital Growth Agency',
+  title: 'CINEHEIGHT.media — Branding, Content & Growth Agency',
   description:
-    'We turn businesses into brands. Strategy, design, content and campaigns built to grow visibility, trust and leads.',
-  keywords: ['digital agency', 'branding', 'social media', 'video production', 'content creation', 'brand strategy', 'performance marketing'],
+    'Cineheight is a branding, content and growth agency. Brand strategy and identity design, social media management, video and reel production, and performance marketing that turns attention into measurable growth.',
+  keywords: [
+    'branding agency',
+    'brand strategy',
+    'identity design',
+    'social media management',
+    'content creation',
+    'video production',
+    'reel production',
+    'performance marketing',
+    'campaign strategy',
+    'lead generation',
+    'creative agency',
+  ],
   authors: [{ name: 'Cineheight Media' }],
   creator: 'Cineheight Media',
   alternates: { canonical: '/' },

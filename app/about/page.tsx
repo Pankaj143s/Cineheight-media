@@ -5,7 +5,7 @@ import FlowDirector from '@/components/flow/FlowDirector'
 import AboutPage from '@/components/pages/AboutPage'
 
 export const metadata: Metadata = {
-  title: 'About — Everything a Brand Needs. One Team. | CINEHEIGHT.media',
+  title: 'About CINEHEIGHT.media — Creative Strategy & Brand Growth',
   description:
     'Cineheight Media is a branding, content and digital-growth agency in Kankavli, Maharashtra. Strategy, design, content and campaigns — under one roof.',
   alternates: { canonical: '/about' },

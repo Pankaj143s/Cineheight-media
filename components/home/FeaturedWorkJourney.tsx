@@ -1,143 +1,123 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { caseStudies } from '@/content/caseStudies'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
-import { useActiveVideo } from '@/lib/useActiveVideo'
-import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import OrientationMedia from '@/components/media/OrientationMedia'
+import { clamp, damp } from '@/lib/utils'
+import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 
 /**
- * The work sequence — ONE journey through the three real projects, not three
- * case-study articles stacked with gaps between them.
+ * Selected work — one full-viewport-width media stage the three projects pass
+ * through, rather than three articles stacked with gaps.
  *
- * Desktop: a semi-sticky media stage that the projects pass *through*. The
- * opening statement is the sequence's first frame, then each project's media
- * takes over the stage while its text enters from a different spatial position,
- * and the stage itself travels left → right → full bleed. Each project begins
- * before the previous has finished leaving.
+ * The previous version forced square client reels into a landscape stage with
+ * `object-cover`, cropping ~45% off each side of real client work, and left a
+ * small square floating in a large empty field. Both are fixed here by
+ * `OrientationMedia`: square footage is shown complete and centred over a
+ * blurred, darkened copy of itself that fills the width.
  *
- * The pin is CSS `position: sticky`, not `ScrollTrigger.pin`: no pin-spacer to
- * fight with Lenis, no scroll-position rewriting, and it degrades to ordinary
- * scrolling the moment the sticky rule is dropped on the mobile tier.
- *
- * This is the ONLY long pinned sequence on the homepage.
+ * Desktop uses CSS `position: sticky` (not `ScrollTrigger.pin`) so there is no
+ * pin-spacer fighting Lenis and no scroll rewriting. Mobile drops the sticky
+ * entirely — each project is a plain full-width scene in sequence.
  */
 
-const [sapale, ses, divija] = caseStudies
-const PROJECTS = [sapale, ses, divija]
+const PROJECTS = caseStudies
 
-/* Each project's stage geometry — the frame travels rather than repeating. */
-const STAGE_POSE = [
-  { x: '-16%', y: '0%', w: '46vw', ratio: '1 / 1' },
-  { x: '18%', y: '-3%', w: '42vw', ratio: '1 / 1' },
-  { x: '0%', y: '0%', w: '92vw', ratio: '16 / 9' },
-]
+/** Real orientation of each project's preview, from the verified content. */
+const orientationOf = (cs: (typeof caseStudies)[number]) => cs.heroMedia.orientation
 
-function StageVideo({
-  src,
-  poster,
-  label,
-  active,
-}: {
-  src: string
-  poster: string
-  label: string
-  active: boolean
-}) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  useActiveVideo(videoRef, { enabled: active, playAt: 0.35, pauseAt: 0.1 })
-  return (
-    <video
-      ref={videoRef}
-      className="absolute inset-0 h-full w-full object-cover"
-      poster={poster}
-      muted
-      loop
-      playsInline
-      preload="none"
-      aria-label={label}
-      tabIndex={-1}
-    >
-      <source src={src} type="video/mp4" />
-    </video>
-  )
-}
-
-function ProjectText({
+function ProjectCopy({
   cs,
   index,
+  compact = false,
 }: {
   cs: (typeof caseStudies)[number]
   index: number
+  compact?: boolean
 }) {
   return (
     <>
-      <div data-text-meta>
-        <span aria-hidden="true" className="mb-4 block h-px w-12" style={{ background: cs.accentColor }} />
-        <p className="font-display text-[11px] font-medium uppercase text-text-300" style={{ letterSpacing: '0.3em' }}>
-          {cs.client}
-        </p>
-        <p className="font-body mt-1.5 text-[11px] uppercase text-text-500" style={{ letterSpacing: '0.18em' }}>
-          {cs.category} — {cs.year}
+      <p
+        className="font-body text-[11px] uppercase text-text-500"
+        style={{ letterSpacing: '0.22em' }}
+      >
+        <span style={{ color: 'var(--blue-400)' }}>{String(index + 1).padStart(2, '0')}</span>
+        <span className="mx-1.5 opacity-50">/</span>
+        {String(PROJECTS.length).padStart(2, '0')}
+        <span className="mx-3 opacity-40">—</span>
+        {cs.category} · {cs.year}
+      </p>
+
+      <h3
+        className="type-display-2 font-display mt-4 font-bold uppercase text-text-100"
+        style={{ maxWidth: '18ch' }}
+      >
+        {cs.client}
+      </h3>
+
+      <p className="font-body measure mt-5 text-[15px] leading-relaxed text-text-200 sm:text-base">
+        {cs.tagline}
+      </p>
+
+      <div className={`mt-7 flex flex-wrap items-end gap-x-10 gap-y-5 ${compact ? '' : ''}`}>
+        <p className="font-display font-bold leading-none text-text-100" style={{ fontSize: 'calc(clamp(2.4rem, 4.6vw, 4.4rem) * var(--display-scale))' }}>
+          {cs.headlineStat.prefix}
+          {cs.headlineStat.value}
+          <span style={{ color: 'var(--blue-500)' }}>{cs.headlineStat.suffix}</span>
+          <span className="font-body ml-3 align-middle text-sm font-normal text-text-300">
+            {cs.headlineStat.label}
+          </span>
         </p>
       </div>
 
-      <h3
-        data-text-title
-        className="font-display mt-6 font-bold text-text-100"
-        style={{ fontSize: 'clamp(1.5rem, 2.5vw, 2.6rem)', lineHeight: 1.08, letterSpacing: '-0.015em' }}
-      >
-        {cs.tagline}
-      </h3>
-
-      <p data-text-hook className="font-body measure mt-5 text-[15px] leading-relaxed text-text-300">
-        {cs.hook}
-      </p>
-
-      <p data-text-stat className="font-display mt-8 font-bold leading-none text-text-100" style={{ fontSize: 'clamp(2.6rem, 5vw, 5rem)' }}>
-        {cs.headlineStat.prefix}
-        {cs.headlineStat.value}
-        <span style={{ color: 'var(--blue-500)' }}>{cs.headlineStat.suffix}</span>
-      </p>
-      <p data-text-stat className="font-body mt-2 text-sm text-text-300">{cs.headlineStat.label}</p>
-
       <Link
-        data-text-link
         href={`/work/${cs.id}`}
-        className="group mt-8 inline-flex min-h-[44px] items-center gap-3 font-display text-[12px] font-medium uppercase text-text-200 transition-colors duration-300 hover:text-[var(--blue-400)]"
+        className="group/link font-display mt-7 inline-flex min-h-[44px] items-center gap-3 text-[12px] font-medium uppercase text-text-100 transition-colors duration-300 hover:text-[var(--blue-400)]"
         style={{ letterSpacing: '0.24em' }}
       >
         View case study
         <span className="sr-only"> — {cs.client}</span>
-        <svg width="26" height="10" viewBox="0 0 26 10" fill="none" aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1.5">
+        <svg width="26" height="10" viewBox="0 0 26 10" fill="none" aria-hidden="true" className="transition-transform duration-300 group-hover/link:translate-x-1.5">
           <path d="M0 5h24M20 1l4 4-4 4" stroke="currentColor" strokeWidth="1.3" />
         </svg>
       </Link>
-      <span className="sr-only">Project {index + 1} of {PROJECTS.length}</span>
     </>
   )
 }
 
 export default function FeaturedWorkJourney() {
   const rootRef = useRef<HTMLElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const followerRef = useRef<HTMLDivElement>(null)
+  const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
+
   const reduced = useReducedMotion()
   const mobile = useIsMobileTier()
+  const rich = useCanRunRichEffects()
+
   const [active, setActive] = useState(0)
   const activeRef = useRef(0)
+  const [userPaused] = useState(false)
 
-  /* --------------------------------------------------- desktop choreography */
+  const setActiveIndex = useCallback((i: number) => {
+    if (i === activeRef.current) return
+    activeRef.current = i
+    setActive(i)
+  }, [])
+
+  /* ------------------------------------------------- desktop choreography */
   useIsomorphicLayoutEffect(() => {
     if (reduced || mobile) return
     const ctx = gsap.context((self) => {
-      const stage = self.selector!('[data-stage]')[0] as HTMLElement
       const frames = self.selector!('[data-frame]') as HTMLElement[]
-      const texts = self.selector!('[data-project-text]') as HTMLElement[]
-      const opening = self.selector!('[data-opening]')[0] as HTMLElement
-      if (!stage || frames.length !== 3) return
+      const copies = self.selector!('[data-copy]') as HTMLElement[]
+      const intro = self.selector!('[data-intro]')[0] as HTMLElement
+      if (frames.length !== PROJECTS.length) return
 
       const tl = gsap.timeline({
         defaults: { ease: 'none' },
@@ -145,163 +125,217 @@ export default function FeaturedWorkJourney() {
           trigger: rootRef.current,
           start: 'top top',
           end: 'bottom bottom',
-          scrub: 0.7,
+          scrub: 0.6,
           onUpdate: (st) => {
-            // 0–0.14 opening · 0.14–0.44 P1 · 0.44–0.72 P2 · 0.72–1 P3
             const p = st.progress
-            const idx = p < 0.16 ? 0 : p < 0.46 ? 0 : p < 0.74 ? 1 : 2
-            if (idx !== activeRef.current) {
-              activeRef.current = idx
-              setActive(idx)
-            }
+            setActiveIndex(p < 0.42 ? 0 : p < 0.72 ? 1 : 2)
           },
         },
       })
 
-      // The opening statement is the sequence's first frame; it lifts away as
-      // the first project's media grows into the stage.
-      tl.fromTo(opening, { autoAlpha: 1, y: 0 }, { autoAlpha: 0, y: -70, duration: 0.14 }, 0)
+      // The introduction is the sequence's first beat; it lifts as project 1 lands.
+      if (intro) tl.fromTo(intro, { autoAlpha: 1, y: 0 }, { autoAlpha: 0, y: -60, duration: 0.09 }, 0.03)
 
-      // The stage itself travels and reshapes between projects.
-      STAGE_POSE.forEach((pose, i) => {
-        const at = i === 0 ? 0.04 : i === 1 ? 0.44 : 0.72
-        tl.to(stage, { xPercent: parseFloat(pose.x), yPercent: parseFloat(pose.y), width: pose.w, aspectRatio: pose.ratio, duration: 0.2 }, at)
-      })
-
+      // Each project starts arriving well before the previous has finished
+      // leaving — without the overlap the scroll passes through a trough where
+      // neither project is on screen and a whole viewport reads as empty.
       frames.forEach((frame, i) => {
-        const inAt = i === 0 ? 0.04 : i === 1 ? 0.42 : 0.7
-        // Each project starts arriving before the previous has fully gone.
+        const inAt = i === 0 ? 0 : i === 1 ? 0.3 : 0.6
+        // The first project's media is already on screen behind the opening
+        // statement — starting the sequence on a black slate wasted a whole
+        // screen and showed the visitor no work at the exact moment the section
+        // claims to be about the work.
         tl.fromTo(
           frame,
-          { autoAlpha: 0, clipPath: 'inset(16% 12% 16% 12%)', scale: 1.08 },
-          { autoAlpha: 1, clipPath: 'inset(0% 0% 0% 0%)', scale: 1, duration: 0.16 },
+          i === 0
+            ? { autoAlpha: 0.62, clipPath: 'inset(6% 4% 6% 4%)', scale: 1.04 }
+            : { autoAlpha: 0, clipPath: 'inset(14% 10% 14% 10%)', scale: 1.06 },
+          { autoAlpha: 1, clipPath: 'inset(0% 0% 0% 0%)', scale: 1, duration: i === 0 ? 0.12 : 0.14 },
           inAt
         )
-        if (i < 2) {
-          tl.to(frame, { autoAlpha: 0, clipPath: 'inset(12% 8% 12% 8%)', duration: 0.12 }, inAt + 0.34)
+        // Hand over only once the incoming project is already established.
+        if (i < PROJECTS.length - 1) {
+          const outAt = i === 0 ? 0.32 : 0.62
+          tl.to(frame, { autoAlpha: 0, clipPath: 'inset(10% 6% 10% 6%)', duration: 0.12 }, outAt)
         }
       })
 
-      // Text blocks enter from three different spatial positions.
-      const ENTER = [
-        { x: 90, y: 40 },
-        { x: -90, y: 60 },
-        { x: 0, y: 90 },
-      ]
-      texts.forEach((block, i) => {
-        const at = i === 0 ? 0.12 : i === 1 ? 0.46 : 0.74
-        const parts = block.querySelectorAll(
-          '[data-text-meta], [data-text-title], [data-text-hook], [data-text-stat], [data-text-link]'
-        )
-        tl.fromTo(
-          block,
-          { autoAlpha: 0, x: ENTER[i].x, y: ENTER[i].y },
-          { autoAlpha: 1, x: 0, y: 0, duration: 0.12 },
-          at
-        )
-        tl.fromTo(parts, { autoAlpha: 0, y: 26 }, { autoAlpha: 1, y: 0, duration: 0.1, stagger: 0.028 }, at + 0.02)
-        if (i < 2) {
-          tl.to(block, { autoAlpha: 0, y: -60, duration: 0.09 }, at + 0.26)
+      // Copy follows its own project closely, and each block holds until the
+      // next one has arrived — so there is never a screen with no label on it.
+      copies.forEach((block, i) => {
+        const at = i === 0 ? 0.06 : i === 1 ? 0.34 : 0.64
+        const outAt = i === 0 ? 0.3 : 0.6
+        const parts = block.children
+        tl.fromTo(block, { autoAlpha: 0, y: 44 }, { autoAlpha: 1, y: 0, duration: 0.08 }, at)
+        tl.fromTo(parts, { autoAlpha: 0, y: 22 }, { autoAlpha: 1, y: 0, duration: 0.07, stagger: 0.02 }, at + 0.012)
+        if (i < PROJECTS.length - 1) {
+          tl.to(block, { autoAlpha: 0, y: -40, duration: 0.06 }, outAt)
         }
       })
     }, rootRef)
     return () => ctx.revert()
-  }, [reduced, mobile])
+  }, [reduced, mobile, setActiveIndex])
 
-  /* ------------------------------------------------------ mobile / reduced */
+  /* ------------------------------------------------------- mobile sequence */
   useIsomorphicLayoutEffect(() => {
     if (!mobile) return
     const observers: IntersectionObserver[] = []
-
     const ctx = gsap.context((self) => {
-      const cards = self.selector!('[data-mobile-project]') as HTMLElement[]
-      cards.forEach((card, i) => {
+      const scenes = self.selector!('[data-scene]') as HTMLElement[]
+      scenes.forEach((scene, i) => {
         if (!reduced) {
-          const media = card.querySelector('[data-mobile-media-inner]')
-          if (media) {
-            gsap.fromTo(
-              media,
-              { yPercent: -6 },
-              { yPercent: 6, ease: 'none', scrollTrigger: { trigger: card, start: 'top bottom', end: 'bottom top', scrub: 1 } }
-            )
-          }
           gsap.fromTo(
-            card.querySelectorAll('[data-mobile-copy] > *'),
-            { autoAlpha: 0, y: 24 },
-            {
-              autoAlpha: 1,
-              y: 0,
-              duration: 0.7,
-              stagger: 0.07,
-              ease: 'power2.out',
-              scrollTrigger: { trigger: card, start: 'top 74%' },
-            }
+            scene.querySelectorAll('[data-copy] > *'),
+            { autoAlpha: 0, y: 22 },
+            { autoAlpha: 1, y: 0, duration: 0.7, stagger: 0.06, ease: 'power2.out', scrollTrigger: { trigger: scene, start: 'top 76%' } }
           )
         }
-
-        // Playback ownership on mobile: whichever project is nearest the
-        // viewport middle is the only one allowed to play.
         const io = new IntersectionObserver(
-          ([e]) => {
-            if (e.intersectionRatio > 0.5 && activeRef.current !== i) {
-              activeRef.current = i
-              setActive(i)
-            }
-          },
+          ([e]) => { if (e.intersectionRatio > 0.5) setActiveIndex(i) },
           { threshold: [0, 0.5] }
         )
-        io.observe(card)
+        io.observe(scene)
         observers.push(io)
       })
     }, rootRef)
-
     return () => {
       observers.forEach((io) => io.disconnect())
       ctx.revert()
     }
-  }, [reduced, mobile])
+  }, [mobile, reduced, setActiveIndex])
 
-  /* ------------------------------------------------------------- rendering */
+  /* ------------------------------------------------------ video ownership */
+  useEffect(() => {
+    // Captured so the cleanup pauses the elements this effect actually saw.
+    const videos = videoRefs.current
+    const play = () => {
+      videos.forEach((v, i) => {
+        if (!v) return
+        if (i === active && !userPaused && !reduced && !document.hidden) v.play().catch(() => {})
+        else v.pause()
+      })
+    }
+    play()
+    const onVis = () => (document.hidden ? videos.forEach((v) => v?.pause()) : play())
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      videos.forEach((v) => v?.pause())
+    }
+  }, [active, userPaused, reduced])
+
+  // Pause everything when the whole sequence leaves the viewport.
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const io = new IntersectionObserver(
+      ([e]) => { if (!e.isIntersecting) videoRefs.current.forEach((v) => v?.pause()) },
+      { threshold: 0 }
+    )
+    io.observe(root)
+    return () => io.disconnect()
+  }, [])
+
+  /* ----------------------------------- pointer follower + media parallax */
+  useEffect(() => {
+    if (!rich || mobile) return
+    const stage = stageRef.current
+    const follower = followerRef.current
+    if (!stage) return
+
+    const t = { x: 0, y: 0, on: 0 }
+    const c = { x: 0, y: 0, on: 0 }
+    let raf = 0
+    let last = performance.now()
+
+    const loop = (now: number) => {
+      const dt = Math.min(50, now - last || 16)
+      last = now
+      const f = damp(0.11, dt)
+      c.x += (t.x - c.x) * f
+      c.y += (t.y - c.y) * f
+      c.on += (t.on - c.on) * f
+      if (follower) {
+        follower.style.transform = `translate3d(${c.x}px, ${c.y}px, 0) translate(-50%, -50%) scale(${(0.8 + c.on * 0.2).toFixed(3)})`
+        follower.style.opacity = c.on.toFixed(3)
+      }
+      // 6–14px of internal media drift — depth, not a wobble.
+      stage.style.setProperty('--media-x', `${((c.x / stage.clientWidth - 0.5) * 14).toFixed(2)}px`)
+      stage.style.setProperty('--media-y', `${((c.y / stage.clientHeight - 0.5) * 9).toFixed(2)}px`)
+      raf = requestAnimationFrame(loop)
+    }
+
+    const onMove = (e: PointerEvent) => {
+      const r = stage.getBoundingClientRect()
+      t.x = e.clientX - r.left
+      t.y = e.clientY - r.top
+      t.on = 1
+    }
+    const onLeave = () => { t.on = 0 }
+
+    stage.addEventListener('pointermove', onMove)
+    stage.addEventListener('pointerleave', onLeave)
+    raf = requestAnimationFrame(loop)
+    return () => {
+      stage.removeEventListener('pointermove', onMove)
+      stage.removeEventListener('pointerleave', onLeave)
+      cancelAnimationFrame(raf)
+    }
+  }, [rich, mobile])
+
+  const intro = (
+    <div className="flow-gutter">
+      <KineticLabel text="SELECTED WORK" />
+      <SplitLineReveal
+        as="h2"
+        lines={['Creative that moved people', '— and numbers.']}
+        srLabel="Creative that moved people — and numbers."
+        className="type-display-1 font-display mt-6 font-bold uppercase text-text-100"
+      />
+      <p className="font-body measure-wide mt-7 text-base leading-relaxed text-text-300">
+        Brand systems, films and campaigns built to produce real-world outcomes.
+      </p>
+    </div>
+  )
+
+  /* --------------------------------------------------------------- mobile */
   if (mobile || reduced) {
     return (
-      <section ref={rootRef} id="work" aria-label="Selected work" className="relative z-10">
-        <div className="flow-gutter pt-[8vh]">
-          <KineticLabel text="SELECTED WORK" />
-          <SplitLineReveal
-            as="h2"
-            lines={['PROOF,', 'NOT PROMISES.']}
-            srLabel="Proof, not promises."
-            className="font-display mt-5 font-bold uppercase text-text-100"
-            style={{ fontSize: 'clamp(2.2rem, 11vw, 4rem)', lineHeight: 0.94, letterSpacing: '-0.02em' }}
-          />
-        </div>
-
+      <section
+        ref={rootRef}
+        id="work"
+        aria-label="Selected work"
+        className="relative z-10"
+        style={{ marginTop: 'calc(clamp(3rem, 9vh, 7rem) * var(--scene-gap))' }}
+      >
+        {intro}
         {PROJECTS.map((cs, i) => (
           <article
             key={cs.id}
-            data-mobile-project
+            data-scene
             aria-label={`${cs.client} case study`}
-            className="relative"
-            // Overlap: each project rides up into the previous one's copy.
-            style={{ marginTop: i === 0 ? '5vh' : '-6vh' }}
+            className="relative mt-[6vh]"
           >
-            <div className="relative w-full overflow-hidden" style={{ aspectRatio: i === 2 ? '16 / 10' : '1 / 1' }}>
-              <div data-mobile-media-inner className="absolute inset-[-6%]">
-                <StageVideo
-                  src={cs.heroMedia.src}
+            <Link href={`/work/${cs.id}`} className="block" aria-label={`${cs.client} — ${cs.tagline}`}>
+              <div className="relative w-full" style={{ height: '62svh' }}>
+                <OrientationMedia
+                  ref={(el) => { videoRefs.current[i] = el }}
                   poster={cs.heroMedia.poster}
-                  label={`${cs.client} campaign preview`}
-                  active={active === i}
-                />
+                  src={active === i ? cs.heroMedia.src : undefined}
+                  orientation={orientationOf(cs)}
+                  alt={`${cs.client} campaign preview`}
+                  accent={cs.accentColor}
+                >
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0"
+                    style={{ background: 'linear-gradient(to top, var(--bg-950) 1%, rgba(2,3,6,0.3) 32%, transparent 58%)' }}
+                  />
+                </OrientationMedia>
               </div>
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0"
-                style={{ background: 'linear-gradient(to top, var(--bg-950) 2%, rgba(2,3,6,0.35) 34%, transparent 62%)' }}
-              />
-            </div>
-            <div data-mobile-copy className="flow-gutter relative -mt-[10vh] pb-[2vh]">
-              <ProjectText cs={cs} index={i} />
+            </Link>
+            <div data-copy className="flow-gutter relative -mt-[7vh]">
+              <ProjectCopy cs={cs} index={i} compact />
             </div>
           </article>
         ))}
@@ -310,91 +344,112 @@ export default function FeaturedWorkJourney() {
     )
   }
 
+  /* -------------------------------------------------------------- desktop */
   return (
     <section
       ref={rootRef}
       id="work"
       aria-label="Selected work"
       className="relative z-10"
-      // Three projects plus the opening frame — the scroll budget for the one
-      // pinned sequence on this page.
-      style={{ height: '380vh' }}
+      style={{ height: '300vh' }}
     >
-      <div className="sticky top-0 flex h-screen w-full items-center overflow-hidden">
-        {/* --- the travelling media stage --- */}
-        <div
-          data-stage
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 will-change-transform"
-          style={{ width: '46vw', aspectRatio: '1 / 1' }}
-        >
+      <div className="sticky top-0 h-[100svh] w-full overflow-hidden">
+        {/* full-viewport-width media stage */}
+        <div ref={stageRef} className="absolute inset-0" style={{ ['--media-x' as string]: '0px', ['--media-y' as string]: '0px' }}>
           {PROJECTS.map((cs, i) => (
             <div
               key={cs.id}
               data-frame
-              className="absolute inset-0 overflow-hidden will-change-transform"
+              className="absolute inset-0 will-change-transform"
               style={{ opacity: i === 0 ? 1 : 0 }}
             >
-              {/* local accent light, hugging the media only */}
+              <div
+                className="h-full w-full"
+                style={{ transform: 'translate3d(var(--media-x), var(--media-y), 0)', transition: 'transform 0.5s cubic-bezier(0.22,1,0.36,1)' }}
+              >
+                <OrientationMedia
+                  ref={(el) => { videoRefs.current[i] = el }}
+                  poster={cs.heroMedia.poster}
+                  src={active === i ? cs.heroMedia.src : undefined}
+                  orientation={orientationOf(cs)}
+                  alt={`${cs.client} campaign preview`}
+                  accent={cs.accentColor}
+                />
+              </div>
+              {/* readability field for the copy column */}
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute -inset-16 -z-10"
-                style={{ background: `radial-gradient(ellipse 55% 50% at 50% 55%, ${cs.accentColor}30, transparent 70%)` }}
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background:
+                    'linear-gradient(100deg, rgba(2,3,6,0.94) 0%, rgba(2,3,6,0.78) 26%, rgba(2,3,6,0.28) 52%, rgba(2,3,6,0.12) 100%)',
+                }}
               />
-              {/* poster underneath so a swap never flashes black */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={cs.heroMedia.poster} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />
-              {active === i && (
-                <StageVideo
-                  src={cs.heroMedia.src}
-                  poster={cs.heroMedia.poster}
-                  label={`${cs.client} campaign preview`}
-                  active
-                />
-              )}
-              <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-[3px]" style={{ background: `${cs.accentColor}cc` }} />
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-40"
+                style={{ background: 'linear-gradient(to top, var(--bg-950), transparent)' }}
+              />
             </div>
           ))}
         </div>
 
-        {/* --- opening frame: the statement IS the first beat --- */}
-        <div data-opening className="pointer-events-none absolute inset-0 z-20 flex items-center">
-          <div className="flow-gutter w-full">
-            <KineticLabel text="SELECTED WORK" />
-            <h2
-              className="font-display mt-6 font-bold uppercase text-text-100"
-              style={{ fontSize: 'clamp(3rem, 9vw, 9rem)', lineHeight: 0.9, letterSpacing: '-0.03em' }}
-            >
-              Proof,
-              <br />
-              not promises.
-            </h2>
-          </div>
+        {/* the whole stage is one link to the active project */}
+        {PROJECTS.map((cs, i) => (
+          <Link
+            key={cs.id}
+            href={`/work/${cs.id}`}
+            aria-hidden={active !== i}
+            tabIndex={active === i ? 0 : -1}
+            className="absolute inset-0 z-20"
+            style={{ pointerEvents: active === i ? 'auto' : 'none' }}
+          >
+            <span className="sr-only">View the {cs.client} case study</span>
+          </Link>
+        ))}
+
+        {/* introduction — the sequence's opening beat */}
+        <div data-intro className="pointer-events-none absolute inset-0 z-30 flex items-center">
+          {intro}
         </div>
 
-        {/* --- three text blocks, three entry positions --- */}
+        {/* per-project copy, held in a consistent, readable column */}
         {PROJECTS.map((cs, i) => (
           <div
             key={cs.id}
-            data-project-text
+            data-copy
             aria-hidden={active !== i}
-            className={`absolute z-20 w-[min(30rem,34vw)] ${
-              i === 0
-                ? 'right-[clamp(1.25rem,4vw,4.5rem)] top-1/2 -translate-y-1/2'
-                : i === 1
-                  ? 'left-[clamp(1.25rem,4vw,4.5rem)] top-1/2 -translate-y-1/2'
-                  : 'bottom-[8vh] left-[clamp(1.25rem,4vw,4.5rem)] w-[min(38rem,46vw)]'
-            }`}
+            className="pointer-events-none absolute bottom-[9svh] left-0 z-30 flow-gutter w-full max-w-[46rem]"
             style={{ opacity: 0 }}
           >
-            <ProjectText cs={cs} index={i} />
+            <div className="pointer-events-auto">
+              <ProjectCopy cs={cs} index={i} />
+            </div>
           </div>
         ))}
+
+        {/* VIEW CASE STUDY pointer follower */}
+        {rich && (
+          <div
+            ref={followerRef}
+            aria-hidden="true"
+            className="pointer-events-none absolute left-0 top-0 z-40 whitespace-nowrap rounded-full px-5 py-2.5 font-display text-[10px] font-medium uppercase text-text-100"
+            style={{
+              letterSpacing: '0.24em',
+              opacity: 0,
+              background: 'rgba(2,3,6,0.6)',
+              border: '1px solid var(--blue-alpha-40)',
+              backdropFilter: 'blur(6px)',
+            }}
+          >
+            View case study
+          </div>
+        )}
       </div>
 
-      {/* the thread crosses the sequence at three heights */}
-      <div data-flow-anchor="edge-left" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '18%' }} aria-hidden="true" />
-      <div data-flow-anchor="right" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '54%' }} aria-hidden="true" />
-      <div data-flow-anchor="center" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '88%' }} aria-hidden="true" />
+      <div data-flow-anchor="edge-left" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '22%' }} aria-hidden="true" />
+      <div data-flow-anchor="right" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '62%' }} aria-hidden="true" />
+      <div data-flow-anchor="center" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '92%' }} aria-hidden="true" />
     </section>
   )
 }

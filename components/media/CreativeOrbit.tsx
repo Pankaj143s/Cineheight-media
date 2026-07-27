@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
-import CreativeLightbox, { type LightboxItem } from './CreativeLightbox'
+import MediaLightbox, { type LightboxItem } from './MediaLightbox'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import { clamp, damp, normalizeAngle } from '@/lib/utils'
@@ -103,6 +103,13 @@ export default function CreativeOrbit({
   const dragTilt = useRef(0)
   const dragLift = useRef(0)
 
+  /** 0→1 hover emphasis on the front card, eased in the rAF loop. */
+  const hoverEase = useRef(0)
+  const hoverTarget = useRef(0)
+  /** Current client accent as a hex pair source for the card edge. */
+  const accentEdge = useRef(accent.startsWith('#') ? accent : '#0089FF')
+  accentEdge.current = accent.startsWith('#') ? accent : '#0089FF'
+
   const reducedRef = useRef(reduced)
   reducedRef.current = reduced
 
@@ -161,19 +168,37 @@ export default function CreativeOrbit({
         `translateY(${(wob * 1.6 + dragLift.current).toFixed(2)}px) translateZ(${-r}px) ` +
         `rotateX(${(TILT_X + wob + dragTilt.current).toFixed(2)}deg) rotateY(${rot.toFixed(2)}deg)`
     }
+    const front = ((Math.round(-rot / step) % n) + n) % n
+    // Hover emphasis is eased through this same loop (never a CSS transition
+    // fighting the physics), so the lift stays physically connected to the ring.
+    const hov = hoverEase.current
     for (let i = 0; i < n; i++) {
       const el = cardRefs.current[i]
       if (!el) continue
       const a = normalizeAngle(rot + i * step)
       const c = (1 + Math.cos(a * DEG2RAD)) / 2 // 1 at the front, 0 at the back
-      el.style.transform = `scale(${(0.7 + 0.3 * c).toFixed(4)})`
-      el.style.opacity = (0.42 + 0.58 * c).toFixed(3)
-      el.style.filter = rich ? `blur(${((1 - c) * MAX_BLUR).toFixed(2)}px)` : ''
+      const isFront = i === front
+
+      // The front card lifts and grows a little under the pointer; its
+      // neighbours quieten so the emphasis reads without a glow.
+      const lift = isFront ? -14 * hov : 0
+      const scale = (0.7 + 0.3 * c) * (isFront ? 1 + 0.08 * hov : 1 - 0.04 * hov)
+      const opacity = (0.42 + 0.58 * c) * (isFront ? 1 : 1 - 0.22 * hov)
+      const blur = rich ? (1 - c) * MAX_BLUR * (isFront ? 1 - hov : 1 + 0.4 * hov) : 0
+
+      el.style.transform = `translateY(${lift.toFixed(2)}px) scale(${scale.toFixed(4)})`
+      el.style.opacity = opacity.toFixed(3)
+      el.style.filter = rich
+        ? `blur(${blur.toFixed(2)}px)` + (isFront && hov > 0.01 ? ` brightness(${(1 + 0.16 * hov).toFixed(3)})` : '')
+        : ''
+      el.style.boxShadow = isFront
+        ? `0 ${(26 + 18 * hov).toFixed(0)}px ${(60 + 26 * hov).toFixed(0)}px -18px rgba(0,0,0,0.85)` +
+          (hov > 0.01 ? `, 0 0 0 1px ${accentEdge.current}${Math.round(hov * 90).toString(16).padStart(2, '0')}` : '')
+        : '0 26px 60px -18px rgba(0,0,0,0.85)'
     }
-    const idx = ((Math.round(-rot / step) % n) + n) % n
-    if (idx !== activeRef.current) {
-      activeRef.current = idx
-      setActiveIndex(idx)
+    if (front !== activeRef.current) {
+      activeRef.current = front
+      setActiveIndex(front)
     }
   }, [rich])
 
@@ -267,6 +292,10 @@ export default function CreativeOrbit({
       dragTilt.current += -dragTilt.current * f
       dragLift.current += -dragLift.current * f
     }
+
+    // Hover emphasis eases in and out here rather than via a CSS transition,
+    // so it composes with the spin instead of fighting it.
+    hoverEase.current += (hoverTarget.current - hoverEase.current) * damp(0.1, dt)
 
     applyVisuals()
   }
@@ -394,15 +423,19 @@ export default function CreativeOrbit({
   }
 
   const pauseIdle = useCallback((which: 'hover' | 'focus') => () => {
-    if (which === 'hover') hovered.current = true
-    else focused.current = true
+    if (which === 'hover') {
+      hovered.current = true
+      hoverTarget.current = 1
+    } else focused.current = true
     stopIdleTimer()
     if (mode.current === 'autoplay') mode.current = 'idle'
   }, [stopIdleTimer])
 
   const resumeIdle = useCallback((which: 'hover' | 'focus') => () => {
-    if (which === 'hover') hovered.current = false
-    else focused.current = false
+    if (which === 'hover') {
+      hovered.current = false
+      hoverTarget.current = 0
+    } else focused.current = false
     scheduleAutoplay()
   }, [scheduleAutoplay])
 
@@ -412,7 +445,7 @@ export default function CreativeOrbit({
   }, [])
 
   const lightboxItems: LightboxItem[] = useMemo(
-    () => items.map((p) => ({ src: p.src, alt: p.alt, title: p.title, client: p.client })),
+    () => items.map((p) => ({ kind: 'image' as const, src: p.src, alt: p.alt, title: p.title, client: p.client })),
     [items]
   )
 
@@ -420,16 +453,17 @@ export default function CreativeOrbit({
   const spinnable = N > 1
   const item = items[activeIndex]
 
+  // Real room rather than a narrow `ch` cap — see the note in
+  // PhoneReelExperience: the cap was clipping display type into fragments.
   const headingBlock = (eyebrow || heading || headingLines) && (
-    <div className="max-w-[17ch]">
+    <div className="max-w-[34rem]">
       {eyebrow && <KineticLabel text={eyebrow} />}
       {(headingLines || heading) && (
         <SplitLineReveal
           as="h2"
           lines={headingLines ?? [heading!]}
           srLabel={heading ?? ''}
-          className="font-display mt-5 font-bold uppercase text-text-100"
-          style={{ fontSize: 'clamp(1.9rem, 4.4vw, 4rem)', lineHeight: 0.98, letterSpacing: '-0.02em' }}
+          className="type-display-3 font-display mt-5 font-bold uppercase text-text-100"
         />
       )}
     </div>
@@ -513,6 +547,25 @@ export default function CreativeOrbit({
                   className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3"
                   style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.4), transparent)' }}
                 />
+                {/* A restrained VIEW LARGE affordance on the front card, so the
+                    click target is discoverable without a hover-only label. */}
+                {i === activeIndex && (
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-1.5 font-display text-[9px] font-medium uppercase text-text-100 transition-opacity duration-500"
+                    style={{
+                      letterSpacing: '0.22em',
+                      background: 'rgba(2,3,6,0.62)',
+                      border: '1px solid var(--blue-alpha-40)',
+                      opacity: 0.9,
+                    }}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                      <path d="M5 1H1v4M9 13h4V9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                    </svg>
+                    View large
+                  </span>
+                )}
                 {/* the client accent, only as a hairline on the front card */}
                 <div
                   aria-hidden="true"
@@ -576,7 +629,7 @@ export default function CreativeOrbit({
         Creative {activeIndex + 1} of {N}: {item.client}, {item.title}
       </p>
 
-      <CreativeLightbox
+      <MediaLightbox
         items={lightboxItems}
         index={expanded}
         accent={accent}

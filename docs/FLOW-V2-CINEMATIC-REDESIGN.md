@@ -243,3 +243,84 @@ The approved showreel's play/mute buttons are 44 px but sit inside a frame GSAP 
 `scale: 0.78` until the section scrolls in, so they measure ~34 px at rest. They reach full size
 as the section enters the viewport, which is when they become usable. `ShowreelSection.tsx` is
 locked, so this was left untouched.
+
+---
+
+# Correction & clarity pass
+
+The first redesign built the right systems but produced a ~22-screen homepage on
+which a first-time visitor could not answer "what does this company sell?". This
+pass keeps every system and fixes the communication.
+
+## What changed on the homepage
+
+| Before | After |
+|---|---|
+| 22 screens | **12.5 screens** (First Load JS 221 kB → **173 kB**) |
+| No plain statement of the offering | `AgencyProposition` — one H2, one paragraph naming every discipline, two CTAs |
+| 96vh scattered logo field, four marks at ~20px | `ClientMarquee` — ~30vh, two scroll-driven rows, optically normalised |
+| Six full-screen service chapters | `HomeCapabilities` — three labelled pillars backed by real client films |
+| 260vh pinned process | `ProcessCompact` — same idea, no pin, ~⅔ screen |
+| Phone coverflow + post orbit on the front door | Moved to `/work/[slug]` only; components unchanged |
+| Testimonial capped at 92vw/1500px | `ClientStories` — full width, orientation-aware |
+
+Every scene now carries a readable label: `WHAT WE DO`, `BRANDS WE HAVE WORKED
+WITH`, `SELECTED WORK`, `HOW WE HELP BRANDS GROW`, `HOW WE WORK`, `CLIENT STORIES`.
+
+## Root causes fixed (not symptoms)
+
+- **`CAMP` / `SYSTE` / `SHOR` fragments** — `KineticLabel` made every character
+  its own `inline-block`, so the browser could break a line *between any two
+  characters*. Characters are now grouped into per-word `nowrap` spans. The
+  remaining fragments came from `max-w-[15ch]` caps on the installation headings
+  plus a hard hyphen in "Short-form"; the caps are gone and the display copy uses
+  a non-breaking hyphen (U+2011).
+- **Logos inconsistent** — the four `trusted/*.png` were 67–81 % transparent
+  padding. `scripts/trim-logos.mjs` writes trimmed copies; `logoBox()` then sizes
+  every mark to a constant **ink area** (not a constant height) so a 4.5:1
+  wordmark and a 1:1 roundel carry equal weight. Dark marks get a soft radial
+  glow and a brightness lift instead of a plate — plates read as cards.
+- **Signal tip lagging** — document-Y was mapped *linearly* onto arc length, which
+  is wrong wherever the path curves sideways. The path is now sampled into a
+  360-entry `{len,x,y}` table and binary-searched by Y. Measured: tip holds
+  **0.62** of the viewport at every scroll position tested.
+- **Client footage cropped** — square sources were forced into wide stages with
+  `object-cover`. `OrientationMedia` now shows square/portrait sources complete
+  (`object-contain`) over a blurred, darkened copy of themselves.
+- **Route transition felt late** — it only reacted after `usePathname()` changed.
+  A capture-phase document click listener now starts the sweep on the click and
+  reveals the destination after `router.push`, while leaving external, `mailto:`,
+  `tel:`, hash and modified clicks completely alone.
+- **Reduced-motion headline stuck at 0.18 opacity** — `useReducedMotion()` is
+  false on first render, so GSAP had already written the dim state before the
+  hook flipped. `ScrollHeadline` now forces the completed state explicitly.
+- **Showreel controls 34 px on touch** — GSAP holds the frame at `scale: 0.78`
+  until it scrolls in. Hit area expanded with a `::before` inset; the visual is
+  untouched. (Showreel design, timing and playback are otherwise unchanged.)
+
+## Verification tooling
+
+`scripts/shoot.mjs` drives a real headless Chrome over the DevTools Protocol
+using Node's built-in `WebSocket` — no Playwright, no Puppeteer, no install. The
+in-app browser pane does not composite unless displayed, so rAF and
+IntersectionObserver never fire there and nothing scroll-driven could be checked.
+
+- default — filmstrip of real viewport frames per route (fixed layers render correctly)
+- `--measure` — responsive audit across many widths without writing frames
+- `--probe` — interaction assertions
+- `--focus=route::selector::name` — focused element shots
+- `--reduced` — emulates `prefers-reduced-motion`
+
+`scripts/sheet.mjs` composes filmstrips into one contact sheet so a 19,000 px page
+can actually be looked at.
+
+## Results
+
+- **104 route × viewport combinations**, 320×568 → 3840×2160: zero horizontal
+  overflow, zero clipped headings, zero console errors, zero failed requests,
+  zero sub-44px touch targets, never more than **one video playing**.
+- **14/14 interaction probes pass**: signal tracking and retraction, undrawn at
+  top, both lightboxes open/close on Escape with body-scroll lock and
+  `object-contain`, inline video pauses behind the modal, videos pause when the
+  document hides, route transition navigates, `mailto:`/`tel:` untouched.
+- TypeScript, ESLint and the production build are clean.

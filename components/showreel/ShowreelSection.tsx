@@ -214,7 +214,7 @@ export default function ShowreelSection() {
               type="button"
               onClick={togglePlay}
               aria-label={playing ? 'Pause showreel' : 'Play showreel'}
-              className="flex h-11 w-11 items-center justify-center rounded-full text-text-100 backdrop-blur-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+              className="relative flex h-11 w-11 items-center justify-center rounded-full text-text-100 backdrop-blur-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 before:absolute before:-inset-2 before:content-['']"
               style={{ background: 'rgba(2,3,6,0.55)', border: '1px solid var(--border-strong)', outlineColor: 'var(--blue-500)' }}
             >
               {playing ? (
@@ -228,7 +228,7 @@ export default function ShowreelSection() {
               onClick={toggleMute}
               aria-label={muted ? 'Unmute showreel' : 'Mute showreel'}
               aria-pressed={!muted}
-              className="flex h-11 w-11 items-center justify-center rounded-full text-text-100 backdrop-blur-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+              className="relative flex h-11 w-11 items-center justify-center rounded-full text-text-100 backdrop-blur-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 before:absolute before:-inset-2 before:content-['']"
               style={{ background: 'rgba(2,3,6,0.55)', border: `1px solid ${muted ? 'var(--border-strong)' : 'var(--blue-500)'}`, outlineColor: 'var(--blue-500)' }}
             >
               {muted ? (

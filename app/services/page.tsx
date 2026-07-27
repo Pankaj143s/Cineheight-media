@@ -5,7 +5,7 @@ import FlowDirector from '@/components/flow/FlowDirector'
 import ServicesPage from '@/components/pages/ServicesPage'
 
 export const metadata: Metadata = {
-  title: 'Services — Brand, Content & Growth | CINEHEIGHT.media',
+  title: 'Branding, Social Media, Video & Performance Marketing Services',
   description:
     'Brand identity, social media management, graphic design, video production, performance marketing and content creation — six disciplines, one connected system.',
   alternates: { canonical: '/services' },

@@ -312,7 +312,7 @@ export default function HeroIntroSequence() {
             <div className="mx-auto w-full max-w-[1500px] px-6 sm:px-10 lg:px-14">
               <h2
                 className="font-display m-0 font-bold text-text-100"
-                style={{ fontSize: 'clamp(2.1rem, 6vw, 6.4rem)', lineHeight: 1.03, letterSpacing: '-0.015em' }}
+                style={{ fontSize: 'calc(clamp(2.1rem, 6vw, 6.4rem) * var(--display-scale))', lineHeight: 1.03, letterSpacing: '-0.015em' }}
               >
                 <span className="block overflow-hidden">
                   <span data-line-inner className="block">
@@ -343,7 +343,7 @@ export default function HeroIntroSequence() {
           <div className="mx-auto w-full max-w-[1500px] px-6 sm:px-10 lg:px-14">
             <h2
               className="font-display m-0 font-bold text-text-100"
-              style={{ fontSize: 'clamp(2.1rem, 6vw, 6.4rem)', lineHeight: 1.03, letterSpacing: '-0.015em' }}
+              style={{ fontSize: 'calc(clamp(2.1rem, 6vw, 6.4rem) * var(--display-scale))', lineHeight: 1.03, letterSpacing: '-0.015em' }}
             >
               WE TURN BUSINESSES
               <br />
