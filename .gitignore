@@ -12,3 +12,6 @@ next-env.d.ts
 
 # Local verification screenshots
 .shots/
+
+# Media-generation intermediates (reproducible)
+.media-tmp/

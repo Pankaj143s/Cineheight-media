@@ -324,3 +324,103 @@ can actually be looked at.
   `object-contain`, inline video pauses behind the modal, videos pause when the
   document hides, route transition navigates, `mailto:`/`tel:` untouched.
 - TypeScript, ESLint and the production build are clean.
+
+---
+
+# Pass 3 — storytelling, composition and presentation media
+
+The visual baseline above is unchanged. This pass fixed *information design*
+and the media the design was being asked to render.
+
+## Five acts, one story
+
+A case study was repeating itself: the tagline was the `<h1>` and again the
+opening of "The Story", and every metric appeared four times — in the
+`resultSummary` prose, as the headline stat, in the supporting stats, and again
+as growth-comparison rows. It now reads as five acts.
+
+| Act | Component | Holds |
+|---|---|---|
+| 1 Transformation | `CaseOpening` | one display statement, one supporting line, **one** metric, the film |
+| 2 Starting point | `CaseStartingPoint` | label + 35–60 words; the numeral is a small edge marker |
+| 3 What changed | `CaseStrategy` | exactly three moves, each with its own trigger so they arrive one at a time |
+| 4 The result | `CaseMetrics` | one dominant metric, three supporting, one conclusion; before→after folded *inside* a metric |
+| 5 The work | `CaseStudyPage` | **one** bridge for both installations, then the reels and the creatives |
+
+`content/caseStudies.ts` is untouched and remains the factual record. Display
+copy lives in the new `content/caseStudyPresentation.ts`, which throws at module
+load if a case study has no entry. The full verified `objective`, `description`,
+`approach` and `stats` still ship in `sr-only` and still drive the metadata, so
+nothing verified was lost — it stopped being shouted four times.
+
+Sapale's "4× more enquiries" is deliberately **not** in the visible group: it is
+a near-duplicate of "250+ sales enquiries" and reading both together suggests a
+contradiction. It remains in the `sr-only` record.
+
+## Composition
+
+- **Phone reels** — asymmetric 4/8 split; the heading no longer sits behind the
+  phones. Stage `clamp(560px, 72svh, 780px)`, phone height also bounded by the
+  right column's width so it can never outgrow its own container. DOM order is
+  heading → explanation → active info → controls → media whichever side each
+  renders on.
+- **Creative orbit** — geometry adapts to the real item count, which is the fix
+  for SES: ≥5 → the 360° orbit; **3–4 → a centred arc**; 1–2 → a stack. SES's
+  three posts previously rendered a near-empty globe that implied more work than
+  the client supplied. The arc centres on its middle card and uses a radius of
+  `clamp(w * 2.0, 340, 720)` — at 1.45× the siblings covered a quarter of the
+  front card, which is the one you can open.
+- **Services**, both places — a single shared media stage that the active item
+  transitions through, rather than three masked windows on the homepage and six
+  layout experiments on `/services`. `/services` ends on the
+  BRAND → CONTENT → DISTRIBUTION → CONVERSION → GROWTH chain.
+
+Case studies dropped 8.5 → **6.6 screens**; `/services` 6.7 → **4.7**.
+
+## Presentation media
+
+Full inventory, provenance and replacement plan: `docs/PRESENTATION-ASSET-AUDIT.md`.
+
+`content/presentationMedia.ts` types every asset as `real`, `derived-real`,
+`illustrative` or `concept-placeholder`. **Only** `concept-placeholder` renders a
+badge — a reframe of real client media is still the client's work and is never
+labelled artificial.
+
+| Script | Output |
+|---|---|
+| `build-presentation-reels.mjs` | 7 true 9:16 masters from the square sources — 24.7 MB total, 3.53 MB avg |
+| `build-case-covers.mjs` | 2400×1350 + 1080×1350 covers from real frames only |
+| `build-divija-concepts.mjs` | 2 motion studies + 2 statics, every one visibly marked |
+| `build-service-visuals.mjs` | six coordinated 1920×1200 visuals sharing one signature |
+
+None of these run during `next build`.
+
+## Root causes fixed in this pass
+
+- **Reels 13 MB at CRF 28** — CRF alone does not control size, and once a VBV cap
+  is added the cap decides. Replaced with a per-duration size budget converted to
+  a bitrate, CRF 27 underneath as a quality floor.
+- **Case covers unreadable** — floor, edge, vignette and accent were all
+  compositing *over* the sharp planes. Split into a backdrop layer under them and
+  a finish layer over them.
+- **Divija concept encode reached 825 MB** — a `-loop 1` mark image is an
+  infinite input; it needed `-t 9 -shortest`.
+- **Concept reel squashed and washed** — `scale=1080:-2` gave 1080×608 but
+  `zoompan` forced a 1080×1080 canvas, and a −0.34 backdrop over an almost
+  entirely white frame left the top of the phone light grey while the marked
+  bottom stayed black, reading as a rendering fault. The plane height is now
+  derived from the probed source and the backdrop is pushed to −0.62.
+- **Divija badge collided with the caption rail** — concepts carry a baked-in
+  mark, so the DOM caption is suppressed for them.
+- **Next Project headline unreadable over SES's white poster plane** — a single
+  vertical scrim left it at ~0.47 coverage. Two scrims now, vertical and
+  horizontal, and the client name is bounded to 13ch so it wraps inside the
+  darkened column instead of running across the artwork.
+
+## Pass 3 verification
+
+- **104 route × viewport combinations** re-run clean after every change above.
+- **14/14 probes** and the reduced-motion pass still pass.
+- `tsc`, `next lint`, `next build` and `check-media-paths` all clean.
+- Screenshots opened and judged, not merely generated — five of the defects
+  listed above were invisible to the build and only found by looking.

@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import type { CaseStudy } from '@/content/caseStudies'
+import { caseCover } from '@/content/presentationMedia'
 import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 
@@ -20,6 +21,7 @@ export default function NextProject({ next }: { next: CaseStudy }) {
   const reduced = useReducedMotion()
   const mobile = useIsMobileTier()
   const rich = useCanRunRichEffects()
+  const cover = caseCover(next.id)
 
   useIsomorphicLayoutEffect(() => {
     if (reduced) return
@@ -92,21 +94,40 @@ export default function NextProject({ next }: { next: CaseStudy }) {
         <div
           ref={mediaRef}
           className="relative w-full overflow-hidden will-change-transform"
-          style={{ height: mobile ? '58vh' : '84vh' }}
+          // Capped on short desktops so the scene never exceeds the viewport.
+          style={{ height: mobile ? '58svh' : 'clamp(30rem, 78svh, 52rem)' }}
         >
+          {/* Dedicated 16:9 / 4:5 covers rather than a square reel poster
+              stretched across a full-width stage — that discarded roughly 40%
+              of the client's frame. */}
           <div data-next-inner className="absolute inset-[-10%]">
-            <Image
-              src={next.thumbnail}
-              alt=""
-              fill
-              sizes="100vw"
-              className="object-cover"
-            />
+            <picture>
+              <source media="(max-width: 767px)" srcSet={cover.mobile.src} />
+              <source media="(min-width: 768px)" srcSet={cover.desktop.src} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={cover.desktop.src}
+                alt=""
+                className="h-full w-full object-cover"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
           </div>
+          {/* Two scrims, not one. The vertical gradient alone left the headline
+              at roughly 0.47 coverage where it crossed SES's white poster plane
+              — white type on a near-white plane. The horizontal one guarantees
+              the text column stays dark whatever the cover happens to put
+              there, and the covers are built with that column kept quiet too. */}
           <div
             aria-hidden="true"
             className="absolute inset-0"
-            style={{ background: 'linear-gradient(to top, rgba(2,3,6,0.92) 4%, rgba(2,3,6,0.5) 40%, rgba(2,3,6,0.25))' }}
+            style={{ background: 'linear-gradient(to top, rgba(2,3,6,0.94) 4%, rgba(2,3,6,0.72) 34%, rgba(2,3,6,0.3) 68%, rgba(2,3,6,0.22))' }}
+          />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(to right, rgba(2,3,6,0.93) 0%, rgba(2,3,6,0.86) 30%, rgba(2,3,6,0.55) 52%, rgba(2,3,6,0) 78%)' }}
           />
           {/* the next project's accent, warming toward the pointer */}
           <div
@@ -120,9 +141,16 @@ export default function NextProject({ next }: { next: CaseStudy }) {
           <p className="font-display text-[11px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.3em' }}>
             Next project
           </p>
+          {/* Bounded so a long client name wraps inside the darkened column
+              instead of running across the artwork to the right edge. */}
           <h2
             className="font-display mt-4 font-bold uppercase text-text-100 transition-colors duration-500 group-hover:text-[var(--blue-200)]"
-            style={{ fontSize: 'clamp(2.2rem, 8vw, 8rem)', lineHeight: 0.88, letterSpacing: '-0.035em' }}
+            style={{
+              fontSize: 'clamp(2.2rem, 6.4vw, 6.5rem)',
+              lineHeight: 0.9,
+              letterSpacing: '-0.035em',
+              maxWidth: '13ch',
+            }}
           >
             {next.client}
           </h2>

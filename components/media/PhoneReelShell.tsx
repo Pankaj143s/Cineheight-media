@@ -36,6 +36,15 @@ export interface PhoneReelItem {
   isPlaceholder?: boolean
   client: string
   accent: string
+  /**
+   * True when `src` is already a 9:16 presentation master (built by
+   * scripts/build-presentation-reels.mjs). Those have the blurred backdrop
+   * baked in, so the shell must NOT composite a second one — it renders the
+   * file with `object-cover` instead.
+   */
+  portrait?: boolean
+  /** Drives the placeholder badge. See content/presentationMedia.ts. */
+  provenance?: 'real' | 'derived-real' | 'illustrative' | 'concept-placeholder'
 }
 
 function HeartIcon() {
@@ -104,9 +113,39 @@ const PhoneReelShell = forwardRef<HTMLVideoElement, {
               style={{ background: 'var(--border-strong)' }}
             />
           </div>
+        ) : item.portrait ? (
+          /* Already 9:16 — the blurred composition is baked into the file, so
+             compositing another one here would double-blur the bands. */
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={item.poster}
+              alt={`${item.client} — ${item.title}`}
+              draggable={false}
+              className="absolute inset-0 h-full w-full object-cover"
+              loading="lazy"
+            />
+            {mountVideo && (
+              <video
+                ref={videoRef}
+                key={item.src}
+                className="absolute inset-0 h-full w-full object-cover"
+                poster={item.poster}
+                muted={muted}
+                loop
+                playsInline
+                preload="none"
+                tabIndex={-1}
+                aria-hidden="true"
+              >
+                <source src={item.src} type="video/mp4" />
+              </video>
+            )}
+          </>
         ) : (
           <>
-            {/* layer 1 — blurred fill so nothing is cropped and no band is empty */}
+            {/* Square-source fallback: blurred fill so nothing is cropped and
+                no band is empty. Used when no portrait master exists. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={item.poster}
@@ -118,8 +157,8 @@ const PhoneReelShell = forwardRef<HTMLVideoElement, {
               loading="lazy"
             />
 
-            {/* layer 2 — the sharp 1:1 client footage, uncropped and centred.
-                Poster and video share this exact box → no layout shift. */}
+            {/* the sharp 1:1 client footage, uncropped and centred. Poster and
+                video share this exact box → no layout shift. */}
             <div className="absolute inset-x-0 top-1/2 -translate-y-1/2" style={{ aspectRatio: '1 / 1' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -149,6 +188,26 @@ const PhoneReelShell = forwardRef<HTMLVideoElement, {
           </>
         )}
 
+        {/* Provenance badge — only ever for a temporary layout prototype, so a
+            concept can never be mistaken for delivered client work. */}
+        {item.provenance === 'concept-placeholder' && (
+          <div
+            className="pointer-events-none absolute inset-x-0 top-[13%] z-20 flex justify-center px-3"
+            aria-hidden="true"
+          >
+            <span
+              className="font-display rounded-full px-3 py-1.5 text-center text-[8px] font-medium uppercase leading-tight text-text-100"
+              style={{
+                letterSpacing: '0.16em',
+                background: 'rgba(2,3,6,0.78)',
+                border: '1px solid rgba(255,255,255,0.28)',
+              }}
+            >
+              Concept placeholder
+            </span>
+          </div>
+        )}
+
         {/* layer 3 — Instagram chrome across the FULL 9:16 screen */}
         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
           {/* notch */}
@@ -162,7 +221,10 @@ const PhoneReelShell = forwardRef<HTMLVideoElement, {
             </svg>
           </div>
 
-          {!item.isPlaceholder && !compact && (
+          {/* Concept prototypes carry their own baked-in mark, so the caption
+              rail is suppressed — otherwise the two overlap and both become
+              unreadable. */}
+          {!item.isPlaceholder && !compact && item.provenance !== 'concept-placeholder' && (
             <>
               {/* right action rail */}
               <div className="absolute bottom-[22%] right-2.5 flex flex-col items-center gap-3.5 text-white">

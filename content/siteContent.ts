@@ -40,6 +40,14 @@ export interface Service {
   image: string
 }
 
+/**
+ * `image` points at the new coordinated collection in
+ * /generated/presentation/services (see scripts/build-service-visuals.mjs).
+ * The previous /generated/services-final artwork is retained on disk as a
+ * fallback but is no longer referenced: it showed laptops, analytics
+ * dashboards and platform icons, which read as a generic technology template
+ * rather than a creative agency.
+ */
 export const services: Service[] = [
   {
     id: 'brand-identity',
@@ -48,7 +56,7 @@ export const services: Service[] = [
     description: 'Distinctive brand identities that capture your essence and resonate with your audience.',
     detail:
       'Positioning, naming systems, logo and visual identity, brand guidelines and the design language your audience will remember you by.',
-    image: '/generated/services-final/brand-identity.webp',
+    image: '/generated/presentation/services/brand-identity.webp',
   },
   {
     id: 'social-media',
@@ -57,7 +65,7 @@ export const services: Service[] = [
     description: 'Strategic social presence that builds community and converts followers into customers.',
     detail:
       'Monthly content calendars, platform strategy, community management and consistent brand presentation across every channel.',
-    image: '/generated/services-final/social-media.webp',
+    image: '/generated/presentation/services/social-media.webp',
   },
   {
     id: 'graphic-design',
@@ -66,7 +74,7 @@ export const services: Service[] = [
     description: 'Eye-catching visual content that communicates your message and stops the scroll.',
     detail:
       'Campaign creatives, social posts, infographics and print — visuals built on one coherent system, not one-off graphics.',
-    image: '/generated/services-final/graphic-design.webp',
+    image: '/generated/presentation/services/graphic-design.webp',
   },
   {
     id: 'video-production',
@@ -75,7 +83,7 @@ export const services: Service[] = [
     description: 'Cinematic storytelling that captivates your audience from concept to final cut.',
     detail:
       'Product films, reels, campaign videos and testimonials — shot, edited and graded for the platforms they live on.',
-    image: '/generated/services-final/video-production.webp',
+    image: '/generated/presentation/services/video-production.webp',
   },
   {
     id: 'performance-marketing',
@@ -84,7 +92,7 @@ export const services: Service[] = [
     description: 'Data-driven campaigns that deliver measurable results and real growth.',
     detail:
       'Targeted campaigns, lead funnels and continuous optimisation — the discipline that turns attention into enquiries and sales.',
-    image: '/generated/services-final/performance-marketing.webp',
+    image: '/generated/presentation/services/performance-marketing.webp',
   },
   {
     id: 'content-creation',
@@ -93,7 +101,7 @@ export const services: Service[] = [
     description: 'Compelling content that tells your story through photography, video, and copy.',
     detail:
       'Photography, short-form video and copywriting produced as one connected stream — so every post sounds and looks like you.',
-    image: '/generated/services-final/content-creation.webp',
+    image: '/generated/presentation/services/content-creation.webp',
   },
 ]
 

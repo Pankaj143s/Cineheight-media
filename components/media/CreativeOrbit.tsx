@@ -41,12 +41,17 @@ const DEG2RAD = Math.PI / 180
 
 type Mode = 'idle' | 'drag' | 'inertia' | 'snap' | 'autoplay'
 
+/** How the cards are arranged, decided by how many actually exist. */
+type OrbitLayout = 'orbit' | 'arc' | 'stack'
+
 export interface OrbitItem {
   src: string
   alt: string
   title: string
   client: string
   accent: string
+  /** Drives the placeholder badge. See content/presentationMedia.ts. */
+  provenance?: 'real' | 'derived-real' | 'illustrative' | 'concept-placeholder'
 }
 
 export default function CreativeOrbit({
@@ -114,35 +119,91 @@ export default function CreativeOrbit({
   reducedRef.current = reduced
 
   /**
-   * Geometry. Card width scales with the stage; the radius is clamped between
-   * a "cards nearly touching" minimum and a maximum gap. With only three
-   * creatives the spread factor widens so the ring reads as an intentional
-   * sparse installation rather than a half-empty carousel.
+   * Geometry adapts to how many creatives actually exist.
+   *
+   *   ≥5  full 360° orbit
+   *   3–4 shallow ARC — a full ring of three cards is mostly empty space, and
+   *       it implied the client had supplied more work than they had. SES has
+   *       exactly three real posts, which is what forced this.
+   *   1–2 layered stack (handled by the arc with a very small sweep)
+   *
+   * The arc keeps the same physics: `theta` is simply the angle between
+   * neighbours, so drag, inertia and snap are unchanged — only the spacing and
+   * the radius differ.
    */
-  const { cardW, cardH, radius, theta, stageH, small } = useMemo(() => {
-    const w0 = stageW || 1200
+  const { cardW, cardH, radius, theta, stageH, small, layout } = useMemo(() => {
+    const w0 = stageW || 1100
     const sm = w0 < 700
-    // Few cards ⇒ larger cards, so three creatives still command the stage.
-    const sizeFactor = N <= 4 ? (sm ? 0.46 : 0.26) : sm ? 0.38 : 0.2
+    const m: OrbitLayout = N >= 5 ? 'orbit' : N >= 3 ? 'arc' : 'stack'
+
+    // Fewer cards ⇒ larger cards, so three creatives still command the stage.
+    const sizeFactor = m === 'orbit' ? (sm ? 0.38 : 0.24) : sm ? 0.5 : 0.3
     const w = sm
-      ? clamp(Math.round(w0 * sizeFactor), 132, 210)
-      : clamp(Math.round(w0 * sizeFactor), 230, 430)
+      ? clamp(Math.round(w0 * sizeFactor), 150, 240)
+      : clamp(Math.round(w0 * sizeFactor), 230, 320)
     const h = Math.round((w * 4) / 3)
-    const step = 360 / Math.max(N, 1)
-    const circumference = w * (N <= 4 ? 2.1 : 1.12) * N
-    const minR = Math.max(
-      w / (2 * Math.tan(Math.PI / Math.max(N, 2))) * 1.02,
-      circumference / (2 * Math.PI)
-    )
-    const maxR = Math.max(minR, (w * (N <= 4 ? 2.6 : 1.4) * N) / (2 * Math.PI))
-    const widthR = w0 / 2 - w / 2 - (sm ? 10 : 40)
-    const r = Math.round(clamp(widthR, minR, maxR))
-    const sh = Math.round(Math.max(h * 1.3, h + r * 0.26 + 40))
-    return { cardW: w, cardH: h, radius: r, theta: step, stageH: sh, small: sm }
+
+    if (m === 'orbit') {
+      const step = 360 / N
+      const circumference = w * 1.12 * N
+      const minR = Math.max(
+        (w / (2 * Math.tan(Math.PI / Math.max(N, 2)))) * 1.02,
+        circumference / (2 * Math.PI)
+      )
+      const maxR = Math.max(minR, (w * 1.4 * N) / (2 * Math.PI))
+      const widthR = w0 / 2 - w / 2 - (sm ? 10 : 40)
+      const r = Math.round(clamp(widthR, minR, maxR))
+      return {
+        cardW: w,
+        cardH: h,
+        radius: r,
+        theta: step,
+        stageH: Math.round(Math.max(h * 1.28, h + r * 0.24 + 40)),
+        small: sm,
+        layout: m,
+      }
+    }
+
+    // Arc / stack: a generous angle between neighbours so the siblings sit
+    // clearly behind and to the side of the active card without implying a ring.
+    const step = m === 'arc' ? (sm ? 34 : 30) : 22
+    // Radius chosen so the neighbour clears the active card's edge. At 1.45×
+    // the siblings covered roughly a quarter of the front card; the front card
+    // must stay fully readable because it is the one you can open.
+    const r = Math.round(clamp(w * 2.0, 340, 720))
+    return {
+      cardW: w,
+      cardH: h,
+      radius: r,
+      theta: step,
+      stageH: Math.round(Math.max(h * 1.22, h + 90)),
+      small: sm,
+      layout: m,
+    }
   }, [stageW, N])
 
-  const geom = useRef({ N, theta, radius })
-  geom.current = { N, theta, radius }
+  const geom = useRef({ N, theta, radius, layout })
+  geom.current = { N, theta, radius, layout }
+
+  /**
+   * An arc opens on its MIDDLE card.
+   *
+   * A ring is symmetrical wherever it starts, but a linear arc with item 0 in
+   * front puts every sibling on the same side — measured, SES's three posts all
+   * fanned to the right and the composition read as unbalanced. Starting in the
+   * middle gives the active card a neighbour on each side, which is what makes
+   * it read as an intentional fan.
+   */
+  const arcCentred = useRef(false)
+  useEffect(() => {
+    if (arcCentred.current || layout === 'orbit' || N < 2) return
+    arcCentred.current = true
+    const mid = Math.floor((N - 1) / 2)
+    rotation.current = -mid * theta
+    targetRot.current = rotation.current
+    activeRef.current = mid
+    setActiveIndex(mid)
+  }, [layout, N, theta])
 
   // ---- stage measurement ------------------------------------------------
   useEffect(() => {
@@ -212,7 +273,9 @@ export default function CreativeOrbit({
 
   const scheduleAutoplay = useCallback(() => {
     stopIdleTimer()
-    if (reducedRef.current || geom.current.N <= 1) return
+    // An arc has ends; idling would drift the active card off into empty
+    // space. Only a closed ring can rotate indefinitely.
+    if (reducedRef.current || geom.current.N <= 1 || geom.current.layout !== 'orbit') return
     idleTimer.current = setTimeout(() => {
       if (!hovered.current && !focused.current && !dragging.current && mode.current === 'idle') {
         mode.current = 'autoplay'
@@ -220,9 +283,19 @@ export default function CreativeOrbit({
     }, IDLE_MS)
   }, [stopIdleTimer])
 
+  /** Rotation limits. A closed ring is unbounded; an arc stops at its ends. */
+  const rotationBounds = () => {
+    const { N: n, theta: step, layout: m } = geom.current
+    if (m === 'orbit') return null
+    return { min: -(n - 1) * step, max: 0 }
+  }
+
   const startSnap = useCallback(() => {
     const step = geom.current.theta
+    const b = rotationBounds()
+    if (b) rotation.current = clamp(rotation.current, b.min, b.max)
     targetRot.current = Math.round(rotation.current / step) * step
+    if (b) targetRot.current = clamp(targetRot.current, b.min, b.max)
     if (reducedRef.current) {
       rotation.current = targetRot.current
       mode.current = 'idle'
@@ -236,9 +309,14 @@ export default function CreativeOrbit({
       stopIdleTimer()
       const step = geom.current.theta
       const desired = -i * step
-      // Always take the short way round.
-      const diff = (((desired - rotation.current) % 360) + 540) % 360 - 180
-      targetRot.current = rotation.current + diff
+      if (geom.current.layout === 'orbit') {
+        // Closed ring: always take the short way round.
+        const diff = (((desired - rotation.current) % 360) + 540) % 360 - 180
+        targetRot.current = rotation.current + diff
+      } else {
+        // Arc: travel directly; wrapping would sweep through empty space.
+        targetRot.current = desired
+      }
       if (reducedRef.current) {
         rotation.current = targetRot.current
         mode.current = 'idle'
@@ -372,7 +450,12 @@ export default function CreativeOrbit({
     const dy = e.clientY - startY.current
     if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) dragged.current = true
     const k = degPerPx()
-    rotation.current = startRot.current + dx * k
+    const nextRot = startRot.current + dx * k
+    const b = rotationBounds()
+    // Elastic past the ends rather than a hard wall.
+    rotation.current = b
+      ? clamp(nextRot, b.min - geom.current.theta * 0.35, b.max + geom.current.theta * 0.35)
+      : nextRot
     // Vertical drag tips and lifts the whole installation — clamped so it
     // always reads as a physical object being handled.
     dragTilt.current = clamp(dy * 0.055, -9, 11)
@@ -482,10 +565,12 @@ export default function CreativeOrbit({
         className="relative mx-auto select-none touch-pan-y"
         style={{
           height: stageH,
-          maxWidth: 1800,
+          // Capped: full-width made the installation read as a standalone
+          // demonstration rather than part of the case-study narrative.
+          maxWidth: narrow ? 640 : 1180,
           marginTop: narrow ? 0 : 'clamp(5rem, 12vh, 10rem)',
           perspective: small ? '1100px' : '1700px',
-          perspectiveOrigin: '50% 32%',
+          perspectiveOrigin: narrow ? '50% 34%' : '54% 32%',
           cursor: spinnable && !reduced ? 'grab' : 'default',
         }}
         role="group"
@@ -502,6 +587,27 @@ export default function CreativeOrbit({
         onFocus={pauseIdle('focus')}
         onBlur={resumeIdle('focus')}
       >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 -translate-x-1/2"
+          style={{
+            bottom: '6%',
+            width: `${Math.round(cardW * 2.6)}px`,
+            height: `${Math.round(cardH * 0.3)}px`,
+            background: `radial-gradient(ellipse 50% 50% at 50% 50%, rgba(0,0,0,0.68), transparent 70%)`,
+            filter: 'blur(6px)',
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 -translate-x-1/2"
+          style={{
+            bottom: '2%',
+            width: `${Math.round(cardW * 3.2)}px`,
+            height: `${Math.round(cardH * 0.42)}px`,
+            background: `radial-gradient(ellipse 50% 50% at 50% 50%, ${accent}1c, transparent 72%)`,
+          }}
+        />
         <div
           ref={ringRef}
           className="absolute left-1/2 top-1/2"
@@ -547,6 +653,19 @@ export default function CreativeOrbit({
                   className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3"
                   style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.4), transparent)' }}
                 />
+                {post.provenance === 'concept-placeholder' && (
+                  <span
+                    aria-hidden="true"
+                    className="font-display pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-[8px] font-medium uppercase text-text-100"
+                    style={{
+                      letterSpacing: '0.16em',
+                      background: 'rgba(2,3,6,0.78)',
+                      border: '1px solid rgba(255,255,255,0.28)',
+                    }}
+                  >
+                    Concept placeholder
+                  </span>
+                )}
                 {/* A restrained VIEW LARGE affordance on the front card, so the
                     click target is discoverable without a hover-only label. */}
                 {i === activeIndex && (

@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { caseStudies } from '@/content/caseStudies'
+import { caseCover } from '@/content/presentationMedia'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import CountUp from '@/components/ui/CountUp'
@@ -162,20 +163,26 @@ export default function WorkIndex() {
             <div
               className="relative w-full overflow-hidden"
               style={{
-                height: mobile ? '70vh' : '96vh',
+                height: mobile ? '70svh' : 'clamp(32rem, 88svh, 60rem)',
                 transform: rich ? 'translate3d(var(--lean-x), var(--lean-y), 0)' : undefined,
                 willChange: rich ? 'transform' : undefined,
               }}
             >
+              {/* Art-directed covers per client — a square reel poster blown
+                  up to a full viewport cropped the real work severely. */}
               <div data-scene-media className="absolute inset-[-10%]">
-                <Image
-                  src={cs.thumbnail}
-                  alt={`${cs.client} campaign work`}
-                  fill
-                  sizes="100vw"
-                  priority={i === 0}
-                  className="object-cover"
-                />
+                <picture>
+                  <source media="(max-width: 767px)" srcSet={caseCover(cs.id).mobile.src} />
+                  <source media="(min-width: 768px)" srcSet={caseCover(cs.id).desktop.src} />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={caseCover(cs.id).desktop.src}
+                    alt={`${cs.client} campaign work`}
+                    className="h-full w-full object-cover"
+                    loading={i === 0 ? 'eager' : 'lazy'}
+                    decoding="async"
+                  />
+                </picture>
               </div>
               <div
                 aria-hidden="true"

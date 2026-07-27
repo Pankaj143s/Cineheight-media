@@ -4,23 +4,104 @@ import { useRef } from 'react'
 import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import type { CaseStudy } from '@/content/caseStudies'
+import type { CaseMetric, CasePresentation } from '@/content/caseStudyPresentation'
 import CountUp from '@/components/ui/CountUp'
 import KineticLabel from '@/components/motion/KineticLabel'
-import ScrollHeadline from '@/components/motion/ScrollHeadline'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 
 /**
- * Results, given the weight they earned.
+ * Act 4 — results, once.
  *
- * The headline figure takes over the viewport at display scale and counts up;
- * the supporting stats follow at deliberately unequal sizes; and each growth
- * metric is a full-width before → after comparison whose line draws across the
- * page as it enters. No small dashboard bars.
+ * The old version showed every figure four times: inside the `resultSummary`
+ * prose, then as a headline stat, then as supporting stats, then again as four
+ * before→after comparison rows. Sapale additionally showed "250+ sales
+ * enquiries" beside "4× more enquiries", which read as a contradiction.
  *
- * Every number here is verified client data from content/caseStudies.ts and is
- * rendered exactly as recorded — the animation only affects how it arrives.
+ * Now: one dominant metric, three supporting metrics on a regular grid, one
+ * short conclusion, and the before→after detail folded INSIDE each metric as a
+ * quiet line rather than a fifth restatement. The curated list lives in
+ * `caseStudyPresentation.ts`; `resultSummary` and the full `stats` array remain
+ * in the source data and are still exposed to assistive technology.
  */
-export default function CaseMetrics({ cs }: { cs: CaseStudy }) {
+
+function MetricBlock({
+  metric,
+  accent,
+  size,
+}: {
+  metric: CaseMetric
+  accent: string
+  size: 'dominant' | 'supporting'
+}) {
+  const dominant = size === 'dominant'
+  const hasRange = metric.before !== undefined && metric.after !== undefined
+
+  return (
+    <div data-metric className="relative">
+      <p
+        className="font-display font-bold leading-[0.85] text-text-100"
+        style={{
+          fontSize: dominant
+            ? 'calc(clamp(4.5rem, 13vw, 12rem) * var(--display-scale))'
+            : 'calc(clamp(2.4rem, 4.4vw, 4rem) * var(--display-scale))',
+          letterSpacing: '-0.04em',
+        }}
+      >
+        <CountUp
+          value={metric.value}
+          prefix={metric.prefix}
+          suffix={metric.suffix}
+          duration={dominant ? 1800 : 1300}
+        />
+      </p>
+      <p
+        className="font-body mt-3 text-text-200"
+        style={{
+          fontSize: dominant ? 'clamp(0.95rem, 1.3vw, 1.15rem)' : '0.9rem',
+          letterSpacing: dominant ? '0.12em' : '0.04em',
+          textTransform: dominant ? 'uppercase' : 'none',
+          maxWidth: '22ch',
+        }}
+      >
+        {metric.label}
+      </p>
+      {metric.note && (
+        <p className="font-body mt-2 text-[13px] leading-relaxed text-text-500" style={{ maxWidth: '30ch' }}>
+          {metric.note}
+        </p>
+      )}
+      {hasRange && (
+        // The comparison lives inside the metric — a quiet detail, not its own
+        // row repeating the same figure a fourth time.
+        <div className="mt-4 flex items-center gap-3" aria-hidden="true">
+          <span className="font-body text-[11px] tabular-nums text-text-500">{metric.before}</span>
+          <span className="relative h-px flex-1 max-w-[7rem] bg-white/[0.08]">
+            <span
+              data-metric-bar
+              className="absolute inset-y-0 left-0 block origin-left"
+              style={{
+                width: `${Math.min(100, (metric.after! / (metric.maxValue ?? metric.after! * 1.2)) * 100)}%`,
+                background: accent,
+                boxShadow: `0 0 8px ${accent}88`,
+                height: 2,
+                top: -0.5,
+              }}
+            />
+          </span>
+          <span className="font-body text-[11px] tabular-nums text-text-300">{metric.after}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function CaseMetrics({
+  cs,
+  presentation,
+}: {
+  cs: CaseStudy
+  presentation: CasePresentation
+}) {
   const rootRef = useRef<HTMLElement>(null)
   const reduced = useReducedMotion()
   const mobile = useIsMobileTier()
@@ -28,145 +109,122 @@ export default function CaseMetrics({ cs }: { cs: CaseStudy }) {
   useIsomorphicLayoutEffect(() => {
     if (reduced) return
     const ctx = gsap.context((self) => {
-      // The takeover figure grows and lifts as it passes through the viewport.
-      const hero = self.selector!('[data-takeover]')[0]
-      if (hero && !mobile) {
+      const dominant = self.selector!('[data-dominant]')[0]
+      if (dominant && !mobile) {
         gsap.fromTo(
-          hero,
-          { scale: 0.78, yPercent: 14, autoAlpha: 0.35 },
+          dominant,
+          { scale: 0.86, yPercent: 10, autoAlpha: 0.4 },
           {
             scale: 1,
-            yPercent: -8,
+            yPercent: -4,
             autoAlpha: 1,
             ease: 'none',
-            scrollTrigger: { trigger: hero, start: 'top 92%', end: 'bottom 30%', scrub: 0.7 },
+            scrollTrigger: { trigger: dominant, start: 'top 92%', end: 'bottom 40%', scrub: 0.7 },
           }
         )
       }
-
-      // Comparison lines draw from the "before" mark to the "after" mark.
-      const rows = self.selector!('[data-growth-row]') as HTMLElement[]
-      rows.forEach((row) => {
-        const after = row.querySelector('[data-growth-after]')
-        const before = row.querySelector('[data-growth-before]')
-        if (before) {
-          gsap.fromTo(before, { scaleX: 0 }, { scaleX: 1, duration: 0.8, ease: 'power2.out', scrollTrigger: { trigger: row, start: 'top 84%' } })
-        }
-        if (after) {
-          gsap.fromTo(
-            after,
-            { scaleX: 0 },
-            { scaleX: 1, duration: 1.25, ease: 'power3.out', delay: 0.16, scrollTrigger: { trigger: row, start: 'top 84%' } }
-          )
-        }
+      const bars = self.selector!('[data-metric-bar]') as HTMLElement[]
+      bars.forEach((bar) => {
+        gsap.fromTo(
+          bar,
+          { scaleX: 0 },
+          {
+            scaleX: 1,
+            duration: 1.1,
+            ease: 'power3.out',
+            scrollTrigger: { trigger: bar, start: 'top 90%' },
+          }
+        )
       })
+      const supporting = self.selector!('[data-supporting] > *') as HTMLElement[]
+      if (supporting.length) {
+        gsap.fromTo(
+          supporting,
+          { autoAlpha: 0, y: 24 },
+          {
+            autoAlpha: 1,
+            y: 0,
+            duration: 0.8,
+            stagger: 0.09,
+            ease: 'power3.out',
+            scrollTrigger: { trigger: supporting[0], start: 'top 86%' },
+          }
+        )
+      }
     }, rootRef)
     return () => ctx.revert()
   }, [reduced, mobile])
 
-  const head = cs.headlineStat
-  // The headline stat is repeated inside `stats`; show the rest beside it.
-  const supporting = cs.stats.filter((s) => s.label !== head.label)
-
   return (
-    <section ref={rootRef} aria-label="Results" className="relative z-10" style={{ marginTop: mobile ? '14vh' : '22vh' }}>
-      <div className="flow-gutter">
-        <KineticLabel text="WHAT CHANGED" />
-        <ScrollHeadline
-          as="p"
-          text={cs.resultSummary}
-          className="font-display measure-wide mt-7 font-bold text-text-100"
-          style={{ fontSize: 'clamp(1.25rem, 2.2vw, 2.1rem)', lineHeight: 1.26, letterSpacing: '-0.015em' }}
-          from={0.22}
-          end="bottom 62%"
-        />
-      </div>
-
-      {/* ---- the metric that takes over ---- */}
-      <div data-takeover className="flow-gutter relative will-change-transform" style={{ marginTop: mobile ? '10vh' : '16vh' }}>
-        <div
+    <section
+      ref={rootRef}
+      aria-label="Results"
+      className="relative z-10"
+      style={{ marginTop: 'calc(clamp(4.5rem, 16vh, 13rem) * var(--scene-gap))' }}
+    >
+      <div className="flow-gutter relative">
+        <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 -inset-y-[30%]"
-          style={{ background: `radial-gradient(ellipse 46% 52% at 32% 50%, ${cs.accentColor}26, transparent 70%)` }}
-        />
-        <p
-          className="font-display relative font-bold leading-[0.8] text-text-100"
-          style={{ fontSize: 'clamp(5.5rem, 21vw, 20rem)', letterSpacing: '-0.05em' }}
+          className="font-body absolute -top-7 left-[var(--gutter)] text-[11px] text-text-500"
+          style={{ letterSpacing: '0.3em' }}
         >
-          <CountUp value={head.value} prefix={head.prefix} suffix={head.suffix} duration={1800} />
-        </p>
-        <p className="font-body relative mt-4 text-base uppercase text-text-300 sm:text-lg" style={{ letterSpacing: '0.14em' }}>
-          {head.label}
+          03
+        </span>
+        <KineticLabel text="THE RESULT" />
+      </div>
+
+      {/* Dominant metric + the single conclusion sentence, side by side on
+          desktop so the number leads and the sentence explains it. */}
+      <div className="flow-gutter mt-10 grid grid-cols-1 items-end gap-x-16 gap-y-8 lg:grid-cols-12">
+        <div data-dominant className="lg:col-span-6 will-change-transform">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 -my-[10%] h-[60%]"
+            style={{
+              background: `radial-gradient(ellipse 40% 60% at 24% 50%, ${cs.accentColor}1f, transparent 70%)`,
+            }}
+          />
+          <div className="relative">
+            <MetricBlock metric={presentation.primaryMetric} accent={cs.accentColor} size="dominant" />
+          </div>
+        </div>
+        <p
+          className="font-body text-base leading-relaxed text-text-200 lg:col-span-5 lg:col-start-8 sm:text-lg"
+          style={{ maxWidth: '46ch' }}
+        >
+          {presentation.resultLead}
         </p>
       </div>
 
-      {/* ---- supporting figures at deliberately unequal weights ---- */}
-      <ul
-        className="flow-gutter flex flex-wrap items-end gap-x-[clamp(2.5rem,7vw,7rem)] gap-y-12"
-        style={{ marginTop: mobile ? '9vh' : '13vh' }}
+      {/* Supporting metrics on a regular grid — a clear relationship, not
+          deliberately unequal sizes the reader has to decode. */}
+      <div
+        data-supporting
+        className="flow-gutter mt-[clamp(3rem,9vh,6rem)] grid grid-cols-1 gap-x-12 gap-y-12 sm:grid-cols-2 lg:grid-cols-3"
       >
-        {supporting.map((stat, i) => (
-          <li key={stat.label} className="list-none" style={{ marginTop: i % 2 ? '2.5rem' : 0 }}>
-            <p
-              className="font-display font-bold leading-none text-text-100"
-              style={{ fontSize: i === 0 ? 'clamp(3rem, 7vw, 6rem)' : 'clamp(2.2rem, 4.6vw, 4rem)' }}
-            >
-              <CountUp value={stat.value} prefix={stat.prefix} suffix={stat.suffix} />
-            </p>
-            <p className="font-body mt-2.5 max-w-[22ch] text-sm text-text-300">{stat.label}</p>
-          </li>
+        {presentation.metrics.map((m) => (
+          <MetricBlock key={m.label} metric={m} accent={cs.accentColor} size="supporting" />
         ))}
-      </ul>
-
-      {/* ---- before → after comparisons at full width ---- */}
-      <div className="flow-gutter" style={{ marginTop: mobile ? '10vh' : '15vh' }}>
-        {cs.growthMetrics.map((metric) => {
-          const max = metric.maxValue ?? Math.max(metric.after, metric.before) * 1.2
-          return (
-            <div key={metric.label} data-growth-row className="relative py-9">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
-                <p className="font-display text-base font-medium text-text-200 sm:text-lg" style={{ letterSpacing: '-0.01em' }}>
-                  {metric.label}
-                </p>
-                <p className="font-display font-bold leading-none text-text-100" style={{ fontSize: 'clamp(1.6rem, 3vw, 2.6rem)' }}>
-                  <span className="font-body mr-3 align-middle text-sm font-normal text-text-500">
-                    {metric.before}
-                    {metric.suffix} →
-                  </span>
-                  {metric.after}
-                  <span style={{ color: cs.accentColor }}>{metric.suffix}</span>
-                </p>
-              </div>
-
-              {/* the comparison itself — two drawn lines, not a bar chart */}
-              <div className="relative mt-5 h-[7px]" aria-hidden="true">
-                <span className="absolute inset-x-0 top-[3px] h-px bg-white/[0.07]" />
-                <span
-                  data-growth-before
-                  className="absolute left-0 top-[3px] h-px origin-left"
-                  style={{ width: `${(metric.before / max) * 100}%`, background: 'var(--border-strong)' }}
-                />
-                <span
-                  data-growth-after
-                  className="absolute left-0 top-0 h-[3px] origin-left"
-                  style={{
-                    width: `${(metric.after / max) * 100}%`,
-                    background: `linear-gradient(to right, ${cs.accentColor}, var(--blue-400))`,
-                    boxShadow: `0 0 12px ${cs.accentColor}80`,
-                  }}
-                />
-              </div>
-
-              {metric.insight && (
-                <p className="font-body measure-wide mt-4 text-sm leading-relaxed text-text-500">{metric.insight}</p>
-              )}
-            </div>
-          )
-        })}
       </div>
 
-      <div data-flow-anchor="center" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '24%' }} aria-hidden="true" />
-      <div data-flow-anchor="edge-right" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '70%' }} aria-hidden="true" />
+      {presentation.secondaryProof && (
+        <p className="flow-gutter font-body mt-10 text-sm text-text-500">
+          <span className="font-display font-bold text-text-300">
+            {presentation.secondaryProof.prefix}
+            {presentation.secondaryProof.value}
+            {presentation.secondaryProof.suffix}
+          </span>{' '}
+          {presentation.secondaryProof.label.toLowerCase()} across the campaign.
+        </p>
+      )}
+
+      {/* The verified summary and full stat list stay available in full. */}
+      <p className="sr-only">
+        {cs.resultSummary}{' '}
+        {cs.stats.map((s) => `${s.prefix ?? ''}${s.value}${s.suffix ?? ''} ${s.label}.`).join(' ')}
+      </p>
+
+      <div data-flow-anchor="edge-right" className="pointer-events-none h-px" aria-hidden="true" />
     </section>
   )
 }

@@ -3,31 +3,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { getCaseStudy } from '@/content/caseStudies'
+import { portraitReel } from '@/content/presentationMedia'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
-import OrientationMedia from '@/components/media/OrientationMedia'
 import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 
 /**
- * What Cineheight actually sells, in three pillars.
+ * What Cineheight sells, as one capability switcher.
  *
- * This replaces six full-screen experimental service chapters on the homepage,
- * which were beautiful and almost impossible to read as an offering. The six
- * detailed services still live on /services; here the job is comprehension.
+ * Previously this was three long rows, each with its own small masked media
+ * window floating on the right. Three separate media boxes competed with each
+ * other and none of them was big enough to be worth looking at.
  *
- * Each pillar is a wide editorial band, not a card. The active band (nearest
- * the viewport centre, overridden by hover on desktop) reveals its supporting
- * client film through a mask that grows from the right, its title shifts a few
- * pixels, a local spotlight follows the pointer and the other bands quieten.
+ * Now: one editorial index on the left and ONE substantial shared media stage
+ * on the right that crossfades between the three pillars. Nothing changes
+ * height, so the page never lurches; there is no sticky trap; and on mobile it
+ * becomes a plain accordion where the active pillar's media sits directly
+ * beneath its own heading.
  *
- * Expansion is deliberately *not* a height animation: the rows keep a constant
- * height and the media is revealed with clip-path, so nothing below ever jumps.
- *
- * The supporting media is real client work, matched by meaning — a brand film
- * under "build the brand", a campaign that earned attention under "create
- * attention", and work tied to a verified growth result under "drive growth".
- * No footage is reused between pillars or borrowed from Selected Work.
+ * The media is real client work, matched by meaning, using the derived 9:16
+ * presentation masters. No footage is reused between pillars or borrowed from
+ * Selected Work.
  */
 
 const sapale = getCaseStudy('sapale-yamaha')!
@@ -42,6 +39,19 @@ interface Pillar {
   media: { src: string; poster: string; client: string; label: string; accent: string }
 }
 
+/** Meaning-matched real client work, one film each, none shared. */
+function mediaFor(cs: typeof sapale, reelIndex: number) {
+  const reel = cs.reels[reelIndex]
+  const asset = portraitReel(cs, reel)!
+  return {
+    src: asset.src,
+    poster: asset.poster!,
+    client: cs.client,
+    label: reel.title,
+    accent: cs.accentColor,
+  }
+}
+
 const PILLARS: Pillar[] = [
   {
     index: '01',
@@ -49,13 +59,7 @@ const PILLARS: Pillar[] = [
     description:
       'Brand strategy, positioning and identity systems that make your business distinctive, recognisable and ready to grow.',
     includes: ['Brand strategy', 'Positioning', 'Identity design', 'Visual systems', 'Graphic design'],
-    media: {
-      src: sapale.reels[2].src,
-      poster: sapale.reels[2].poster!,
-      client: sapale.client,
-      label: sapale.reels[2].title,
-      accent: sapale.accentColor,
-    },
+    media: mediaFor(sapale, 2), // Fascino brand film
   },
   {
     index: '02',
@@ -63,13 +67,7 @@ const PILLARS: Pillar[] = [
     description:
       'Social content, photography, reels and campaign films designed to earn attention and keep your brand memorable.',
     includes: ['Social media', 'Content creation', 'Photography', 'Reels & campaign films', 'Editing'],
-    media: {
-      src: divija.reels[0].src,
-      poster: divija.reels[0].poster!,
-      client: divija.client,
-      label: divija.reels[0].title,
-      accent: divija.accentColor,
-    },
+    media: mediaFor(divija, 0), // Diwali campaign
   },
   {
     index: '03',
@@ -77,19 +75,13 @@ const PILLARS: Pillar[] = [
     description:
       'Performance campaigns and continuous optimisation that turn visibility into enquiries, customers and measurable growth.',
     includes: ['Performance marketing', 'Campaign strategy', 'Lead generation', 'Optimisation & reporting', 'Ongoing social management'],
-    media: {
-      src: ses.reels[2].src,
-      poster: ses.reels[2].poster!,
-      client: ses.client,
-      label: ses.reels[2].title,
-      accent: ses.accentColor,
-    },
+    media: mediaFor(ses, 2), // Consistency story
   },
 ]
 
 export default function HomeCapabilities() {
   const rootRef = useRef<HTMLElement>(null)
-  const rowRefs = useRef<(HTMLDivElement | null)[]>([])
+  const rowRefs = useRef<(HTMLButtonElement | null)[]>([])
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
 
   const mobile = useIsMobileTier()
@@ -107,12 +99,14 @@ export default function HomeCapabilities() {
     setActive(i)
   }, [])
 
-  // Scroll decides the active pillar; hover overrides it on desktop.
+  // Scroll picks the active pillar; hover/focus overrides it on desktop.
   useEffect(() => {
     const root = rootRef.current
     if (!root) return
     const io = new IntersectionObserver(([e]) => setInView(e.isIntersecting), { threshold: 0 })
     io.observe(root)
+
+    if (mobile) return () => io.disconnect()
 
     let ticking = false
     const pick = () => {
@@ -139,17 +133,14 @@ export default function HomeCapabilities() {
     }
     pick()
     window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onScroll)
     return () => {
       io.disconnect()
       window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onScroll)
     }
-  }, [setActiveIndex])
+  }, [setActiveIndex, mobile])
 
   // Only the active pillar's film plays, and only while the band is on screen.
   useEffect(() => {
-    // Captured so the cleanup pauses the elements this effect actually saw.
     const videos = videoRefs.current
     const run = () => {
       videos.forEach((v, i) => {
@@ -167,7 +158,7 @@ export default function HomeCapabilities() {
     }
   }, [active, inView, reduced])
 
-  // Local spotlight, one loop for the whole band.
+  // Local pointer light across the scene.
   useEffect(() => {
     if (!rich) return
     const root = rootRef.current
@@ -199,6 +190,179 @@ export default function HomeCapabilities() {
     }
   }, [rich])
 
+  /** One 16:10 stage; the pillars crossfade through it. */
+  const mediaStage = (
+    <div
+      className="relative w-full overflow-hidden"
+      style={{ aspectRatio: '16 / 10', background: 'var(--bg-900)' }}
+    >
+      {PILLARS.map((p, i) => (
+        <div
+          key={p.index}
+          className="absolute inset-0"
+          style={{
+            opacity: active === i ? 1 : 0,
+            transform: active === i ? 'scale(1)' : 'scale(1.04)',
+            transition: reduced ? 'none' : 'opacity 0.7s ease, transform 1.1s cubic-bezier(0.16,1,0.3,1)',
+          }}
+          aria-hidden={active !== i}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={p.media.poster} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+          {active === i && inView && !reduced && (
+            <video
+              ref={(el) => { videoRefs.current[i] = el }}
+              key={p.media.src}
+              className="absolute inset-0 h-full w-full object-cover"
+              poster={p.media.poster}
+              muted
+              loop
+              playsInline
+              preload="none"
+              tabIndex={-1}
+              aria-hidden="true"
+            >
+              <source src={p.media.src} type="video/mp4" />
+            </video>
+          )}
+          <div
+            aria-hidden="true"
+            className="absolute inset-0"
+            style={{
+              background: `linear-gradient(to right, rgba(2,3,6,0.72), rgba(2,3,6,0.18) 46%, transparent), radial-gradient(ellipse 60% 60% at 60% 45%, ${p.media.accent}1f, transparent 72%)`,
+            }}
+          />
+          <p
+            className="font-body absolute bottom-4 left-5 text-[10px] uppercase text-text-300"
+            style={{ letterSpacing: '0.18em' }}
+          >
+            {p.media.client} — {p.media.label}
+          </p>
+        </div>
+      ))}
+      {/* feathered left edge so the stage joins the page rather than sitting in a box */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-0 w-20"
+        style={{ background: 'linear-gradient(to right, var(--bg-950), transparent)' }}
+      />
+    </div>
+  )
+
+  const index = (
+    <ul className="flex flex-col">
+      {PILLARS.map((p, i) => {
+        const isActive = active === i
+        return (
+          <li key={p.index} className="list-none">
+            <button
+              ref={(el) => { rowRefs.current[i] = el }}
+              type="button"
+              aria-expanded={isActive}
+              aria-current={isActive || undefined}
+              onPointerEnter={() => {
+                if (mobile) return
+                hoverRef.current = i
+                setActiveIndex(i)
+              }}
+              onPointerLeave={() => {
+                if (mobile) return
+                hoverRef.current = null
+              }}
+              onFocus={() => setActiveIndex(i)}
+              onClick={() => setActiveIndex(i)}
+              className="w-full border-0 bg-transparent py-[clamp(1.25rem,2.6vh,2rem)] text-left"
+              style={{
+                opacity: mobile || isActive ? 1 : 0.55,
+                transition: reduced ? 'none' : 'opacity 0.5s ease',
+              }}
+            >
+              <span
+                aria-hidden="true"
+                className="mb-4 block h-px origin-left"
+                style={{
+                  width: 'min(24rem, 60%)',
+                  background: `linear-gradient(to right, var(--blue-500), rgba(0,137,255,0))`,
+                  transform: `scaleX(${isActive ? 1 : 0.12})`,
+                  opacity: isActive ? 0.8 : 0.25,
+                  transition: reduced ? 'none' : 'transform 0.8s cubic-bezier(0.16,1,0.3,1), opacity 0.5s ease',
+                }}
+              />
+              <span className="flex items-baseline gap-5">
+                <span
+                  className="font-display text-[12px] font-medium"
+                  style={{ letterSpacing: '0.28em', color: isActive ? 'var(--blue-400)' : 'var(--text-500)' }}
+                >
+                  {p.index}
+                </span>
+                <span
+                  className="font-display font-bold uppercase text-text-100"
+                  style={{
+                    fontSize: 'calc(clamp(1.5rem, 3vw, 2.6rem) * var(--display-scale))',
+                    lineHeight: 1.02,
+                    letterSpacing: isActive ? '-0.015em' : '-0.022em',
+                    transition: reduced ? 'none' : 'letter-spacing 0.6s cubic-bezier(0.16,1,0.3,1)',
+                  }}
+                >
+                  {p.title}
+                </span>
+              </span>
+              <span className="mt-3 block pl-[calc(12px+1.25rem)]">
+                <span className="font-body block text-[15px] leading-relaxed text-text-200" style={{ maxWidth: '46ch' }}>
+                  {p.description}
+                </span>
+                <span className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                  {p.includes.map((item) => (
+                    <span key={item} className="font-body text-[12px] text-text-500">
+                      {item}
+                    </span>
+                  ))}
+                </span>
+              </span>
+            </button>
+
+            {/* Mobile: the active pillar's media sits directly under its item. */}
+            {mobile && isActive && (
+              <div className="mt-2" style={{ height: '52svh' }}>
+                <div className="relative h-full w-full overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.media.poster} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+                  {inView && !reduced && (
+                    <video
+                      ref={(el) => { videoRefs.current[i] = el }}
+                      key={p.media.src}
+                      className="absolute inset-0 h-full w-full object-cover"
+                      poster={p.media.poster}
+                      muted
+                      loop
+                      playsInline
+                      preload="none"
+                      tabIndex={-1}
+                      aria-hidden="true"
+                    >
+                      <source src={p.media.src} type="video/mp4" />
+                    </video>
+                  )}
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-0"
+                    style={{ background: 'linear-gradient(to top, var(--bg-950) 2%, transparent 46%)' }}
+                  />
+                  <p
+                    className="font-body absolute bottom-3 left-4 text-[10px] uppercase text-text-300"
+                    style={{ letterSpacing: '0.18em' }}
+                  >
+                    {p.media.client} — {p.media.label}
+                  </p>
+                </div>
+              </div>
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+
   return (
     <section
       ref={rootRef}
@@ -211,185 +375,32 @@ export default function HomeCapabilities() {
         ['--sy' as string]: '50%',
       }}
     >
-      <div className="flow-gutter">
+      {rich && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{ background: 'radial-gradient(ellipse 34% 44% at var(--sx) var(--sy), rgba(0,137,255,0.07), transparent 70%)' }}
+        />
+      )}
+
+      <div className="flow-gutter relative">
         <KineticLabel text="HOW WE HELP BRANDS GROW" />
         <SplitLineReveal
           as="h2"
-          lines={['Three ways we turn a', 'business into a brand.']}
-          srLabel="Three ways we turn a business into a brand."
-          className="type-display-2 font-display mt-6 font-bold uppercase text-text-100"
-          style={{ maxWidth: '22ch' }}
+          lines={['One team to build the brand,', 'create attention and drive growth.']}
+          srLabel="One team to build the brand, create attention and drive growth."
+          className="type-display-2 font-display mt-6 max-w-[24ch] font-bold uppercase text-text-100"
         />
       </div>
 
-      <div className="mt-10 sm:mt-14">
-        {PILLARS.map((p, i) => {
-          const isActive = active === i
-          return (
-            <div
-              key={p.index}
-              ref={(el) => { rowRefs.current[i] = el }}
-              data-pillar
-              onPointerEnter={() => {
-                if (mobile) return
-                hoverRef.current = i
-                setActiveIndex(i)
-              }}
-              onPointerLeave={() => {
-                if (mobile) return
-                hoverRef.current = null
-              }}
-              className="group/pillar relative"
-              style={{
-                transition: reduced ? 'none' : 'opacity 0.55s ease',
-                // Quieter when another band holds attention — never invisible.
-                opacity: mobile || isActive ? 1 : 0.62,
-              }}
-            >
-              {/* A short signal segment reaching into the active row — capped
-                  well short of full width so it never reads as a table rule. */}
-              <span
-                aria-hidden="true"
-                className="absolute top-0 h-px origin-left"
-                style={{
-                  left: 'var(--gutter)',
-                  width: 'min(34%, 26rem)',
-                  background: 'linear-gradient(to right, var(--blue-500), rgba(0,137,255,0))',
-                  transform: `scaleX(${isActive ? 1 : 0.1})`,
-                  opacity: isActive ? 0.75 : 0.2,
-                  transition: reduced ? 'none' : 'transform 0.8s cubic-bezier(0.16,1,0.3,1), opacity 0.6s ease',
-                }}
-              />
-
-              {/* Desktop: media revealed by a mask growing from the right.
-                  No height animation, so nothing below the band ever jumps.
-
-                  The panel is kept close to the row's own height (a near-square
-                  window) rather than a wide letterbox: a 1:1 source contained
-                  inside a wide, short panel leaves large blurred margins that
-                  read as a pasted rectangle. Every edge is feathered so the
-                  media dissolves into the band instead of being framed. */}
-              {!mobile && (
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-y-0 overflow-hidden"
-                  style={{
-                    right: 'var(--gutter)',
-                    width: 'clamp(15rem, 26vh, 20rem)',
-                    clipPath: isActive ? 'inset(0% 0% 0% 0%)' : 'inset(0% 0% 0% 100%)',
-                    opacity: isActive ? 1 : 0,
-                    transition: reduced
-                      ? 'none'
-                      : 'clip-path 0.9s cubic-bezier(0.16,1,0.3,1), opacity 0.7s ease',
-                    // Feathered on all four sides. The radii must be 50% so the
-                    // gradient actually reaches transparent AT the element's
-                    // edge — larger radii put the transparent stop outside the
-                    // box and the edges stay hard.
-                    maskImage:
-                      'radial-gradient(ellipse 50% 50% at 50% 50%, #000 28%, transparent 100%)',
-                    WebkitMaskImage:
-                      'radial-gradient(ellipse 50% 50% at 50% 50%, #000 28%, transparent 100%)',
-                  }}
-                >
-                  <OrientationMedia
-                    ref={(el) => { videoRefs.current[i] = el }}
-                    poster={p.media.poster}
-                    src={isActive ? p.media.src : undefined}
-                    orientation="square"
-                    alt=""
-                    accent={p.media.accent}
-                  />
-                  {/* keeps the media secondary to the copy beside it */}
-                  <div className="absolute inset-0" style={{ background: 'rgba(2,3,6,0.42)' }} />
-                </div>
-              )}
-
-              {/* local spotlight on the active band */}
-              {rich && isActive && (
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-0"
-                  style={{
-                    background:
-                      'radial-gradient(ellipse 30% 90% at var(--sx) var(--sy), rgba(0,137,255,0.1), transparent 70%)',
-                  }}
-                />
-              )}
-
-              <div
-                className="flow-gutter relative flex w-full flex-col gap-y-5 py-[clamp(2rem,4.5vh,3.5rem)] lg:min-h-[clamp(11rem,22vh,15rem)] lg:flex-row lg:items-start lg:gap-x-12"
-                style={{
-                  transform: !mobile && isActive && !reduced ? 'translateX(6px)' : 'translateX(0)',
-                  transition: reduced ? 'none' : 'transform 0.7s cubic-bezier(0.16,1,0.3,1)',
-                }}
-              >
-                <span
-                  className="font-display shrink-0 text-[12px] font-medium"
-                  style={{ letterSpacing: '0.28em', color: isActive ? 'var(--blue-400)' : 'var(--text-500)', transition: 'color 0.5s ease' }}
-                >
-                  {p.index}
-                </span>
-
-                <div className="lg:w-[min(30rem,34%)] lg:shrink-0">
-                  <h3
-                    className="type-display-3 font-display font-bold uppercase text-text-100"
-                    style={{
-                      letterSpacing: isActive && !reduced ? '-0.012em' : '-0.018em',
-                      transition: reduced ? 'none' : 'letter-spacing 0.6s cubic-bezier(0.16,1,0.3,1)',
-                    }}
-                  >
-                    {p.title}
-                  </h3>
-                </div>
-
-                <div className="lg:max-w-[32rem]">
-                  <p className="font-body text-[15px] leading-relaxed text-text-200 sm:text-base">
-                    {p.description}
-                  </p>
-                  {/* Always present — never hover-only information. */}
-                  <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5">
-                    {p.includes.map((item) => (
-                      <li
-                        key={item}
-                        className="font-body list-none text-[12px] text-text-500"
-                        style={{ letterSpacing: '0.04em' }}
-                      >
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
-              {/* Mobile: the film sits under the copy, always visible. */}
-              {mobile && (
-                <div className="relative mt-1 h-[34svh] w-full overflow-hidden">
-                  <OrientationMedia
-                    ref={(el) => { videoRefs.current[i] = el }}
-                    poster={p.media.poster}
-                    src={isActive && inView ? p.media.src : undefined}
-                    orientation="square"
-                    alt=""
-                    accent={p.media.accent}
-                  />
-                  <div
-                    aria-hidden="true"
-                    className="absolute inset-0"
-                    style={{ background: 'linear-gradient(to top, var(--bg-950) 2%, transparent 46%)' }}
-                  />
-                </div>
-              )}
-
-              {/* Honest attribution — this is real client work, so name it. */}
-              <p className="flow-gutter font-body pb-4 text-[11px] uppercase text-text-500" style={{ letterSpacing: '0.16em' }}>
-                {p.media.client} — {p.media.label}
-              </p>
-            </div>
-          )
-        })}
+      <div className="flow-gutter relative mt-10 grid grid-cols-12 items-center gap-x-12 sm:mt-14">
+        <div className="col-span-12 lg:col-span-7">{index}</div>
+        {!mobile && (
+          <div className="col-span-12 lg:col-span-5">{mediaStage}</div>
+        )}
       </div>
 
-      <div className="flow-gutter mt-9">
+      <div className="flow-gutter mt-10">
         <Link
           href="/services"
           className="group font-display inline-flex min-h-[48px] items-center gap-3 text-[12px] font-medium uppercase text-text-100 transition-colors duration-300 hover:text-[var(--blue-400)]"
