@@ -7,6 +7,7 @@ import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import { clamp, damp } from '@/lib/utils'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
 
 /**
  * The phone-reel installation — the old project's `ReelsCoverflow` concept
@@ -87,6 +88,8 @@ export default function PhoneReelExperience({
 
   const [active, setActive] = useState(initial)
   const [muted, setMuted] = useState(true)
+  // Duck the ambient soundscape whenever this video is audible.
+  useReportVideoAudible(!muted, 'phone-reel')
   const [userPaused, setUserPaused] = useState(false)
   const [inView, setInView] = useState(false)
   /** Index open in the shared lightbox, or null. */

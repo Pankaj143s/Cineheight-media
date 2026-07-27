@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useReducedMotion } from '@/lib/useMediaPreferences'
+import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
 
 const EASE = [0.22, 1, 0.36, 1] as const
 
@@ -53,6 +54,8 @@ export default function MediaLightbox({
 
   const [playing, setPlaying] = useState(true)
   const [muted, setMuted] = useState(true)
+  // Duck the ambient soundscape whenever this video is audible.
+  useReportVideoAudible(!muted, 'lightbox')
 
   const open = index !== null
   const item = index === null ? null : items[index]

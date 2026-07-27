@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { gsap, ScrollTrigger } from '@/lib/gsap'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
 
 const SRC = '/media/showreel/showreel.mp4'
 const POSTER = '/media/showreel/showreel-poster.webp'
@@ -29,6 +30,8 @@ export default function ShowreelSection() {
 
   const [playing, setPlaying] = useState(false)
   const [muted, setMuted] = useState(true)
+  // Duck the ambient soundscape whenever this video is audible.
+  useReportVideoAudible(!muted, 'showreel')
   const [ready, setReady] = useState(false)
 
   // ---- Scroll expansion (scrub, no pin) --------------------------------

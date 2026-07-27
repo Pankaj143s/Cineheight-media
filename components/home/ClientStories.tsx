@@ -8,6 +8,7 @@ import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import OrientationMedia from '@/components/media/OrientationMedia'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
 
 /**
  * Client stories — the recorded films, on a canvas that reaches the full width
@@ -43,6 +44,8 @@ export default function ClientStories() {
 
   const [active, setActive] = useState(0)
   const [muted, setMuted] = useState(true)
+  // Duck the ambient soundscape whenever this video is audible.
+  useReportVideoAudible(!muted, 'client-story')
   const [userPaused, setUserPaused] = useState(false)
   const [inView, setInView] = useState(false)
 

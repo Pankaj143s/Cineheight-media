@@ -3,6 +3,7 @@ import localFont from 'next/font/local'
 import './globals.css'
 import SmoothScrollProvider from '@/components/flow/SmoothScrollProvider'
 import RouteTransition from '@/components/flow/RouteTransition'
+import SoundscapeProvider from '@/components/audio/SoundscapeProvider'
 
 const bebas = localFont({
   src: '../public/fonts/bebas-neue-400.woff2',
@@ -87,7 +88,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${bebas.variable} ${satoshi.variable} ${poppins.variable}`}>
       <body>
-        <SmoothScrollProvider>{children}</SmoothScrollProvider>
+        <SoundscapeProvider>
+          <SmoothScrollProvider>{children}</SmoothScrollProvider>
+        </SoundscapeProvider>
         <RouteTransition />
       </body>
     </html>

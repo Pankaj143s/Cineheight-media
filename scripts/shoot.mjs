@@ -754,6 +754,117 @@ if (hasFlag('probe')) {
     JSON.stringify(socialState)
   )
 
+  // ---- soundscape: consent, persistence, ducking ----------------------
+  /*
+   * The rules being verified: nothing sounds until asked; the choice survives a
+   * reload but still waits for a real gesture before creating an AudioContext;
+   * an unmuted video ducks the bed; a hidden tab suspends everything.
+   */
+  // Start from a genuinely first-visit state; a previous run's stored choice
+  // would otherwise make "off by default" untestable.
+  await goto(cdp, BASE + '/')
+  await cdp.eval(`localStorage.removeItem('cineheight-sound-enabled')`)
+  await goto(cdp, BASE + '/')
+  const soundInitial = await cdp.eval(`(() => {
+    const toggle = document.querySelector('[data-sound-toggle]')
+    const rect = toggle?.getBoundingClientRect()
+    return {
+      present: !!toggle,
+      pressed: toggle?.getAttribute('aria-pressed'),
+      stored: localStorage.getItem('cineheight-sound-enabled'),
+      width: rect?.width || 0,
+      height: rect?.height || 0,
+      contexts: window.__cineheightAudio ? 1 : 0,
+    }
+  })()`)
+  check(
+    'sound is off by default and the toggle is a 44px labelled control',
+    soundInitial.present &&
+      soundInitial.pressed === 'false' &&
+      soundInitial.stored === null &&
+      soundInitial.width >= 44 && soundInitial.height >= 44,
+    JSON.stringify(soundInitial)
+  )
+
+  // The navbar is deliberately hidden over the homepage hero, so scroll past it
+  // before trying to click anything inside it.
+  await cdp.eval(`window.scrollTo(0, innerHeight * 1.6)`)
+  await sleep(1100)
+
+  // Enable via a real click so the gesture requirement is genuinely exercised.
+  const toggleBox = await cdp.eval(`(() => {
+    const t = document.querySelector('[data-sound-toggle]')
+    const r = t.getBoundingClientRect()
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }
+  })()`)
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: toggleBox.x, y: toggleBox.y, button: 'left', clickCount: 1 })
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: toggleBox.x, y: toggleBox.y, button: 'left', clickCount: 1 })
+  await sleep(900)
+  const soundOn = await cdp.eval(`(() => ({
+    pressed: document.querySelector('[data-sound-toggle]')?.getAttribute('aria-pressed'),
+    stored: localStorage.getItem('cineheight-sound-enabled'),
+    state: window.__cineheightAudio?.state ?? null,
+    ducked: window.__cineheightAudio?.ducked ?? null,
+  }))()`)
+  check(
+    'clicking the toggle starts a running AudioContext and stores the choice',
+    soundOn.pressed === 'true' && soundOn.stored === 'on' && soundOn.state === 'running',
+    JSON.stringify(soundOn)
+  )
+
+  // Unmute the showreel and confirm the bed gets out of its way.
+  const ducking = await cdp.eval(`(async () => {
+    const before = window.__cineheightAudio?.ducked
+    const btn = [...document.querySelectorAll('button')]
+      .find(b => /Unmute showreel/i.test(b.getAttribute('aria-label') || ''))
+    if (!btn) return { error: 'no unmute control' }
+    btn.click()
+    await new Promise(r => setTimeout(r, 600))
+    const during = window.__cineheightAudio?.ducked
+    const back = [...document.querySelectorAll('button')]
+      .find(b => /Mute showreel/i.test(b.getAttribute('aria-label') || ''))
+    back?.click()
+    await new Promise(r => setTimeout(r, 900))
+    return { before, during, after: window.__cineheightAudio?.ducked }
+  })()`)
+  check(
+    'ambient bed ducks while a video is unmuted and restores after',
+    ducking.before === false && ducking.during === true && ducking.after === false,
+    JSON.stringify(ducking)
+  )
+
+  // Hidden tab must suspend the graph.
+  await cdp.eval(`Object.defineProperty(document,'hidden',{value:true,configurable:true}); document.dispatchEvent(new Event('visibilitychange')); 1`)
+  await sleep(400)
+  const suspended = await cdp.eval(`window.__cineheightAudio?.state`)
+  check('audio suspends while the tab is hidden', suspended === 'suspended', String(suspended))
+  await cdp.eval(`Object.defineProperty(document,'hidden',{value:false,configurable:true}); document.dispatchEvent(new Event('visibilitychange')); 1`)
+  await sleep(400)
+
+  // Reload with the preference stored: restored, but silent until a gesture.
+  await goto(cdp, BASE + '/')
+  await cdp.eval(`window.scrollTo(0, innerHeight * 1.6)`)
+  await sleep(700)
+  const afterReload = await cdp.eval(`(() => ({
+    pressed: document.querySelector('[data-sound-toggle]')?.getAttribute('aria-pressed'),
+    stored: localStorage.getItem('cineheight-sound-enabled'),
+    state: window.__cineheightAudio?.state ?? 'none',
+  }))()`)
+  check(
+    'a stored preference is restored without illegally autoplaying audio',
+    afterReload.pressed === 'true' && afterReload.stored === 'on' && afterReload.state === 'none',
+    JSON.stringify(afterReload)
+  )
+  // A keyboard gesture must be enough to resume.
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 })
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 })
+  await sleep(700)
+  const afterGesture = await cdp.eval(`window.__cineheightAudio?.state ?? 'none'`)
+  check('the first keyboard gesture resumes the stored sound preference', afterGesture === 'running', String(afterGesture))
+
+  // Leave the suite with sound off so later probes are unaffected.
+  await cdp.eval(`localStorage.setItem('cineheight-sound-enabled','off')`)
+
   // ---- image lightbox on a case study ---------------------------------
   await goto(cdp, BASE + '/work/sapale-yamaha')
   await primeScroll(cdp, 0)

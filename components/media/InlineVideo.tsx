@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { useActiveVideo } from '@/lib/useActiveVideo'
+import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
 
 /**
  * Shared inline video (spec §30): poster-first, muted, playsInline, plays only
@@ -26,6 +27,8 @@ export default function InlineVideo({
   const videoRef = useRef<HTMLVideoElement>(null)
   const [playing, setPlaying] = useState(false)
   const [muted, setMuted] = useState(true)
+  // Duck the ambient soundscape whenever this video is audible.
+  useReportVideoAudible(!muted, 'inline-video')
   const { setUserPaused } = useActiveVideo(videoRef, {
     enabled: autoPlayWhenVisible,
     playAt: 0.5,

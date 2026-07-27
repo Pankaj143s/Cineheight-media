@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { subscribeHeroProgress } from '@/lib/heroProgress'
 import { useReducedMotion } from '@/lib/useMediaPreferences'
+import SoundToggle from '@/components/audio/SoundToggle'
 import { navItems } from '@/content/siteContent'
 
 /**
@@ -87,7 +88,9 @@ export default function Navbar() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Visible at every breakpoint — sound must always be one tap away. */}
+          <SoundToggle />
           <Link
             href="/contact"
             className="hidden items-center gap-2 rounded-full border px-5 py-2.5 text-[11px] font-medium uppercase text-text-100 transition-colors duration-200 hover:border-[var(--blue-400)] hover:text-[var(--blue-200)] sm:inline-flex"
