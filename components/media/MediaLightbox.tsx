@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useReducedMotion } from '@/lib/useMediaPreferences'
 import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
@@ -37,6 +37,7 @@ export default function MediaLightbox({
   accent = 'var(--blue-500)',
   onClose,
   onIndex,
+  sourceRect,
 }: {
   items: LightboxItem[]
   /** null closes the lightbox. */
@@ -44,6 +45,14 @@ export default function MediaLightbox({
   accent?: string
   onClose: () => void
   onIndex: (i: number) => void
+  /**
+   * Viewport rect of the element that was clicked to open this.
+   *
+   * When supplied the panel grows out of that rectangle instead of fading in
+   * from nowhere, so a phone or a creative card visibly becomes the full-size
+   * view. Omit it (or under reduced motion) and the plain fade is used.
+   */
+  sourceRect?: DOMRect | null
 }) {
   const reduced = useReducedMotion()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -58,6 +67,33 @@ export default function MediaLightbox({
   useReportVideoAudible(!muted, 'lightbox')
 
   const open = index !== null
+
+  /**
+   * A FLIP-style approximation of "this card became the dialog".
+   *
+   * The panel's final size is not known until it has laid out, so rather than
+   * measuring twice we derive the opening transform from the source rect
+   * against the viewport: where its centre was relative to the screen centre,
+   * and roughly how much smaller it was. It reads as the card travelling and
+   * growing, without a second layout pass or a flash at the wrong size.
+   */
+  const fromSource = useMemo(() => {
+    if (!sourceRect || typeof window === 'undefined') {
+      return {
+        initial: { opacity: 0, scale: 0.94, x: 0, y: 18 },
+        exit: { opacity: 0, scale: 0.95, x: 0, y: 12 },
+      }
+    }
+    const x = sourceRect.left + sourceRect.width / 2 - window.innerWidth / 2
+    const y = sourceRect.top + sourceRect.height / 2 - window.innerHeight / 2
+    const scale = Math.max(0.2, Math.min(0.9, sourceRect.height / (window.innerHeight * 0.86)))
+    return {
+      initial: { opacity: 0, scale, x, y },
+      // Closing reverses toward the same place, so the work goes back where the
+      // visitor took it from.
+      exit: { opacity: 0, scale, x, y },
+    }
+  }, [sourceRect])
   const item = index === null ? null : items[index]
 
   const move = useCallback(
@@ -175,10 +211,10 @@ export default function MediaLightbox({
           <motion.div
             ref={panelRef}
             className="relative flex w-full max-w-[96vw] flex-col items-center"
-            initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: 18 }}
-            animate={reduced ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
-            exit={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: 12 }}
-            transition={{ duration: reduced ? 0.15 : 0.36, ease: EASE }}
+            initial={reduced ? { opacity: 0 } : fromSource.initial}
+            animate={reduced ? { opacity: 1 } : { opacity: 1, scale: 1, x: 0, y: 0 }}
+            exit={reduced ? { opacity: 0 } : fromSource.exit}
+            transition={{ duration: reduced ? 0.15 : sourceRect ? 0.44 : 0.36, ease: EASE }}
           >
             {/* header */}
             <div className="mb-3 flex w-full items-center justify-between gap-4">

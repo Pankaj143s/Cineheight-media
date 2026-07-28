@@ -94,6 +94,8 @@ export default function PhoneReelExperience({
   const [inView, setInView] = useState(false)
   /** Index open in the shared lightbox, or null. */
   const [expanded, setExpanded] = useState<number | null>(null)
+  /** Rect of the handset that opened the lightbox, for the growth transition. */
+  const [sourceRect, setSourceRect] = useState<DOMRect | null>(null)
 
   // ---- motion state (never React state) --------------------------------
   const float = useRef(initial)
@@ -312,6 +314,7 @@ export default function PhoneReelExperience({
   /** Open the active reel in the shared lightbox (never a placeholder). */
   const openActive = useCallback(() => {
     if (reels[activeRef.current]?.isPlaceholder) return
+    setSourceRect(cardRefs.current[activeRef.current]?.getBoundingClientRect() ?? null)
     setExpanded(activeRef.current)
   }, [reels])
 
@@ -626,6 +629,7 @@ export default function PhoneReelExperience({
       </p>
 
       <MediaLightbox
+        sourceRect={sourceRect}
         items={lightboxItems}
         index={expanded === null ? null : realIndexToLightbox[expanded] ?? null}
         accent={item.accent}

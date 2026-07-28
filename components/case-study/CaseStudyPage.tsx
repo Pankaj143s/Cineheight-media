@@ -138,6 +138,7 @@ export default function CaseStudyPage({ slug }: { slug: string }) {
             items={posts}
             accent={cs.accentColor}
             eyebrow="CREATIVES"
+            explanation="Spin the ring, or use the arrows. Click the front creative to open it full size."
             label={`${cs.client} creatives`}
             flowAnchor="right"
           />

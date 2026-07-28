@@ -61,6 +61,7 @@ export default function CreativeOrbit({
   heading,
   headingLines,
   label = 'Static creatives',
+  explanation,
   flowAnchor = 'right',
 }: {
   items: OrbitItem[]
@@ -69,6 +70,8 @@ export default function CreativeOrbit({
   heading?: string
   headingLines?: React.ReactNode[]
   label?: string
+  /** Short supporting line for the editorial column. */
+  explanation?: string
   flowAnchor?: 'left' | 'right' | 'center' | 'edge-left' | 'edge-right'
 }) {
   const N = items.length
@@ -83,6 +86,14 @@ export default function CreativeOrbit({
   const [activeIndex, setActiveIndex] = useState(0)
   const [stageW, setStageW] = useState(0)
   const [expanded, setExpanded] = useState<number | null>(null)
+  /** Rect of the card that opened the lightbox, so it can grow out of it. */
+  const [sourceRect, setSourceRect] = useState<DOMRect | null>(null)
+
+  /** Open the lightbox, remembering where on screen the work was. */
+  const openAt = useCallback((i: number) => {
+    setSourceRect(cardRefs.current[i]?.getBoundingClientRect() ?? null)
+    setExpanded(i)
+  }, [])
 
   // ---- motion state (refs only) ----------------------------------------
   const rotation = useRef(0)
@@ -136,11 +147,23 @@ export default function CreativeOrbit({
     const sm = w0 < 700
     const m: OrbitLayout = N >= 5 ? 'orbit' : N >= 3 ? 'arc' : 'stack'
 
-    // Fewer cards ⇒ larger cards, so three creatives still command the stage.
-    const sizeFactor = m === 'orbit' ? (sm ? 0.44 : 0.28) : sm ? 0.56 : 0.34
+    /*
+     * Card size.
+     *
+     * These used to reach 380px on a standard desktop, which turned a gallery
+     * wall into a technical demo that owned the viewport. The stage now sits in
+     * an 8-column slot beside its own editorial column, so the cards come down
+     * to roughly 240-290px and are capped hard on very large displays: the
+     * installation should read as artwork on a wall, not as a diagram.
+     *
+     * On a short viewport the height budget wins, so a card is never taller
+     * than the stage can actually show.
+     */
+    const sizeFactor = m === 'orbit' ? (sm ? 0.44 : 0.26) : sm ? 0.56 : 0.3
+    const shortViewport = typeof window !== 'undefined' && window.innerHeight < 780
     const w = sm
-      ? clamp(Math.round(w0 * sizeFactor), 170, 275)
-      : clamp(Math.round(w0 * sizeFactor), 260, 380)
+      ? clamp(Math.round(w0 * sizeFactor), 170, 260)
+      : clamp(Math.round(w0 * sizeFactor), 210, shortViewport ? 250 : 290)
     const h = Math.round((w * 4) / 3)
 
     if (m === 'orbit') {
@@ -488,7 +511,7 @@ export default function CreativeOrbit({
       dragged.current = false
       return
     }
-    if (i === activeRef.current) setExpanded(i)
+    if (i === activeRef.current) openAt(i)
     else rotateToIndex(i)
   }
 
@@ -501,7 +524,7 @@ export default function CreativeOrbit({
       go(-1)
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
-      setExpanded(activeRef.current)
+      openAt(activeRef.current)
     }
   }
 
@@ -552,228 +575,236 @@ export default function CreativeOrbit({
     </div>
   )
 
+  const infoBlock = (
+    <div className="min-w-0">
+      <p className="font-display text-[13px] font-medium uppercase text-text-100" style={{ letterSpacing: '0.2em' }}>
+        {item.client}
+      </p>
+      <p className="font-body mt-1.5 text-sm text-text-500">{item.title}</p>
+    </div>
+  )
+
+  const controlsBlock = (
+    <div className="flex items-center gap-5">
+      {spinnable && (
+        <div className="flex items-center gap-2" role="tablist" aria-label="Creative position">
+          {items.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => rotateToIndex(i)}
+              role="tab"
+              aria-selected={i === activeIndex}
+              aria-label={`Creative ${i + 1} of ${N}`}
+              className="flex h-11 items-center"
+            >
+              <span
+                className="block h-1.5 rounded-full transition-all duration-300"
+                style={{
+                  width: i === activeIndex ? 22 : 6,
+                  background: i === activeIndex ? accent : 'rgba(255,255,255,0.22)',
+                }}
+              />
+            </button>
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => openAt(activeIndex)}
+        className="font-display flex min-h-[44px] items-center gap-3 text-[12px] font-medium uppercase text-text-200 transition-colors hover:text-[var(--blue-400)]"
+        style={{ letterSpacing: '0.2em' }}
+      >
+        Expand
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path d="M5 1H1v4M9 13h4V9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+        </svg>
+      </button>
+    </div>
+  )
+
+  const stageBlock = (
+    <div
+      ref={stageRef}
+      className="relative mx-auto select-none touch-pan-y"
+      style={{
+        height: stageH,
+        // Capped: full-width made the installation read as a standalone
+        // demonstration rather than part of the case-study narrative.
+        width: '100%',
+        maxWidth: narrow ? 720 : 1100,
+        // No top margin on desktop any more: it existed purely to push the ring
+        // clear of the heading that used to be overlaid on top of it.
+        marginTop: 0,
+        perspective: small ? '1100px' : '1700px',
+        perspectiveOrigin: narrow ? '50% 34%' : '54% 32%',
+        cursor: spinnable && !reduced ? 'grab' : 'default',
+      }}
+      role="group"
+      aria-roledescription="carousel"
+      aria-label={`${label} — drag to spin, or use the arrow keys`}
+      tabIndex={0}
+      onPointerDown={spinnable ? onPointerDown : undefined}
+      onPointerMove={spinnable ? onPointerMove : undefined}
+      onPointerUp={spinnable ? endDrag : undefined}
+      onPointerCancel={spinnable ? endDrag : undefined}
+      onKeyDown={onKeyDown}
+      onMouseEnter={pauseIdle('hover')}
+      onMouseLeave={resumeIdle('hover')}
+      onFocus={pauseIdle('focus')}
+      onBlur={resumeIdle('focus')}
+    >
+      {/*
+        Grounding, in two layers rather than five.
+        The stage previously carried two tilted ellipse rings, a vertical light
+        spine, a contact shadow and an accent pool. Together they drew a
+        technical globe diagram around the artwork and competed with it. What is
+        left is what a gallery wall actually needs: something for the work to
+        stand on, and a faint wash of the client's colour under it.
+      */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 -translate-x-1/2"
+        style={{
+          bottom: '7%',
+          width: `${Math.round(cardW * 2.4)}px`,
+          height: `${Math.round(cardH * 0.26)}px`,
+          background: 'radial-gradient(ellipse 50% 50% at 50% 50%, rgba(0,0,0,0.7), transparent 70%)',
+          filter: 'blur(7px)',
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 -translate-x-1/2"
+        style={{
+          bottom: '3%',
+          width: `${Math.round(cardW * 3)}px`,
+          height: `${Math.round(cardH * 0.34)}px`,
+          background: `radial-gradient(ellipse 50% 50% at 50% 50%, ${accent}18, transparent 72%)`,
+        }}
+      />
+      <div
+        ref={ringRef}
+        className="absolute left-1/2 top-1/2"
+        style={{ transformStyle: 'preserve-3d', width: 0, height: 0 }}
+      >
+        {items.map((post, i) => (
+          <div
+            key={`${post.src}-${i}`}
+            className="absolute"
+            style={{
+              width: cardW,
+              height: cardH,
+              left: -cardW / 2,
+              top: -cardH / 2,
+              transform: `rotateY(${i * theta}deg) translateZ(${radius}px)`,
+              transformStyle: 'preserve-3d',
+            }}
+          >
+            <div
+              ref={setCardRef}
+              data-index={i}
+              role="button"
+              tabIndex={-1}
+              aria-label={
+                i === activeIndex
+                  ? `${post.client} — ${post.title}. Press to expand.`
+                  : `Bring ${post.client} — ${post.title} to the front`
+              }
+              onClick={() => onCardClick(i)}
+              className="relative h-full w-full cursor-pointer overflow-hidden rounded-[18px] will-change-transform"
+              style={{ boxShadow: '0 26px 60px -18px rgba(0,0,0,0.85)' }}
+            >
+              <Image
+                src={post.src}
+                alt={post.alt}
+                fill
+                className="pointer-events-none object-cover"
+                sizes="(max-width: 700px) 46vw, 420px"
+                draggable={false}
+              />
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3"
+                style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.4), transparent)' }}
+              />
+              {post.provenance === 'concept-placeholder' && (
+                <span
+                  aria-hidden="true"
+                  className="font-display pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-[8px] font-medium uppercase text-text-100"
+                  style={{
+                    letterSpacing: '0.16em',
+                    background: 'rgba(2,3,6,0.78)',
+                    border: '1px solid rgba(255,255,255,0.28)',
+                  }}
+                >
+                  Concept placeholder
+                </span>
+              )}
+              {/* A restrained VIEW LARGE affordance on the front card, so the
+                  click target is discoverable without a hover-only label. */}
+              {i === activeIndex && (
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-1.5 font-display text-[9px] font-medium uppercase text-text-100 transition-opacity duration-500"
+                  style={{
+                    letterSpacing: '0.22em',
+                    background: 'rgba(2,3,6,0.62)',
+                    border: '1px solid var(--blue-alpha-40)',
+                    opacity: 0.9,
+                  }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                    <path d="M5 1H1v4M9 13h4V9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                  </svg>
+                  View large
+                </span>
+              )}
+              {/* the client accent, only as a hairline on the front card */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] transition-opacity duration-500"
+                style={{ background: post.accent, opacity: i === activeIndex ? 0.9 : 0 }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
   return (
     <section aria-label={label} className="relative">
       {narrow ? (
-        <div className="flow-gutter relative z-10 mb-6">{headingBlock}</div>
+        <>
+          <div className="flow-gutter relative z-10 mb-6">{headingBlock}</div>
+          {stageBlock}
+          <div className="flow-gutter relative z-10 mt-7 flex flex-wrap items-center justify-between gap-x-8 gap-y-5">
+            {infoBlock}
+            {controlsBlock}
+          </div>
+        </>
       ) : (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-0 flow-gutter">{headingBlock}</div>
+        /*
+          Desktop: the same 4/8 editorial split the phone reels use. The heading
+          used to be an absolutely-positioned overlay that the ring physically
+          covered, which is why the scene read as a floating technical demo with
+          no author. It now has a column of its own.
+        */
+        <div className="flow-gutter grid grid-cols-12 items-center gap-x-8">
+          <div className="relative z-10 col-span-4">
+            {headingBlock}
+            {explanation && (
+              <p className="font-body measure mt-6 text-sm leading-relaxed text-text-300">
+                {explanation}
+              </p>
+            )}
+            <div className="mt-10">{infoBlock}</div>
+            <div className="mt-6">{controlsBlock}</div>
+          </div>
+          <div className="col-span-8">{stageBlock}</div>
+        </div>
       )}
-
-      <div
-        ref={stageRef}
-        className="relative mx-auto select-none touch-pan-y"
-        style={{
-          height: stageH,
-          // Capped: full-width made the installation read as a standalone
-          // demonstration rather than part of the case-study narrative.
-          width: '100%',
-          maxWidth: narrow ? 720 : 1480,
-          marginTop: narrow ? 0 : 'clamp(5rem, 12vh, 10rem)',
-          perspective: small ? '1100px' : '1700px',
-          perspectiveOrigin: narrow ? '50% 34%' : '54% 32%',
-          cursor: spinnable && !reduced ? 'grab' : 'default',
-        }}
-        role="group"
-        aria-roledescription="carousel"
-        aria-label={`${label} — drag to spin, or use the arrow keys`}
-        tabIndex={0}
-        onPointerDown={spinnable ? onPointerDown : undefined}
-        onPointerMove={spinnable ? onPointerMove : undefined}
-        onPointerUp={spinnable ? endDrag : undefined}
-        onPointerCancel={spinnable ? endDrag : undefined}
-        onKeyDown={onKeyDown}
-        onMouseEnter={pauseIdle('hover')}
-        onMouseLeave={resumeIdle('hover')}
-        onFocus={pauseIdle('focus')}
-        onBlur={resumeIdle('focus')}
-      >
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-1/2 rounded-[50%]"
-          style={{
-            width: `${Math.round(Math.min((stageW || 1100) * 0.92, cardW * 4.5))}px`,
-            height: `${Math.round(cardH * 0.78)}px`,
-            transform: 'translate(-50%, -50%) rotate(-7deg)',
-            border: `1px solid ${accent}42`,
-            boxShadow: `inset 0 0 70px ${accent}12, 0 0 70px ${accent}10`,
-          }}
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-1/2 rounded-[50%]"
-          style={{
-            width: `${Math.round(Math.min((stageW || 1100) * 0.86, cardW * 4.1))}px`,
-            height: `${Math.round(cardH * 0.34)}px`,
-            transform: 'translate(-50%, -50%) rotate(9deg)',
-            border: '1px solid rgba(255,255,255,0.09)',
-            background: `radial-gradient(ellipse at center, ${accent}12, transparent 68%)`,
-          }}
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-[18%] h-[64%] w-px -translate-x-1/2"
-          style={{
-            background: `linear-gradient(to bottom, transparent, ${accent}5c, rgba(255,255,255,0.14), transparent)`,
-            boxShadow: `0 0 24px ${accent}44`,
-          }}
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 -translate-x-1/2"
-          style={{
-            bottom: '6%',
-            width: `${Math.round(cardW * 2.6)}px`,
-            height: `${Math.round(cardH * 0.3)}px`,
-            background: `radial-gradient(ellipse 50% 50% at 50% 50%, rgba(0,0,0,0.68), transparent 70%)`,
-            filter: 'blur(6px)',
-          }}
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 -translate-x-1/2"
-          style={{
-            bottom: '2%',
-            width: `${Math.round(cardW * 3.2)}px`,
-            height: `${Math.round(cardH * 0.42)}px`,
-            background: `radial-gradient(ellipse 50% 50% at 50% 50%, ${accent}1c, transparent 72%)`,
-          }}
-        />
-        <div
-          ref={ringRef}
-          className="absolute left-1/2 top-1/2"
-          style={{ transformStyle: 'preserve-3d', width: 0, height: 0 }}
-        >
-          {items.map((post, i) => (
-            <div
-              key={`${post.src}-${i}`}
-              className="absolute"
-              style={{
-                width: cardW,
-                height: cardH,
-                left: -cardW / 2,
-                top: -cardH / 2,
-                transform: `rotateY(${i * theta}deg) translateZ(${radius}px)`,
-                transformStyle: 'preserve-3d',
-              }}
-            >
-              <div
-                ref={setCardRef}
-                data-index={i}
-                role="button"
-                tabIndex={-1}
-                aria-label={
-                  i === activeIndex
-                    ? `${post.client} — ${post.title}. Press to expand.`
-                    : `Bring ${post.client} — ${post.title} to the front`
-                }
-                onClick={() => onCardClick(i)}
-                className="relative h-full w-full cursor-pointer overflow-hidden rounded-[18px] will-change-transform"
-                style={{ boxShadow: '0 26px 60px -18px rgba(0,0,0,0.85)' }}
-              >
-                <Image
-                  src={post.src}
-                  alt={post.alt}
-                  fill
-                  className="pointer-events-none object-cover"
-                  sizes="(max-width: 700px) 46vw, 420px"
-                  draggable={false}
-                />
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3"
-                  style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.4), transparent)' }}
-                />
-                {post.provenance === 'concept-placeholder' && (
-                  <span
-                    aria-hidden="true"
-                    className="font-display pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-[8px] font-medium uppercase text-text-100"
-                    style={{
-                      letterSpacing: '0.16em',
-                      background: 'rgba(2,3,6,0.78)',
-                      border: '1px solid rgba(255,255,255,0.28)',
-                    }}
-                  >
-                    Concept placeholder
-                  </span>
-                )}
-                {/* A restrained VIEW LARGE affordance on the front card, so the
-                    click target is discoverable without a hover-only label. */}
-                {i === activeIndex && (
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-1.5 font-display text-[9px] font-medium uppercase text-text-100 transition-opacity duration-500"
-                    style={{
-                      letterSpacing: '0.22em',
-                      background: 'rgba(2,3,6,0.62)',
-                      border: '1px solid var(--blue-alpha-40)',
-                      opacity: 0.9,
-                    }}
-                  >
-                    <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                      <path d="M5 1H1v4M9 13h4V9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                    </svg>
-                    View large
-                  </span>
-                )}
-                {/* the client accent, only as a hairline on the front card */}
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] transition-opacity duration-500"
-                  style={{ background: post.accent, opacity: i === activeIndex ? 0.9 : 0 }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* base plate — active creative, position dots, hint */}
-      <div className="flow-gutter relative z-10 mt-7 flex flex-wrap items-center justify-between gap-x-8 gap-y-5">
-        <div className="min-w-0">
-          <p className="font-display text-[13px] font-medium uppercase text-text-100" style={{ letterSpacing: '0.2em' }}>
-            {item.client}
-          </p>
-          <p className="font-body mt-1.5 text-sm text-text-500">{item.title}</p>
-        </div>
-
-        <div className="flex items-center gap-5">
-          {spinnable && (
-            <div className="flex items-center gap-2" role="tablist" aria-label="Creative position">
-              {items.map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => rotateToIndex(i)}
-                  role="tab"
-                  aria-selected={i === activeIndex}
-                  aria-label={`Creative ${i + 1} of ${N}`}
-                  className="flex h-11 items-center"
-                >
-                  <span
-                    className="block h-1.5 rounded-full transition-all duration-300"
-                    style={{
-                      width: i === activeIndex ? 22 : 6,
-                      background: i === activeIndex ? accent : 'rgba(255,255,255,0.22)',
-                    }}
-                  />
-                </button>
-              ))}
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => setExpanded(activeIndex)}
-            className="font-display flex min-h-[44px] items-center gap-3 text-[12px] font-medium uppercase text-text-200 transition-colors hover:text-[var(--blue-400)]"
-            style={{ letterSpacing: '0.2em' }}
-          >
-            Expand
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <path d="M5 1H1v4M9 13h4V9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
-      </div>
 
       <p className="sr-only" aria-live="polite">
         Creative {activeIndex + 1} of {N}: {item.client}, {item.title}
@@ -783,6 +814,7 @@ export default function CreativeOrbit({
         items={lightboxItems}
         index={expanded}
         accent={accent}
+        sourceRect={sourceRect}
         onClose={() => setExpanded(null)}
         onIndex={(i) => {
           setExpanded(i)
