@@ -10,8 +10,15 @@ export function generateStaticParams() {
   return caseStudies.map((cs) => ({ slug: cs.id }))
 }
 
-export function generateMetadata({ params }: { params: { slug: string } }): Metadata {
-  const cs = getCaseStudy(params.slug)
+// Next 16 hands route params to the segment as a promise, so both entry points
+// await them before use.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}): Promise<Metadata> {
+  const { slug } = await params
+  const cs = getCaseStudy(slug)
   if (!cs) return {}
   return {
     // Real client name, real project category, and the verified hook — no
@@ -28,8 +35,9 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
   }
 }
 
-export default function Page({ params }: { params: { slug: string } }) {
-  const cs = getCaseStudy(params.slug)
+export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+  const cs = getCaseStudy(slug)
   if (!cs) notFound()
 
   return (
@@ -39,7 +47,7 @@ export default function Page({ params }: { params: { slug: string } }) {
           their colour appears at page scale. */}
       <FlowDirector accent={cs.accentColor} />
       <Navbar />
-      <CaseStudyPage slug={params.slug} />
+      <CaseStudyPage slug={slug} />
       <Footer />
       <div className="grain-overlay" aria-hidden="true" />
     </>
