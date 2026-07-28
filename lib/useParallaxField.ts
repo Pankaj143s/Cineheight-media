@@ -6,8 +6,30 @@ import { useReducedMotion } from './useMediaPreferences'
 import { readScrollSignal, subscribeScrollSignal } from './scrollSignal'
 
 const BASE_PX = 150
-const SELECTOR = '[data-parallax-y], [data-parallax-x], [data-parallax-scale]'
+const SELECTOR =
+  '[data-parallax-y], [data-parallax-x], [data-parallax-scale], [data-depth-layer]'
 const AUTO_SELECTOR = 'main h1, main h2, main figure, main [data-scene-media], main [data-open-media]'
+
+/**
+ * Named depth bands.
+ *
+ * Authoring `data-depth-layer="back"` says what a layer IS in the composition
+ * rather than picking a number, which is what keeps separate sections in
+ * proportion with each other. Multipliers are against `BASE_PX`, and the
+ * progress swing is roughly ±1, so `y: 0.2` is about ±30px of travel.
+ *
+ * back  ≈ 18–40px · mid ≈ 10–24px · front ≈ 4–14px
+ *
+ * An explicit `data-parallax-*` on the same element always wins, for the cases
+ * where a scene genuinely needs its own number.
+ */
+const DEPTH_PRESETS = {
+  back: { y: 0.2, x: 0.03, scale: 0.02 },
+  mid: { y: 0.11, x: 0.015, scale: 0.01 },
+  front: { y: 0.05, x: 0, scale: 0.004 },
+} as const
+
+type DepthLayer = keyof typeof DEPTH_PRESETS
 
 interface ParallaxItem {
   el: HTMLElement
@@ -65,15 +87,17 @@ export function useParallaxField(): void {
       }
     }
     const collect = (): ParallaxItem[] => {
-      const manual = Array.from(document.querySelectorAll<HTMLElement>(SELECTOR)).map((el) =>
-        makeItem(
+      const manual = Array.from(document.querySelectorAll<HTMLElement>(SELECTOR)).map((el) => {
+        const layer = el.dataset.depthLayer as DepthLayer | undefined
+        const preset = layer ? DEPTH_PRESETS[layer] : undefined
+        return makeItem(
           el,
-          Number(el.dataset.parallaxY ?? 0),
-          Number(el.dataset.parallaxX ?? 0),
-          Number(el.dataset.parallaxScale ?? 0),
+          Number(el.dataset.parallaxY ?? preset?.y ?? 0),
+          Number(el.dataset.parallaxX ?? preset?.x ?? 0),
+          Number(el.dataset.parallaxScale ?? preset?.scale ?? 0),
           false
         )
-      )
+      })
       const seen = new Set(manual.map((item) => item.el))
       const automatic = Array.from(document.querySelectorAll<HTMLElement>(AUTO_SELECTOR))
         .filter(

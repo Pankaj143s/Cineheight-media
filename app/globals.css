@@ -281,6 +281,7 @@ html[data-contour-active='true'] .static-contour-field {
 [data-parallax-y],
 [data-parallax-x],
 [data-parallax-scale],
+[data-depth-layer],
 [data-parallax-auto] {
   --parallax-x: 0px;
   --parallax-y: 0px;

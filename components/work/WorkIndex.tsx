@@ -8,7 +8,7 @@ import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { caseStudies } from '@/content/caseStudies'
 import { workIndexSlots } from '@/content/mediaSlots'
 import KineticLabel from '@/components/motion/KineticLabel'
-import SplitLineReveal from '@/components/motion/SplitLineReveal'
+import SliceRevealHeadline from '@/components/motion/SliceRevealHeadline'
 import MediaSpecPlaceholder from '@/components/media/MediaSpecPlaceholder'
 import CountUp from '@/components/ui/CountUp'
 import { clamp, damp } from '@/lib/utils'
@@ -141,10 +141,11 @@ export default function WorkIndex() {
 
       <header className="flow-gutter relative pb-[6vh] pt-32 lg:pt-40">
         <KineticLabel text="THE WORK" />
-        <SplitLineReveal
+        {/* Slice reveal here, stroke-fill on Contact, line reveal on the
+            homepage: each route resolves its main statement differently. */}
+        <SliceRevealHeadline
           as="h1"
-          lines={['Proof,', 'not promises.']}
-          srLabel="Proof, not promises."
+          text="Proof, not promises."
           className="font-display mt-6 font-bold uppercase text-text-100"
           style={{ fontSize: 'clamp(2.6rem, 10vw, 9rem)', lineHeight: 0.88, letterSpacing: '-0.035em' }}
         />

@@ -7,7 +7,7 @@ import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { caseStudies } from '@/content/caseStudies'
 import { featuredWorkSlots } from '@/content/mediaSlots'
 import KineticLabel from '@/components/motion/KineticLabel'
-import SplitLineReveal from '@/components/motion/SplitLineReveal'
+import StrokeFillHeadline from '@/components/motion/StrokeFillHeadline'
 import MediaSpecPlaceholder from '@/components/media/MediaSpecPlaceholder'
 import CountUp from '@/components/ui/CountUp'
 import { clamp, damp } from '@/lib/utils'
@@ -300,10 +300,10 @@ export default function FeaturedWorkJourney() {
   const intro = (
     <div className="flow-gutter">
       <KineticLabel text="SELECTED WORK" />
-      <SplitLineReveal
+      {/* The one signal-sweep statement on the homepage. */}
+      <StrokeFillHeadline
         as="h2"
-        lines={['Creative that moved people', '— and numbers.']}
-        srLabel="Creative that moved people — and numbers."
+        text="Creative that moved people — and numbers."
         className="type-display-1 font-display mt-6 font-bold uppercase text-text-100"
       />
       <p className="font-body measure-wide mt-7 text-base leading-relaxed text-text-300">

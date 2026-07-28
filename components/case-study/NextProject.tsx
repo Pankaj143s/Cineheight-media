@@ -101,7 +101,7 @@ export default function NextProject({ next }: { next: CaseStudy }) {
           {/* Dedicated 16:9 / 4:5 covers rather than a square reel poster
               stretched across a full-width stage — that discarded roughly 40%
               of the client's frame. */}
-          <div data-next-inner className="absolute inset-[-10%]">
+          <div data-next-inner data-depth-layer="back" className="absolute inset-[-10%]">
             <picture>
               <source media="(max-width: 767px)" srcSet={cover.mobile.src} />
               <source media="(min-width: 768px)" srcSet={cover.desktop.src} />
@@ -138,7 +138,7 @@ export default function NextProject({ next }: { next: CaseStudy }) {
           />
         </div>
 
-        <div className="flow-gutter absolute inset-x-0 bottom-0 pb-[7vh]">
+        <div data-depth-layer="front" className="flow-gutter absolute inset-x-0 bottom-0 pb-[7vh]">
           <p className="font-display text-[11px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.3em' }}>
             Next project
           </p>

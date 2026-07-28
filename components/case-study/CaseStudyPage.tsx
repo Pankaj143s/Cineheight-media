@@ -13,6 +13,7 @@ import CaseMetrics from './CaseMetrics'
 import NextProject from './NextProject'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
+import StrokeFillHeadline from '@/components/motion/StrokeFillHeadline'
 import type { PhoneReelItem } from '@/components/media/PhoneReelShell'
 import type { OrbitItem } from '@/components/media/CreativeOrbit'
 
@@ -109,10 +110,12 @@ export default function CaseStudyPage({ slug }: { slug: string }) {
             04
           </span>
           <KineticLabel text={bridge.eyebrow} />
-          <SplitLineReveal
+          {/* Swept in the client's own accent — the transformation statement
+              is the one place a case study borrows their colour for type. */}
+          <StrokeFillHeadline
             as="h2"
-            lines={[bridge.heading]}
-            srLabel={bridge.heading}
+            text={bridge.heading}
+            accent={cs.accentColor}
             className="type-display-2 font-display mt-6 max-w-[20ch] font-bold uppercase text-text-100"
           />
           <p className="font-body mt-6 text-[15px] leading-relaxed text-text-300 sm:text-base" style={{ maxWidth: '52ch' }}>

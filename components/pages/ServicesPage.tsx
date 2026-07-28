@@ -376,7 +376,8 @@ export default function ServicesPage() {
         {/* the sticky shared canvas — desktop only, releases before the CTA */}
         {!mobile && (
           <div className="col-span-12 lg:col-span-6">
-            <div className="sticky top-[18vh]">{canvas}</div>
+            {/* Image plane only. The descriptions beside it must not move. */}
+            <div className="sticky top-[18vh]" data-depth-layer="front">{canvas}</div>
           </div>
         )}
       </div>

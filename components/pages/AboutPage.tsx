@@ -97,7 +97,7 @@ export default function AboutPage() {
       </header>
 
       {/* the film, emerging through a mask */}
-      <div data-film className="relative mx-auto w-[96vw] max-w-[1820px] overflow-hidden will-change-transform">
+      <div data-film data-depth-layer="back" className="relative mx-auto w-[96vw] max-w-[1820px] overflow-hidden will-change-transform">
         <InlineVideo src={showreel.src} poster={showreel.poster} label="Cineheight production film" />
       </div>
 
@@ -203,7 +203,7 @@ export default function AboutPage() {
       </section>
 
       {/* the ask */}
-      <section aria-label="Start a project" className="flow-gutter relative" style={{ marginTop: mobile ? '12vh' : '18vh' }}>
+      <section aria-label="Start a project" data-depth-layer="front" className="flow-gutter relative" style={{ marginTop: mobile ? '12vh' : '18vh' }}>
         <ScrollHeadline
           as="h2"
           text={closing.question}

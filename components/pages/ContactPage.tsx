@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { contact, closing } from '@/content/siteContent'
 import KineticLabel from '@/components/motion/KineticLabel'
-import SplitLineReveal from '@/components/motion/SplitLineReveal'
+import StrokeFillHeadline from '@/components/motion/StrokeFillHeadline'
 import ProjectContactForm from '@/components/contact/ProjectContactForm'
 import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { clamp, damp } from '@/lib/utils'
@@ -193,10 +193,9 @@ export default function ContactPage() {
 
       <header className="flow-gutter relative z-10 pb-[4vh] pt-32 lg:pt-40">
         <KineticLabel text="START A PROJECT" />
-        <SplitLineReveal
+        <StrokeFillHeadline
           as="h1"
-          lines={["Let's build", 'your brand.']}
-          srLabel={closing.cta}
+          text="Let's build your brand."
           className="font-display mt-6 font-bold uppercase text-text-100"
           style={{ fontSize: 'clamp(2.6rem, 10vw, 9rem)', lineHeight: 0.88, letterSpacing: '-0.04em' }}
         />
@@ -207,7 +206,9 @@ export default function ContactPage() {
 
       <section aria-label="Contact channels and project form" className="flow-gutter relative z-10" style={{ marginTop: mobile ? '8vh' : '12vh' }}>
         <div className="grid gap-x-14 gap-y-16 lg:grid-cols-12">
-          <ul className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:col-span-6">
+          {/* The channel list drifts gently; the form never moves — a field
+              that shifts under the cursor while you type is hostile. */}
+          <ul data-depth-layer="mid" className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:col-span-6">
             {CHANNELS.map((ch, i) => (
               <li
                 key={ch.label}
