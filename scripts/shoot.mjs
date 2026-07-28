@@ -1182,10 +1182,29 @@ if (hasFlag('refinement')) {
   await sleep(190)
   await shoot(cdp, 'refinement/pointer-click__1440x900.png')
 
+  /*
+   * The loader lives for well under a second, and its mark block fades in and
+   * out across that window, so a single timed shot easily lands on an empty
+   * frame. Capture a short burst and record the bar's real progress with each
+   * one, so there is always evidence of the mid and completed states.
+   */
   await goto(cdp, BASE + '/')
   await cdp.eval(`document.querySelector('a[href="/work"]')?.click()`)
-  await sleep(250)
-  await shoot(cdp, 'refinement/route-loader-progress__1440x900.png')
+  for (const at of [90, 170, 250, 330, 430]) {
+    await sleep(at === 90 ? 90 : 80)
+    const state = await cdp.eval(`(() => {
+      const o = document.querySelector('[data-route-loader]')
+      if (!o) return null
+      const mark = o.querySelector('.route-loader-mark')
+      return {
+        progress: o.dataset.routeProgress,
+        phase: o.dataset.routePhase,
+        markOpacity: mark ? getComputedStyle(mark).opacity : null,
+      }
+    })()`)
+    await shoot(cdp, `refinement/route-loader-${at}ms__1440x900.png`)
+    console.log(`  loader @${at}ms`, JSON.stringify(state))
+  }
 
   await centre('/services', '[aria-label="Video Production & Editing"]')
   await shoot(cdp, 'refinement/service-active-video__1440x900.png')
@@ -1242,12 +1261,35 @@ if (hasFlag('refinement')) {
 
   await centre('/', 'footer')
   await shoot(cdp, 'refinement/social-rest__1440x900.png')
-  await cdp.eval(`document.querySelector('footer button[aria-label^="Instagram"]')?.focus()`)
-  await sleep(320)
-  await shoot(cdp, 'refinement/social-focus__1440x900.png')
-  await cdp.eval(`document.querySelector('footer button[aria-label^="Instagram"]')?.click()`)
-  await sleep(220)
-  await shoot(cdp, 'refinement/social-tooltip__1440x900.png')
+
+  /*
+   * Hover and focus must be produced by real input. A programmatic .focus()
+   * does not reliably match :focus-visible (Chrome only applies it when the
+   * last interaction was a keyboard one), so the filled state never appeared.
+   */
+  const socialBox = await cdp.eval(`(() => {
+    const b = document.querySelector('footer button[aria-label^="Instagram"]')
+    if (!b) return null
+    const r = b.getBoundingClientRect()
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }
+  })()`)
+  if (socialBox) {
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: socialBox.x, y: socialBox.y })
+    await sleep(520)
+    await shoot(cdp, 'refinement/social-hover__1440x900.png')
+
+    // Genuine keyboard focus: Tab from the preceding control.
+    await cdp.eval(`document.querySelector('footer button[aria-label^="Facebook"]')?.focus()`)
+    await cdp.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 })
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 })
+    await sleep(520)
+    await shoot(cdp, 'refinement/social-focus__1440x900.png')
+
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: socialBox.x, y: socialBox.y, button: 'left', clickCount: 1 })
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: socialBox.x, y: socialBox.y, button: 'left', clickCount: 1 })
+    await sleep(260)
+    await shoot(cdp, 'refinement/social-tooltip__1440x900.png')
+  }
 
   console.log('captured refinement interaction evidence')
   proc?.kill()
