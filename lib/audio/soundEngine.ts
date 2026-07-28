@@ -365,60 +365,6 @@ export class SoundEngine {
     }
   }
 
-  /**
-   * The pluck, fired on pointer-down in sympathy with the canvas ripple: a
-   * quiet low transient with a short bright tick on top of it.
-   */
-  pluck(panX: number) {
-    const ctx = this.ctx
-    if (!this.running || !ctx || !this.sfxDuck || !this.whiteBuffer) return
-    if (!this.takeToken(performance.now())) return
-
-    const now = ctx.currentTime
-    const pan = ctx.createStereoPanner()
-    pan.pan.value = clamp(panX * 2 - 1, -1, 1)
-    pan.connect(this.sfxDuck)
-
-    // body
-    const osc = ctx.createOscillator()
-    osc.type = 'sine'
-    osc.frequency.setValueAtTime(150, now)
-    osc.frequency.exponentialRampToValueAtTime(88, now + 0.22)
-    const oscGain = ctx.createGain()
-    oscGain.gain.setValueAtTime(0.001, now)
-    oscGain.gain.linearRampToValueAtTime(0.06, now + 0.012)
-    oscGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3)
-    osc.connect(oscGain)
-    oscGain.connect(pan)
-    osc.start(now)
-    osc.stop(now + 0.32)
-
-    // tick
-    const tick = ctx.createBufferSource()
-    tick.buffer = this.whiteBuffer
-    const tickFilter = ctx.createBiquadFilter()
-    tickFilter.type = 'bandpass'
-    tickFilter.frequency.value = 4200
-    tickFilter.Q.value = 1.4
-    const tickGain = ctx.createGain()
-    tickGain.gain.setValueAtTime(0.028, now)
-    tickGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045)
-    tick.connect(tickFilter)
-    tickFilter.connect(tickGain)
-    tickGain.connect(pan)
-    tick.start(now)
-    tick.stop(now + 0.06)
-
-    osc.onended = () => {
-      osc.disconnect()
-      oscGain.disconnect()
-      tick.disconnect()
-      tickFilter.disconnect()
-      tickGain.disconnect()
-      pan.disconnect()
-    }
-  }
-
   /** Soft rising sweep as the route mask closes. */
   routeOut() {
     this.sweep(320, 2300, 0.36, 0.03)

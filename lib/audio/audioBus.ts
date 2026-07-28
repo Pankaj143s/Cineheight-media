@@ -13,10 +13,10 @@
  *     component that reports twice, or unmounts while unmuted, cannot corrupt
  *     the count.
  *
- *  2. **Frame-synced cues.** The pointer canvas and the route loader want their
- *     sound to land on the same frame as their visual, without either importing
- *     the audio engine (which must never be pulled into a server render or into
- *     a bundle for a visitor who has sound switched off).
+ *  2. **Frame-synced cues.** The route loader wants its sound to land on the
+ *     same frame as its visual, without importing the audio engine (which must
+ *     never be pulled into a server render or into a bundle for a visitor who
+ *     has sound switched off).
  *
  * Nothing here touches the Web Audio API. The engine subscribes; if the visitor
  * has not enabled sound, every publish is a no-op walk over an empty listener
@@ -26,8 +26,6 @@
 export type AudioBusEvent =
   /** Fired only when the audible-video tally crosses 0 ↔ non-zero. */
   | { type: 'audible-videos'; count: number }
-  /** The pointer field was plucked, in viewport coordinates. */
-  | { type: 'pointer-pluck'; x: number; y: number }
   /** Route loader began closing over the outgoing page. */
   | { type: 'route-out' }
   /** Route loader is revealing the destination. */

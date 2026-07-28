@@ -3,20 +3,20 @@
 import dynamic from 'next/dynamic'
 import { useEffect } from 'react'
 import { ScrollTrigger } from '@/lib/gsap'
-import { useCanRunRichEffects } from '@/lib/useMediaPreferences'
+import { useCursorTrailEnabled } from '@/lib/useMediaPreferences'
 import { useParallaxField } from '@/lib/useParallaxField'
 import AtmosphereLayer from './AtmosphereLayer'
 import FlowThread from './FlowThread'
 
-// The canvas field is desktop-only and purely decorative — keep it out of the
-// initial bundle and off the server render entirely. The capability gate is
-// checked HERE rather than inside the component so phones and low-power
-// machines never even fetch the chunk.
-const PointerAtmosphere = dynamic(() => import('./PointerAtmosphere'), { ssr: false })
+// The cursor is desktop-only and purely decorative — keep it out of the initial
+// bundle and off the server render entirely. The capability gate is checked
+// HERE rather than inside the component so touch devices never even fetch the
+// chunk.
+const CursorTrail = dynamic(() => import('./CursorTrail'), { ssr: false })
 
 /**
  * One per route, mounted above the page content. Owns the three global layers
- * (atmosphere, signal thread, pointer field) and the single place that tells
+ * (static atmosphere, signal thread, cursor) and the single place that tells
  * ScrollTrigger the layout has settled.
  *
  * Every component's own ScrollTriggers would otherwise each schedule their own
@@ -24,7 +24,7 @@ const PointerAtmosphere = dynamic(() => import('./PointerAtmosphere'), { ssr: fa
  * pass instead of a dozen competing ones.
  */
 export default function FlowDirector({ accent }: { accent?: string }) {
-  const rich = useCanRunRichEffects()
+  const cursor = useCursorTrailEnabled()
 
   useParallaxField()
 
@@ -51,7 +51,7 @@ export default function FlowDirector({ accent }: { accent?: string }) {
   return (
     <>
       <AtmosphereLayer accent={accent} />
-      {rich && <PointerAtmosphere />}
+      {cursor && <CursorTrail />}
       <FlowThread />
     </>
   )

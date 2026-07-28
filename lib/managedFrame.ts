@@ -44,7 +44,16 @@ export function createManagedFrameLoop(
       frameId = 0
       return
     }
-    const deltaMs = Math.min(50, previous ? now - previous : 16.7)
+    /*
+     * `previous` is stamped with performance.now() inside wake(), but `now` is
+     * the rAF timestamp — the START of the frame being serviced. When wake() is
+     * called from an event handler that runs after that frame began, the
+     * timestamp is EARLIER than the stamp, and `now - previous` comes out
+     * negative. A negative delta inverts every `1 - Math.exp(-dt / tau)`
+     * smoothing factor in every consumer, so eased values run away from their
+     * target instead of toward it. Clamp to a sane frame budget at both ends.
+     */
+    const deltaMs = previous ? Math.min(50, Math.max(0, now - previous)) : 16.7
     previous = now
     const keepRunning = callback(now, deltaMs)
     if (options.stopOnFalse !== false && keepRunning === false) {

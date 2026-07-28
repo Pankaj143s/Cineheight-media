@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { gsap } from '@/lib/gsap'
@@ -22,19 +22,17 @@ import { observeVisibleLayerPromotion } from '@/lib/visibleLayerPromotion'
  * Each project owns a major vertical scene whose media runs full bleed and
  * leans toward the pointer; the client name, tagline and verified metric react
  * to proximity; consecutive scenes overlap so one world dissolves into the
- * next; and the page's accent shifts to whichever project currently holds the
- * viewport.
+ * next; and each scene reveals its own accent under the pointer on hover. The
+ * page background itself stays static — no route-wide accent follows you.
  *
  * Nothing is hover-only: every name, metric and link is visible and tappable
  * before any pointer arrives, and the whole scene is one link target.
  */
 export default function WorkIndex() {
   const rootRef = useRef<HTMLElement>(null)
-  const accentRef = useRef<HTMLDivElement>(null)
   const reduced = useReducedMotion()
   const mobile = useIsMobileTier()
   const rich = useCanRunRichEffects()
-  const [current, setCurrent] = useState(0)
 
   useIsomorphicLayoutEffect(() => {
     if (reduced) return
@@ -70,25 +68,6 @@ export default function WorkIndex() {
     }, rootRef)
     return () => ctx.revert()
   }, [reduced])
-
-  // Which world currently holds the viewport — drives the background accent.
-  useEffect(() => {
-    const scenes = rootRef.current?.querySelectorAll('[data-scene]')
-    if (!scenes) return
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (e.intersectionRatio > 0.45) {
-            const i = Number((e.target as HTMLElement).dataset.scene)
-            setCurrent(i)
-          }
-        })
-      },
-      { threshold: [0, 0.45, 0.8] }
-    )
-    scenes.forEach((s) => io.observe(s))
-    return () => io.disconnect()
-  }, [])
 
   // Pointer lean, shared by every scene through one loop.
   useEffect(() => {
@@ -129,16 +108,6 @@ export default function WorkIndex() {
       className="relative z-10"
       style={{ ['--lean-x' as string]: '0px', ['--lean-y' as string]: '0px', ['--px' as string]: '50%', ['--py' as string]: '50%' }}
     >
-      {/* the accent of whichever world you are standing in */}
-      <div
-        ref={accentRef}
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-0 z-0 transition-[background] duration-[1200ms]"
-        style={{
-          background: `radial-gradient(ellipse 60% 46% at var(--px) var(--py), ${caseStudies[current].accentColor}1f, transparent 72%)`,
-        }}
-      />
-
       <header className="flow-gutter relative pb-[6vh] pt-32 lg:pt-40">
         <KineticLabel text="THE WORK" />
         {/* Slice reveal here, stroke-fill on Contact, line reveal on the

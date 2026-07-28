@@ -616,7 +616,7 @@ if (hasFlag('probe')) {
     `offset ${atTop?.dashOffset} of ${atTop?.dashArray}`
   )
 
-  // ---- pointer canvas: DPR cap, idle sleep, visibility sleep ------------
+  // ---- cursor trail: DPR cap, idle sleep, visibility sleep --------------
   await cdp.eval(`document.querySelector('#what-we-do')?.scrollIntoView({ block: 'center' })`)
   await sleep(700)
   const textLayerState = await cdp.eval(`(() => {
@@ -632,7 +632,7 @@ if (hasFlag('probe')) {
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 720, y: 450 })
   await sleep(500)
   const canvasDpr = await cdp.eval(`(() => {
-    const canvas = document.querySelector('[data-signal-playground]')
+    const canvas = document.querySelector('[data-cursor-trail]')
     if (!canvas) return null
     return {
       x: Number((canvas.width / canvas.clientWidth).toFixed(2)),
@@ -640,27 +640,154 @@ if (hasFlag('probe')) {
       device: devicePixelRatio,
       profile: canvas.dataset.motionProfile,
       trailPoints: Number(canvas.dataset.trailPoints),
-      contourPoints: Number(canvas.dataset.contourPoints),
+      hasContourPoints: 'contourPoints' in canvas.dataset,
     }
   })()`)
   check(
-    'pointer canvas caps backing DPR at 1.5',
+    'cursor trail canvas caps backing DPR at 1.5',
     canvasDpr && canvasDpr.x <= 1.5 && canvasDpr.y <= 1.5 && canvasDpr.device === 2,
     canvasDpr ? `${canvasDpr.x}x / ${canvasDpr.y}x at device ${canvasDpr.device}` : 'canvas missing'
   )
   check(
-    'adaptive pointer profile keeps the refined curved trail',
+    'adaptive profile sizes the trail buffer and drops the contour field',
     canvasDpr &&
       ['high', 'balanced'].includes(canvasDpr.profile) &&
       canvasDpr.trailPoints >= 12 &&
-      canvasDpr.contourPoints >= 21,
+      canvasDpr.hasContourPoints === false,
     canvasDpr
-      ? `${canvasDpr.profile}; trail=${canvasDpr.trailPoints}; contour=${canvasDpr.contourPoints}`
+      ? `${canvasDpr.profile}; trail=${canvasDpr.trailPoints}; contourPoints=${canvasDpr.hasContourPoints}`
       : 'canvas missing'
   )
 
+  // ---- the retired contour system must stay gone -----------------------
+  const contourGone = await cdp.eval(`(() => {
+    const field = document.querySelector('.static-contour-field')
+    return {
+      playground: !!document.querySelector('[data-signal-playground]'),
+      flagged: document.documentElement.dataset.contourActive ?? null,
+      textureOpacity: field ? Number(getComputedStyle(field).opacity) : null,
+    }
+  })()`)
+  check(
+    'the pointer contour field is gone and its texture is no longer hidden',
+    contourGone.playground === false &&
+      contourGone.flagged === null &&
+      contourGone.textureOpacity > 0,
+    JSON.stringify(contourGone)
+  )
+
+  // ---- the background reacts to neither pointer nor scroll -------------
+  const atmosphereSnapshot = `(() => {
+    const root = document.querySelector('[data-atmosphere]')
+    if (!root) return null
+    const parts = [getComputedStyle(root).transform]
+    for (const child of root.children) {
+      const s = getComputedStyle(child)
+      parts.push(s.backgroundImage, s.backgroundPosition, s.transform, s.opacity)
+    }
+    return parts.join('|')
+  })()`
+  const atmosphereBefore = await cdp.eval(atmosphereSnapshot)
+  for (const [x, y] of [[200, 160], [1100, 700], [640, 300], [1350, 120]]) {
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y })
+    await sleep(60)
+  }
+  await cdp.eval(`window.scrollTo(0, document.documentElement.scrollHeight * 0.55)`)
+  await sleep(900)
+  const atmosphereAfter = await cdp.eval(atmosphereSnapshot)
+  check(
+    'the background reacts to neither pointer nor scroll',
+    atmosphereBefore && atmosphereBefore === atmosphereAfter,
+    atmosphereBefore === atmosphereAfter ? 'identical' : `${atmosphereBefore}\n!==\n${atmosphereAfter}`
+  )
+
+  // ---- the dot sits on the pointer, and the trail never spans a jump ---
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 812, y: 396 })
+  await sleep(120)
+  const dotOffset = await cdp.eval(`(() => {
+    const dot = document.querySelector('[data-signal-cursor] .signal-cursor-dot')
+    if (!dot) return null
+    const r = dot.getBoundingClientRect()
+    return { dx: Number((r.left + r.width / 2 - 812).toFixed(2)), dy: Number((r.top + r.height / 2 - 396).toFixed(2)) }
+  })()`)
+  check(
+    'the cursor dot sits on the pointer within 2px',
+    dotOffset && Math.abs(dotOffset.dx) <= 2 && Math.abs(dotOffset.dy) <= 2,
+    dotOffset ? `dx ${dotOffset.dx}, dy ${dotOffset.dy}` : 'dot missing'
+  )
+
+  // A reload gives a genuinely first-ever pointer event, which is the case
+  // that used to draw a chord out of the viewport centre.
+  await goto(cdp, BASE + '/')
+  await sleep(500)
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1180, y: 300 })
+  await sleep(140)
+  const firstEntry = await cdp.eval(`(() => {
+    const c = window.__cineheightCursor
+    if (!c) return null
+    const cx = innerWidth / 2
+    const cy = innerHeight / 2
+    let far = 0
+    let nearCentre = 0
+    for (const [x, y] of c.points) {
+      far = Math.max(far, Math.hypot(x - 1180, y - 300))
+      if (Math.hypot(x - cx, y - cy) < 60) nearCentre++
+    }
+    return { seeded: c.seeded, far: Number(far.toFixed(1)), nearCentre, maxChord: Number(c.maxChord.toFixed(1)) }
+  })()`)
+  check(
+    'the trail seeds at the pointer, never from the viewport centre',
+    firstEntry && firstEntry.seeded && firstEntry.far < 220 && firstEntry.nearCentre === 0,
+    firstEntry ? JSON.stringify(firstEntry) : '__cineheightCursor missing'
+  )
+
+  /*
+   * Real travel, so the buffer actually fills with distinct points: a single
+   * stationary move collapses every sample onto one spot and would satisfy the
+   * chord bound trivially. Steps are ~44px, comfortably inside JUMP_PX, so the
+   * trail must span real distance while no segment stretches into a chord.
+   */
+  for (let i = 0; i < 14; i++) {
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 420 + i * 40, y: 300 + i * 18 })
+    await sleep(22)
+  }
+  const inMotion = await cdp.eval(`(() => {
+    const c = window.__cineheightCursor
+    if (!c) return null
+    const pts = c.points
+    const span = Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1])
+    return { maxChord: Number(c.maxChord.toFixed(1)), span: Number(span.toFixed(1)) }
+  })()`)
+  check(
+    'a moving pointer grows a real trail with no long chords',
+    inMotion && inMotion.span > 40 && inMotion.maxChord > 1 && inMotion.maxChord < 220,
+    inMotion ? `span ${inMotion.span}, maxChord ${inMotion.maxChord}` : '__cineheightCursor missing'
+  )
+
+  // Now teleport. The buffer is full of real points, so a naive implementation
+  // would leave one segment spanning the whole jump.
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1320, y: 800 })
+  await sleep(40)
+  const afterJump = await cdp.eval(`(() => {
+    const c = window.__cineheightCursor
+    if (!c) return null
+    let far = 0
+    for (const [x, y] of c.points) far = Math.max(far, Math.hypot(x - 1320, y - 800))
+    return { maxChord: Number(c.maxChord.toFixed(1)), far: Number(far.toFixed(1)) }
+  })()`)
+  check(
+    'a large pointer jump reseeds instead of drawing a long chord',
+    afterJump && afterJump.maxChord < 220 && afterJump.far < 220,
+    afterJump ? `maxChord ${afterJump.maxChord}, farthest point ${afterJump.far}` : 'missing'
+  )
+
+  await cdp.eval(`document.querySelector('#what-we-do')?.scrollIntoView({ block: 'center' })`)
+  await sleep(500)
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 720, y: 450 })
+  await sleep(300)
+
   const canvasHash = `(() => {
-    const canvas = document.querySelector('[data-signal-playground]')
+    const canvas = document.querySelector('[data-cursor-trail]')
     if (!canvas) return null
     const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data
     let hash = 2166136261
@@ -671,7 +798,7 @@ if (hasFlag('probe')) {
   const idleHashA = await cdp.eval(canvasHash)
   await sleep(450)
   const idleHashB = await cdp.eval(canvasHash)
-  check('pointer canvas sleeps after idle', idleHashA != null && idleHashA === idleHashB, `${idleHashA} → ${idleHashB}`)
+  check('cursor trail sleeps after idle', idleHashA != null && idleHashA === idleHashB, `${idleHashA} → ${idleHashB}`)
 
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 590, y: 540 })
   await sleep(180)
@@ -680,7 +807,7 @@ if (hasFlag('probe')) {
   const hiddenHashA = await cdp.eval(canvasHash)
   await sleep(420)
   const hiddenHashB = await cdp.eval(canvasHash)
-  check('pointer canvas sleeps while document is hidden', hiddenHashA != null && hiddenHashA === hiddenHashB, `${hiddenHashA} → ${hiddenHashB}`)
+  check('cursor trail sleeps while document is hidden', hiddenHashA != null && hiddenHashA === hiddenHashB, `${hiddenHashA} → ${hiddenHashB}`)
   await cdp.eval(`Object.defineProperty(document, 'hidden', { value: false, configurable: true }); document.dispatchEvent(new Event('visibilitychange'))`)
 
   // Placeholder contracts must not issue requests until their status is ready.
@@ -694,6 +821,124 @@ if (hasFlag('probe')) {
     `performance.getEntriesByType('resource').filter(e => /\\/media\\/work-index\\//.test(e.name)).map(e => e.name)`
   )
   check('work-index placeholders issue no media-slot network requests', indexPlaceholderLoads.length === 0, indexPlaceholderLoads.join(', '))
+
+  /*
+   * The Work H1 used to be N stacked <h1> elements, each carrying the caller's
+   * `mt-6`, so the in-flow copy and the absolute slices had different vertical
+   * origins and the automatic parallax field moved each duplicate on its own.
+   * Assert one heading, the complete phrase, and slices that share bounds — at
+   * the narrowest supported width as well as the default one.
+   */
+  const workHeading = async (w, h) => {
+    await setViewport(cdp, w, h, 2)
+    await goto(cdp, BASE + '/work')
+    await sleep(1400)
+    return cdp.eval(`(() => {
+      const headings = document.querySelectorAll('main h1')
+      const h1 = headings[0]
+      if (!h1) return { count: headings.length }
+      const box = h1.getBoundingClientRect()
+      const slices = Array.from(h1.querySelectorAll('span[aria-hidden]')).slice(1)
+      const rects = slices.map(s => s.getBoundingClientRect())
+      const spread = (pick) => {
+        const vals = rects.map(pick)
+        return Number((Math.max(...vals) - Math.min(...vals)).toFixed(2))
+      }
+      return {
+        n: headings.length,
+        sr: h1.querySelector('.sr-only')?.textContent ?? '',
+        slices: rects.length,
+        dx: spread(r => r.left),
+        dy: spread(r => r.top),
+        dw: spread(r => r.width),
+        op: Number(getComputedStyle(slices[0]).opacity.slice(0, 4)),
+        over: Number((box.right - document.documentElement.clientWidth).toFixed(1)),
+        // Every slice must cover the heading box exactly: same origin, same
+        // size. If any drifted, the phrase would come apart mid-reveal.
+        fits: rects.every(r =>
+          Math.abs(r.top - box.top) < 0.5 &&
+          Math.abs(r.left - box.left) < 0.5 &&
+          Math.abs(r.height - box.height) < 0.5),
+      }
+    })()`)
+  }
+  /*
+   * The slice bands must leave no seam. Adjacent `clip-path` edges on the same
+   * row each antialias to roughly half coverage, so a naive abutting layout
+   * paints a permanent grey hairline through every glyph. Screenshot a stroke
+   * of the heading and assert that the darkest row inside the glyph is still
+   * essentially white — measured, because it is invisible in DOM numbers.
+   */
+  const headingSeam = async () => {
+    const box = await cdp.eval(`(() => {
+      const h1 = document.querySelector('main h1')
+      if (!h1) return null
+      const r = h1.getBoundingClientRect()
+      return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }
+    })()`)
+    if (!box) return null
+    const shot = await cdp.send('Page.captureScreenshot', {
+      format: 'png',
+      clip: { x: box.x, y: box.y, width: box.w, height: box.h, scale: 1 },
+    })
+    const png = Buffer.from(shot.data, 'base64')
+    writeFileSync(path.join(OUT, `seam-${box.w}x${box.h}.png`), png)
+    const { default: sharp } = await import('sharp')
+    const { data, info } = await sharp(png).greyscale().raw().toBuffer({ resolveWithObject: true })
+    // Walk the column that runs down the stem of the first letter: rows there
+    // are either background or solid glyph, so a seam shows up as a dip.
+    let bestColumn = 0
+    let bestSolid = 0
+    for (let x = 0; x < info.width; x++) {
+      let solid = 0
+      for (let y = 0; y < info.height; y++) if (data[y * info.width + x] > 200) solid++
+      if (solid > bestSolid) {
+        bestSolid = solid
+        bestColumn = x
+      }
+    }
+    /*
+     * A seam is a DIP: a row that is dimmer than solid while both neighbours
+     * are solid. That excludes the glyph's own antialiased top and bottom
+     * rows, whose outward neighbour is background rather than ink.
+     */
+    let dimmest = 255
+    let at = -1
+    for (let y = 1; y < info.height - 1; y++) {
+      const above = data[(y - 1) * info.width + bestColumn]
+      const v = data[y * info.width + bestColumn]
+      const below = data[(y + 1) * info.width + bestColumn]
+      if (above > 200 && below > 200 && v < dimmest) {
+        dimmest = v
+        at = y
+      }
+    }
+    return { column: bestColumn, solidRows: bestSolid, dimmest, at }
+  }
+
+  for (const [w, h] of [[390, 844], [1440, 900], [1920, 600]]) {
+    const wh = await workHeading(w, h)
+    check(
+      `work heading is one complete h1 at ${w}x${h}`,
+      wh.n === 1 &&
+        wh.sr === 'Proof, not promises.' &&
+        wh.slices === 4 &&
+        wh.dx === 0 &&
+        wh.dy === 0 &&
+        wh.dw === 0 &&
+        wh.op === 1 &&
+        wh.over <= 0 &&
+        wh.fits === true,
+      `n=${wh.n} slices=${wh.slices} dx=${wh.dx} dy=${wh.dy} dw=${wh.dw} op=${wh.op} over=${wh.over} fits=${wh.fits} sr="${wh.sr}"`
+    )
+    const seam = await headingSeam()
+    check(
+      `work heading has no slice seam at ${w}x${h}`,
+      seam && seam.solidRows > 8 && seam.dimmest >= 200,
+      seam ? `stem column ${seam.column}, ${seam.solidRows} solid rows, dimmest ${seam.dimmest} at row ${seam.at}` : 'no heading'
+    )
+  }
+  await setViewport(cdp, 1440, 900, 2)
 
   // Both form variants preserve a predictable keyboard sequence.
   const formOrder = async (route, variant) => {
@@ -1086,7 +1331,7 @@ if (hasFlag('probe')) {
   await goto(cdp, BASE + '/')
   const reducedRoute = await cdp.eval(`(async () => {
     await new Promise(r => setTimeout(r, 180))
-    const noCanvas = !document.querySelector('[data-signal-playground]')
+    const noCanvas = !document.querySelector('[data-cursor-trail]') && !document.querySelector('[data-signal-cursor]')
     document.querySelector('a[href="/work"]')?.click()
     await new Promise(r => setTimeout(r, 45))
     const loader = document.querySelector('[data-route-loader]')
@@ -1305,6 +1550,138 @@ const tag = hasFlag('reduced') ? 'reduced-' : ''
  * its scroll-linked animation settle, and captures just that region — which is
  * how you actually judge whether a logo row or a media stage looks right.
  */
+/*
+ * Visual evidence for the cursor. The sweep cannot show it: it never moves a
+ * mouse, so the trail is always empty and the dot is hidden. This drives real
+ * pointer input and captures the states that need to be LOOKED at — a trail is
+ * a shape, and "maxChord < 220" does not tell you whether it loops.
+ */
+if (hasFlag('cursor')) {
+  await setViewport(cdp, 1440, 900)
+  await goto(cdp, BASE + '/')
+  await primeScroll(cdp, 0)
+  await cdp.eval(`window.scrollTo(0, innerHeight * 1.9)`)
+  await sleep(900)
+
+  const move = async (x, y) => {
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y })
+    await sleep(16)
+  }
+
+  /*
+   * A full-page screenshot takes long enough that the trail has already begun
+   * fading by the time it lands — the trail is designed to disappear ~0.5s
+   * after you stop moving. Reading the canvas back instead costs one eval
+   * (~10ms), so it captures the trail as it actually looks mid-stroke. The
+   * canvas is transparent, so flatten it onto the page's near-black for a
+   * faithful view.
+   */
+  const grabTrail = async (name) => {
+    const url = await cdp.eval(
+      `(() => { const c = document.querySelector('[data-cursor-trail]'); return c ? c.toDataURL('image/png') : null })()`
+    )
+    if (!url) return console.log(`trail MISS ${name}`)
+    const raw = Buffer.from(url.split(',')[1], 'base64')
+    const { default: sharp } = await import('sharp')
+    await sharp(raw).flatten({ background: '#04070d' }).toFile(path.join(OUT, `${name}__1440x900.png`))
+    console.log(`trail  ${name}`)
+  }
+
+  // 1. at rest, after a single move: dot only, no tail
+  await move(700, 430)
+  await sleep(420)
+  await shoot(cdp, 'cursor-01-at-rest__1440x900.png')
+
+  /*
+   * 2. A tight arc. Steps are deliberately small (~22px) so the whole buffer
+   * sits on curvature — this is the shape that exposes overshoot, loops and
+   * cusps, which a straight drag cannot.
+   */
+  const strokeStart = Date.now()
+  for (let i = 0; i <= 40; i++) {
+    const a = Math.PI * 0.15 + (i / 40) * Math.PI * 1.15
+    // No extra sleep: the CDP round-trip alone is already ~14ms, so roughly one
+    // fresh position per frame. With the sleep the pointer sits still for whole
+    // frames and the ring buffer fills with duplicates.
+    await cdp.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: 720 + Math.cos(a) * 210,
+      y: 470 + Math.sin(a) * 210,
+    })
+  }
+  console.log(`41 synthetic moves in ${Date.now() - strokeStart}ms (${((Date.now() - strokeStart) / 41).toFixed(1)}ms apart)`)
+  console.log('trail state:', JSON.stringify(await cdp.eval(`(() => {
+    const c = document.querySelector('[data-cursor-trail]')
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+    let lit = 0
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 6) lit++
+    const cur = window.__cineheightCursor
+    // Distinct samples: a low count means the buffer is full of duplicates,
+    // which is what a slow synthetic input rate looks like.
+    const distinct = new Set(cur.points.map(p => Math.round(p[0]) + ',' + Math.round(p[1]))).size
+    return {
+      canvas: c.width + 'x' + c.height,
+      litPixels: lit,
+      distinctPoints: distinct,
+      presence: Number(cur.presence.toFixed(3)),
+      maxChord: Number(cur.maxChord.toFixed(1)),
+      mode: cur.mode,
+    }
+  })()`)))
+  await grabTrail('cursor-02-curved-stroke')
+
+  // 3. a hard direction reversal — the case Catmull-Rom used to loop on
+  for (let i = 0; i <= 14; i++) await move(1080 - i * 52, 300 + i * 10)
+  await grabTrail('cursor-03-reversal')
+
+  // 4. a right-angle corner, the other classic overshoot case
+  for (let i = 0; i <= 10; i++) await move(400 + i * 46, 600)
+  for (let i = 1; i <= 10; i++) await move(860, 600 - i * 34)
+  await grabTrail('cursor-04-corner')
+
+  // 5. over an actionable element: halo, then the click ring
+  const linkPoint = await cdp.eval(`(() => {
+    const candidates = [...document.querySelectorAll('a, button')].filter(el => {
+      const r = el.getBoundingClientRect()
+      return r.width > 60 && r.height > 16
+    })
+    // Prefer one already on screen; otherwise bring the first one into view.
+    let a = candidates.find(el => {
+      const r = el.getBoundingClientRect()
+      return r.top > 90 && r.bottom < innerHeight - 90
+    })
+    if (!a && candidates[0]) {
+      candidates[0].scrollIntoView({ block: 'center' })
+      a = candidates[0]
+    }
+    if (!a) return null
+    const r = a.getBoundingClientRect()
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), tag: a.tagName }
+  })()`)
+  await sleep(500)
+  if (linkPoint) {
+    await move(linkPoint.x, linkPoint.y)
+    await sleep(360)
+    await shoot(cdp, 'cursor-05-action-halo__1440x900.png')
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: linkPoint.x, y: linkPoint.y, button: 'left', clickCount: 1 })
+    await sleep(70)
+    await shoot(cdp, 'cursor-06-click__1440x900.png')
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: linkPoint.x, y: linkPoint.y, button: 'left', clickCount: 1 })
+    console.log(`action target: ${linkPoint.tag} at ${linkPoint.x},${linkPoint.y}`)
+  } else {
+    console.log('action target MISS')
+  }
+
+  // 6. after inactivity the trail must be gone, leaving the dot alone
+  await sleep(1400)
+  await grabTrail('cursor-07-faded-trail')
+  await shoot(cdp, 'cursor-08-faded__1440x900.png')
+
+  console.log('cursor evidence written to', OUT)
+  proc?.kill()
+  process.exit(0)
+}
+
 if (hasFlag('focus') || argOf('focus', null)) {
   const specs = (argOf('focus', '') || '').split('~').filter(Boolean)
   const [fw, fh] = (SIZES[0] ?? '1440x900').split('x').map(Number)

@@ -52,8 +52,8 @@ be improved; the showreel itself is untouched.
 | `SmoothScrollProvider.tsx` | The single Lenis instance, driven by `gsap.ticker`, updating `ScrollTrigger`. Mounted once in `app/layout.tsx`. Disabled under reduced motion. |
 | `FlowDirector.tsx` | Per-route orchestrator. Collects `[data-flow-anchor]` elements after fonts + layout settle, publishes them via context, owns the single `ScrollTrigger.refresh()` scheduler and the shared scroll-progress signal. |
 | `FlowThread.tsx` | The blue signal. A **document-height** SVG whose path is *generated* from the route's anchors as clamped cubic Béziers. Grows on scroll down, retracts on scroll up. Leading light point in pixel space. |
-| `AtmosphereLayer.tsx` | One route-level background — radial light, dark-blue gradients, optional local client accent, grain. Crosses every content boundary; scenes never carry their own opaque background. |
-| `PointerAtmosphere.tsx` | Desktop-only Canvas 2D cursor light + drifting signal particles. Off for coarse pointers, reduced motion and low-power devices. |
+| `AtmosphereLayer.tsx` | One route-level background — dark-blue gradients, a static contour texture, optional local client accent, vignette. Crosses every content boundary; scenes never carry their own opaque background. **Completely static**: no scroll subscription, no rAF loop, no animated custom properties. The background never reacts to the pointer or the scroll position; `FlowThread` is the only global layer that animates. |
+| `CursorTrail.tsx` | Desktop-only cursor: a precise blue dot at the pointer, a halo over actionable elements, a small click ring and a short tapered trail. Off for coarse pointers, reduced motion and viewports under 1024px, where the native cursor is restored. Replaces the retired `PointerAtmosphere.tsx` signal fabric (contour ribbons, nodes, sparks, pulses, plucking and thread attraction). |
 | `RouteTransition.tsx` | Short blue sweep + clip reveal, mounted from `app/template.tsx`. |
 
 `components/signal/SignalField.tsx` is **removed** — it was a fixed viewport SVG with a

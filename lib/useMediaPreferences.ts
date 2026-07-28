@@ -8,7 +8,7 @@ export interface MotionCapabilityProfile {
   level: MotionCapabilityLevel
   interactive: boolean
   canvasDprCap: number
-  contourPointCount: number
+  /** Samples in the cursor trail's ring buffer. */
   trailPointCount: number
 }
 
@@ -16,7 +16,6 @@ const STATIC_MOTION_PROFILE: MotionCapabilityProfile = {
   level: 'static',
   interactive: false,
   canvasDprCap: 1,
-  contourPointCount: 0,
   trailPointCount: 0,
 }
 
@@ -24,7 +23,6 @@ const BALANCED_MOTION_PROFILE: MotionCapabilityProfile = {
   level: 'balanced',
   interactive: true,
   canvasDprCap: 1.25,
-  contourPointCount: 21,
   trailPointCount: 12,
 }
 
@@ -32,7 +30,6 @@ const HIGH_MOTION_PROFILE: MotionCapabilityProfile = {
   level: 'high',
   interactive: true,
   canvasDprCap: 1.5,
-  contourPointCount: 25,
   trailPointCount: 14,
 }
 
@@ -72,12 +69,28 @@ export function useIsFinePointer(): boolean {
 }
 
 /**
- * The tier that may run the expensive extras (canvas pointer field, ring blur):
+ * The tier that may run the expensive extras (scene pointer lean, ring blur):
  * fine pointer, wide viewport, motion allowed and a machine with some headroom.
  * Returns false until mounted, so the heavy path is always opt-in.
  */
 export function useCanRunRichEffects(): boolean {
   return useMotionCapabilityProfile().interactive
+}
+
+/**
+ * Gate for the custom cursor and its trail.
+ *
+ * Deliberately looser than {@link useCanRunRichEffects}: a dot plus a ~14-point
+ * polyline costs a fraction of what the retired contour field did, so the
+ * hardware-headroom test would only hide the cursor on ordinary laptops that
+ * can render it comfortably. What genuinely matters is that there is a real
+ * mouse, that motion is allowed, and that we are not on a phone-sized viewport.
+ */
+export function useCursorTrailEnabled(): boolean {
+  const fine = useIsFinePointer()
+  const reduced = useReducedMotion()
+  const narrow = useIsNarrow(1023)
+  return fine && !reduced && !narrow
 }
 
 /**

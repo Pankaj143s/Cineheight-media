@@ -1,9 +1,3 @@
-'use client'
-
-import { useEffect, useRef } from 'react'
-import { readScrollSignal, subscribeScrollSignal } from '@/lib/scrollSignal'
-import { useReducedMotion } from '@/lib/useMediaPreferences'
-
 const STATIC_CONTOURS = [
   'M-40 110 C230 82 420 148 710 112 S1160 76 1520 126',
   'M-40 190 C250 228 470 156 760 196 S1190 238 1520 178',
@@ -21,10 +15,15 @@ const STATIC_CONTOURS = [
  * crosses every content boundary — which is precisely what the old
  * section-per-section backgrounds could not do.
  *
- * Three soft fields drift and change weight as the page scrolls, driven by two
- * CSS custom properties written from a rAF-throttled scroll handler (no React
- * state, no per-frame layout). Scenes must NOT paint their own opaque
- * backgrounds; at most they contribute a small local accent through `accent`.
+ * Deliberately STATIC. It reacts to neither the pointer nor the scroll
+ * position: no subscriptions, no requestAnimationFrame, no animated custom
+ * properties. The only thing that moves globally is the FlowThread's blue
+ * signal line. Every gradient below is fixed at the composition the animated
+ * version used to pass through mid-route, so the page keeps the look it had
+ * without the drift.
+ *
+ * Scenes must NOT paint their own opaque backgrounds; at most they contribute
+ * a small local accent through `accent`.
  */
 export default function AtmosphereLayer({
   /** Local client accent for case-study routes — subtle, never a wash. */
@@ -32,70 +31,8 @@ export default function AtmosphereLayer({
 }: {
   accent?: string
 }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const reduced = useReducedMotion()
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    if (reduced) {
-      el.style.setProperty('--flow', '0.35')
-      el.style.setProperty('--flow-wave', '0')
-      return
-    }
-
-    let target = readScrollSignal().progress
-    let current = target
-    let raf = 0
-    let running = false
-    let last = performance.now()
-
-    const frame = (now: number) => {
-      const dt = Math.min(50, now - last || 16.7)
-      last = now
-      current += (target - current) * (1 - Math.exp(-dt / 145))
-      el.style.setProperty('--flow', current.toFixed(4))
-      el.style.setProperty('--flow-wave', Math.sin(current * Math.PI * 1.6).toFixed(4))
-      if (Math.abs(target - current) > 0.00005 && !document.hidden) {
-        raf = requestAnimationFrame(frame)
-      } else {
-        current = target
-        running = false
-      }
-    }
-    const wake = () => {
-      target = readScrollSignal().progress
-      if (running || document.hidden) return
-      running = true
-      last = performance.now()
-      raf = requestAnimationFrame(frame)
-    }
-    const unsubscribe = subscribeScrollSignal(wake)
-    const onVisibility = () => {
-      if (document.hidden) {
-        cancelAnimationFrame(raf)
-        running = false
-      } else {
-        wake()
-      }
-    }
-
-    wake()
-    document.addEventListener('visibilitychange', onVisibility)
-    return () => {
-      unsubscribe()
-      cancelAnimationFrame(raf)
-      document.removeEventListener('visibilitychange', onVisibility)
-    }
-  }, [reduced])
-
   return (
-    <div
-      ref={ref}
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-0"
-      style={{ ['--flow' as string]: 0, ['--flow-wave' as string]: 0 }}
-    >
+    <div data-atmosphere aria-hidden="true" className="pointer-events-none fixed inset-0 z-0">
       {/* Deep base — the near-black stage the whole site sits on */}
       <div
         className="absolute inset-0"
@@ -121,23 +58,22 @@ export default function AtmosphereLayer({
         ))}
       </svg>
 
-      {/* Travelling blue field — moves down and across as the route unfolds */}
+      {/* Upper blue field */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(ellipse 62% 40% at calc(28% + var(--flow-wave) * 34%) calc(18% + var(--flow) * 62%),' +
-            ' rgba(0,137,255,0.085), transparent 68%)',
+            'radial-gradient(ellipse 62% 40% at 28% 30%, rgba(0,137,255,0.085), transparent 68%)',
         }}
       />
 
-      {/* Counter field — drifts the other way so the light never feels static */}
+      {/* Counter field, low and to the right — the two together give the stage
+          its diagonal weight without either of them moving. */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(ellipse 48% 34% at calc(82% - var(--flow-wave) * 30%) calc(76% - var(--flow) * 44%),' +
-            ' rgba(0,110,210,0.06), transparent 70%)',
+            'radial-gradient(ellipse 48% 34% at 82% 62%, rgba(0,110,210,0.06), transparent 70%)',
         }}
       />
 
@@ -146,7 +82,7 @@ export default function AtmosphereLayer({
         <div
           className="absolute inset-0"
           style={{
-            background: `radial-gradient(ellipse 54% 38% at calc(50% + var(--flow-wave) * 18%) calc(40% + var(--flow) * 30%), ${accent}1f, transparent 72%)`,
+            background: `radial-gradient(ellipse 54% 38% at 50% 52%, ${accent}1f, transparent 72%)`,
           }}
         />
       )}
@@ -158,7 +94,6 @@ export default function AtmosphereLayer({
         style={{
           background:
             'linear-gradient(112deg, transparent 15%, rgba(0,137,255,0.018) 42%, rgba(220,238,255,0.025) 50%, rgba(0,137,255,0.015) 58%, transparent 84%)',
-          transform: 'translate3d(calc(var(--flow-wave) * 3%), 0, 0)',
         }}
       />
 

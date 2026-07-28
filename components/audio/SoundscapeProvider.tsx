@@ -128,7 +128,7 @@ export default function SoundscapeProvider({ children }: { children: React.React
     })
   }, [])
 
-  /** Ducking, plucks and route cues. */
+  /** Ducking and route cues. */
   useEffect(() => {
     if (!active) return
     const engine = getSoundEngine()
@@ -137,9 +137,6 @@ export default function SoundscapeProvider({ children }: { children: React.React
       switch (event.type) {
         case 'audible-videos':
           engine.setDucked(event.count > 0)
-          break
-        case 'pointer-pluck':
-          engine.pluck(event.x / Math.max(1, window.innerWidth))
           break
         case 'route-out':
           engine.routeOut()

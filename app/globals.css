@@ -75,8 +75,10 @@ body {
 }
 
 /* Fine-pointer tier: a compact signal cursor replaces the stock arrow while
-   text-entry controls retain the native I-beam. The decorative layer is
-   mounted only when the rich-effects capability gate passes. */
+   text-entry controls retain the native I-beam. The layer is mounted only when
+   `useCursorTrailEnabled()` passes — a real mouse, motion allowed, >=1024px.
+   Its children sit on a zero-size origin box placed exactly at the pointer, so
+   each `translate: -50% -50%` centres it on the true cursor position. */
 html[data-signal-cursor='true'] body,
 html[data-signal-cursor='true'] a,
 html[data-signal-cursor='true'] button,
@@ -125,12 +127,10 @@ html[data-signal-cursor='true'] select {
   scale: 1;
 }
 
+/* Fixed background texture. Nothing hides or animates it — the pointer-driven
+   contour field that used to fade it out has been removed. */
 .static-contour-field {
   opacity: 0.24;
-  transition: opacity 300ms ease;
-}
-html[data-contour-active='true'] .static-contour-field {
-  opacity: 0;
 }
 [data-text-layer-active='true'] {
   will-change: transform;
@@ -359,11 +359,6 @@ html[data-contour-active='true'] .static-contour-field {
   [data-parallax-auto] {
     translate: 0 0 !important;
     scale: 1 !important;
-  }
-
-  .flow-atmosphere-orbit,
-  .flow-atmosphere-axis {
-    transform: none !important;
   }
 }
 
