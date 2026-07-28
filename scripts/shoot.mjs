@@ -259,7 +259,11 @@ async function measure(cdp) {
       let p = h.parentElement
       while (p && p !== document.body) {
         const cs = getComputedStyle(p)
-        if (cs.overflow !== 'visible' || cs.overflowY !== 'visible') {
+        // Only the VERTICAL axis can clip a heading's ascenders, which is what
+        // this looks for. Testing the overflow shorthand as well reported a
+        // false positive for overflow-x:clip, where the vertical axis is still
+        // visible and nothing is actually cut.
+        if (cs.overflowY !== 'visible') {
           const pr = p.getBoundingClientRect()
           if (hr.bottom > pr.bottom + 2 || hr.top < pr.top - 2) {
             clipped.push({ text: (h.textContent||'').trim().slice(0,44), by: p.className.toString().slice(0,40) })
@@ -752,6 +756,33 @@ if (hasFlag('probe')) {
       /connected before launch/.test(socialState.tooltip) &&
       !socialState.cursors.some(c => c === 'not-allowed'),
     JSON.stringify(socialState)
+  )
+
+  /*
+   * The About film's controls.
+   *
+   * The sweep reports these as under 44px, but it measures with the page at the
+   * top, where the film is still scaled down by its own scroll-scrubbed reveal.
+   * What matters is their size when the visitor has actually reached them, so
+   * this measures with the film centred.
+   */
+  await goto(cdp, BASE + '/about')
+  const filmControls = await cdp.eval(`(async () => {
+    const film = document.querySelector('[data-film]')
+    if (!film) return null
+    film.scrollIntoView({ block: 'center' })
+    await new Promise(r => setTimeout(r, 1400))
+    const buttons = [...film.querySelectorAll('button')]
+    return buttons.map(b => {
+      const r = b.getBoundingClientRect()
+      return { label: (b.getAttribute('aria-label') || '').slice(0, 18), w: Math.round(r.width), h: Math.round(r.height) }
+    })
+  })()`)
+  check(
+    'inline film controls reach 44px once the film is on screen',
+    Array.isArray(filmControls) && filmControls.length > 0 &&
+      filmControls.every((b) => b.w >= 43.5 && b.h >= 43.5),
+    JSON.stringify(filmControls)
   )
 
   // ---- soundscape: consent, persistence, ducking ----------------------

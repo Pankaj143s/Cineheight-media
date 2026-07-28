@@ -88,7 +88,13 @@ export default function ClosingScene() {
       ref={rootRef}
       id="contact"
       aria-label="Start a project"
-      className="relative z-10 overflow-hidden"
+      /*
+        Clip horizontally only. `overflow-hidden` also clipped the vertical
+        axis, and since the closing headline is parallaxed upward inside this
+        box, its ascenders were being sliced off on shorter viewports. `clip`
+        on one axis still contains the decorative radial without cutting type.
+      */
+      className="relative z-10 overflow-x-clip"
       style={{ marginTop: mobile ? '10vh' : 'clamp(8rem, 20vh, 18rem)' }}
     >
       {rich && (
