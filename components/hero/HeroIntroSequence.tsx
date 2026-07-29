@@ -5,11 +5,14 @@ import dynamic from 'next/dynamic'
 import { gsap, ScrollTrigger } from '@/lib/gsap'
 import { setHeroProgress } from '@/lib/heroProgress'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
-import { useRippleTier } from '@/lib/useRippleTier'
 
-// Client-only, and gated in the PARENT (the FlowDirector pattern) so a
-// reduced-motion visitor never downloads the shader chunk at all.
-const HeroRippleBackground = dynamic(() => import('./HeroRippleBackground'), { ssr: false })
+// Client-only, matching the FlowDirector dynamic-import pattern used
+// elsewhere so a reduced-motion visitor never downloads the chunk at all.
+//
+// experiment/hero-bg-video: this is the background surface currently mounted
+// below. `HeroRippleBackground.tsx` and `lib/ripple/*` are untouched on disk
+// — see the L1.5 comment below for how to swap back.
+const HeroVideoBackground = dynamic(() => import('./HeroVideoBackground'), { ssr: false })
 
 // hero-v4 — natural rounded clouds with true baked alpha (no screen-blend,
 // no radial masks). v3 wisps (smoke-like, one with empty alpha) are retired.
@@ -86,7 +89,6 @@ export default function HeroIntroSequence() {
   const driftTweens = useRef<gsap.core.Tween[]>([])
   const reduced = useReducedMotion()
   const mobile = useIsMobileTier()
-  const rippleTier = useRippleTier()
 
   // Pause drift when the hero is offscreen or the tab is hidden.
   useLayoutEffect(() => {
@@ -250,15 +252,21 @@ export default function HeroIntroSequence() {
           style={{ background: 'radial-gradient(ellipse 42% 13% at 50% 57%, rgba(0,137,255,0.5), transparent 72%)', opacity: 0.07 }}
         />
 
-        {/* L1.5 — the interactive water surface.
-            It paints an opaque plate that reproduces the two gradients above
-            plus the fixed AtmosphereLayer beneath them, so the refraction has
-            something real to bend and so fading the surface out mid-hero
-            reveals an identical background rather than cross-dissolving.
+        {/* L1.5 — the hero background surface.
             Sitting here in DOM order with z-index:auto is what puts it above
-            those gradients and below the haze (z-0), the title (z-1) and the
-            clouds (z-3/z-4) — no z-index changes anywhere else. */}
-        {rippleTier && <HeroRippleBackground tier={rippleTier} />}
+            the two ambient gradients above and below the haze (z-0), the
+            title (z-1) and the clouds (z-3/z-4) — no z-index changes anywhere
+            else, regardless of which surface is mounted.
+
+            experiment/hero-bg-video: the water-ripple canvas is swapped for
+            the background video here, at the same slot, for an A/B look.
+            Revert with `git checkout redesign/cinematic-flow`, or restore the
+            ripple manually: re-add `import { useRippleTier } from
+            '@/lib/useRippleTier'`, `const HeroRippleBackground = dynamic(() =>
+            import('./HeroRippleBackground'), { ssr: false })`, `const
+            rippleTier = useRippleTier()`, and swap this line for
+            `{rippleTier && <HeroRippleBackground tier={rippleTier} />}`. */}
+        <HeroVideoBackground />
 
         {/* L2 — soft background haze behind the word (barely noticeable) */}
         <div aria-hidden="true" className="absolute z-0" style={{ left: '18%', width: '64%', top: '52%', height: '12vh', opacity: mobile ? 0.1 : 0.12 }}>
