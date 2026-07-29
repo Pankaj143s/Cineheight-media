@@ -439,7 +439,7 @@ export default function ServicesPage() {
               <path d="M0 5h24M20 1l4 4-4 4" stroke="currentColor" strokeWidth="1.3" />
             </svg>
           </MagneticLink>
-          <a href={contact.phoneHref} className="font-body flex min-h-[44px] items-center text-sm text-text-300 transition-colors hover:text-text-100">
+          <a href={contact.phoneHref} className="font-body flex min-h-[44px] items-center whitespace-nowrap text-sm text-text-300 transition-colors hover:text-text-100">
             {contact.phone}
           </a>
           <a href={`mailto:${contact.email}`} className="font-body flex min-h-[44px] items-center text-sm text-text-300 transition-colors hover:text-text-100">

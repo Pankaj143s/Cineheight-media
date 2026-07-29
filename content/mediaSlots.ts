@@ -1,6 +1,6 @@
-import { caseStudies } from './caseStudies'
+import { caseStudies } from './caseStudies.ts'
 
-export type MediaSlotStatus = 'placeholder' | 'ready'
+export type MediaSlotStatus = 'placeholder' | 'ready' | 'desktop-ready'
 export type MediaSlotUsage = 'home-featured-work' | 'work-index'
 export type MediaSlotKind = 'video' | 'image'
 
@@ -56,7 +56,7 @@ export const featuredWorkSlots: Record<string, MediaSlotSpec> = Object.fromEntri
       id: `home-featured-work.${id}`,
       usage: 'home-featured-work',
       client: label,
-      status: 'placeholder',
+      status: 'desktop-ready',
       mediaKind: 'video',
       accentColor: accentOf(id),
       label: `${label} — homepage featured film`,
@@ -100,7 +100,7 @@ export const workIndexSlots: Record<string, MediaSlotSpec> = Object.fromEntries(
       id: `work-index.${id}`,
       usage: 'work-index',
       client: label,
-      status: 'placeholder',
+      status: 'desktop-ready',
       mediaKind: 'image',
       accentColor: accentOf(id),
       label: `${label} — work-index cover`,

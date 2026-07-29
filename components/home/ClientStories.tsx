@@ -23,8 +23,17 @@ import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
  * with a neutral, factual line.
  */
 
+/**
+ * Films shown on the homepage.
+ *
+ * The Sapale Yamaha testimonial is deliberately excluded *here only*. The asset
+ * and its case-study placement are untouched — it still opens
+ * /work/sapale-yamaha — this is purely a homepage curation decision.
+ */
+const HOMEPAGE_EXCLUDED = new Set(['sapale-yamaha'])
+
 const FILMS = caseStudies
-  .filter((cs) => cs.topVideo.type === 'testimonial')
+  .filter((cs) => cs.topVideo.type === 'testimonial' && !HOMEPAGE_EXCLUDED.has(cs.id))
   .map((cs) => ({
     client: cs.client,
     category: cs.category,

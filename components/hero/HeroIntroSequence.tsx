@@ -1,9 +1,15 @@
 'use client'
 
 import { useLayoutEffect, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import { gsap, ScrollTrigger } from '@/lib/gsap'
 import { setHeroProgress } from '@/lib/heroProgress'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { useRippleTier } from '@/lib/useRippleTier'
+
+// Client-only, and gated in the PARENT (the FlowDirector pattern) so a
+// reduced-motion visitor never downloads the shader chunk at all.
+const HeroRippleBackground = dynamic(() => import('./HeroRippleBackground'), { ssr: false })
 
 // hero-v4 — natural rounded clouds with true baked alpha (no screen-blend,
 // no radial masks). v3 wisps (smoke-like, one with empty alpha) are retired.
@@ -80,6 +86,7 @@ export default function HeroIntroSequence() {
   const driftTweens = useRef<gsap.core.Tween[]>([])
   const reduced = useReducedMotion()
   const mobile = useIsMobileTier()
+  const rippleTier = useRippleTier()
 
   // Pause drift when the hero is offscreen or the tab is hidden.
   useLayoutEffect(() => {
@@ -211,7 +218,18 @@ export default function HeroIntroSequence() {
     return () => ctx.revert()
   }, [reduced, mobile])
 
-  const sectionHeight = reduced ? 'auto' : mobile ? '185vh' : '230vh'
+  /*
+   * The scroll distance the sticky stage is held for.
+   *
+   * Reduced from 230vh/185vh. The timeline's positions are fractions of this
+   * height, so every beat rescales with it — the sequence reads identically,
+   * it simply asks for less scroll. The trailing slack was the larger half of
+   * the empty stretch between the brand statement and the showreel: the
+   * statement completes at progress 0.86, and the remaining 0.14 was 32vh of
+   * scrolling with a finished, static composition on screen. It is now ~15vh,
+   * which reads as the statement settling rather than as a stall.
+   */
+  const sectionHeight = reduced ? 'auto' : mobile ? '165vh' : '205vh'
 
   return (
     <section ref={rootRef} aria-label="Cineheight Media introduction" style={{ height: sectionHeight }} className="relative">
@@ -231,6 +249,16 @@ export default function HeroIntroSequence() {
           className="absolute inset-0"
           style={{ background: 'radial-gradient(ellipse 42% 13% at 50% 57%, rgba(0,137,255,0.5), transparent 72%)', opacity: 0.07 }}
         />
+
+        {/* L1.5 — the interactive water surface.
+            It paints an opaque plate that reproduces the two gradients above
+            plus the fixed AtmosphereLayer beneath them, so the refraction has
+            something real to bend and so fading the surface out mid-hero
+            reveals an identical background rather than cross-dissolving.
+            Sitting here in DOM order with z-index:auto is what puts it above
+            those gradients and below the haze (z-0), the title (z-1) and the
+            clouds (z-3/z-4) — no z-index changes anywhere else. */}
+        {rippleTier && <HeroRippleBackground tier={rippleTier} />}
 
         {/* L2 — soft background haze behind the word (barely noticeable) */}
         <div aria-hidden="true" className="absolute z-0" style={{ left: '18%', width: '64%', top: '52%', height: '12vh', opacity: mobile ? 0.1 : 0.12 }}>

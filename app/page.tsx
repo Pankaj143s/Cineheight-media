@@ -39,7 +39,11 @@ export default function Home() {
       <span id="top" />
       <FlowDirector />
       <Navbar />
-      <main className="relative z-10">
+      {/* `.layer-content` = position:relative + z-index:var(--z-content) +
+          isolation:isolate. The isolation seals every internal stacking context
+          inside this layer, so the flow thread (z var(--z-thread)) can never
+          surface through a section, and no section can rise above the navbar. */}
+      <main className="layer-content">
         <HeroIntroSequence />
         <ShowreelSection />
         <AgencyProposition />

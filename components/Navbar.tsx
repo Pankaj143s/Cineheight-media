@@ -40,8 +40,9 @@ export default function Navbar() {
 
   return (
     <header
-      className="fixed inset-x-0 top-0 z-50"
+      className="fixed inset-x-0 top-0"
       style={{
+        zIndex: 'var(--z-nav)',
         opacity: visible ? 1 : 0,
         transform: reduced ? 'none' : visible ? 'translateY(0)' : 'translateY(-12px)',
         transition: reduced

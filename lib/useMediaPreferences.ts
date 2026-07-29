@@ -23,14 +23,14 @@ const BALANCED_MOTION_PROFILE: MotionCapabilityProfile = {
   level: 'balanced',
   interactive: true,
   canvasDprCap: 1.25,
-  trailPointCount: 12,
+  trailPointCount: 16,
 }
 
 const HIGH_MOTION_PROFILE: MotionCapabilityProfile = {
   level: 'high',
   interactive: true,
   canvasDprCap: 1.5,
-  trailPointCount: 14,
+  trailPointCount: 20,
 }
 
 /** SSR-safe media-query hook. Returns `fallback` until mounted. */

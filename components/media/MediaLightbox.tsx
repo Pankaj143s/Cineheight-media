@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useReducedMotion } from '@/lib/useMediaPreferences'
 import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
@@ -67,6 +68,19 @@ export default function MediaLightbox({
   useReportVideoAudible(!muted, 'lightbox')
 
   const open = index !== null
+
+  /**
+   * The dialog is portalled to <body>.
+   *
+   * Route content sits in `.layer-content`, which sets `isolation: isolate` so
+   * the decorative flow thread can never surface through a section. That same
+   * isolation would trap this dialog's z-index inside the content layer and let
+   * the navbar paint over it, so the modal has to live outside the wrapper.
+   */
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    setPortalHost(document.body)
+  }, [])
 
   /**
    * A FLIP-style approximation of "this card became the dialog".
@@ -184,12 +198,14 @@ export default function MediaLightbox({
     }
   }, [open])
 
-  return (
+  if (!portalHost) return null
+
+  return createPortal(
     <AnimatePresence>
       {item && (
         <motion.div
-          className="fixed inset-0 z-[95] flex flex-col items-center justify-center p-4 sm:p-6"
-          style={{ background: 'rgba(1,2,4,0.97)' }}
+          className="fixed inset-0 flex flex-col items-center justify-center p-4 sm:p-6"
+          style={{ background: 'rgba(1,2,4,0.97)', zIndex: 'var(--z-modal)' }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -334,6 +350,7 @@ export default function MediaLightbox({
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    portalHost,
   )
 }

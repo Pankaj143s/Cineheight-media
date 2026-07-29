@@ -136,7 +136,7 @@ export default function ClosingScene() {
                   <a
                     href={ch.href}
                     {...(ch.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-                    className={`font-display mt-1 inline-flex min-h-11 items-center font-medium text-text-100 transition-colors hover:text-[var(--blue-200)] ${
+                    className={`font-display mt-1 inline-flex min-h-11 items-center whitespace-nowrap font-medium text-text-100 transition-colors hover:text-[var(--blue-200)] ${
                       index < 2 ? 'text-2xl sm:text-3xl' : 'text-lg'
                     }`}
                   >

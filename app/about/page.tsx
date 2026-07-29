@@ -17,8 +17,10 @@ export default function Page() {
       <span id="top" />
       <FlowDirector />
       <Navbar />
-      <AboutPage />
-      <Footer />
+      <div className="layer-content">
+        <AboutPage />
+        <Footer />
+      </div>
       <div className="grain-overlay" aria-hidden="true" />
     </>
   )

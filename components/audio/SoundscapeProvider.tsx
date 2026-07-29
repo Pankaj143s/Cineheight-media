@@ -5,7 +5,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useRef,
   useState,
 } from 'react'
 import { getSoundEngine } from '@/lib/audio/soundEngine'
@@ -64,9 +63,6 @@ export default function SoundscapeProvider({ children }: { children: React.React
   // after hydration; withdrawn in an effect on the rare browser that lacks Web
   // Audio or where the visitor has asked to save data.
   const [available, setAvailable] = useState(true)
-
-  // Pointer bookkeeping lives in refs — this must never re-render per move.
-  const lastPoint = useRef<{ x: number; y: number; t: number } | null>(null)
 
   useEffect(() => {
     const hasWebAudio = !!(
@@ -148,48 +144,15 @@ export default function SoundscapeProvider({ children }: { children: React.React
     })
   }, [active])
 
-  /** Pointer texture. */
-  useEffect(() => {
-    if (!active) return
-    const engine = getSoundEngine()
-    if (!engine) return
-
-    const onMove = (event: PointerEvent) => {
-      if (event.pointerType !== 'mouse') return
-      const now = performance.now()
-      const previous = lastPoint.current
-      lastPoint.current = { x: event.clientX, y: event.clientY, t: now }
-      if (!previous) return
-
-      const dt = now - previous.t
-      if (dt <= 0) return
-      const distance = Math.hypot(event.clientX - previous.x, event.clientY - previous.y)
-
-      // Reading copy, forms and navigation stay silent.
-      const target = document.elementFromPoint(event.clientX, event.clientY)
-      const quiet = !!target?.closest(
-        '[data-interaction-quiet], form, nav, input, textarea, select, [role="dialog"]'
-      )
-      engine.pointerMove(distance / dt, event.clientX / window.innerWidth, distance, quiet)
-    }
-    const onDown = (event: PointerEvent) => {
-      if (event.pointerType !== 'mouse') return
-      lastPoint.current = null
-    }
-    const onLeave = () => {
-      lastPoint.current = null
-      engine.pointerMove(0, 0.5, 0, true)
-    }
-
-    window.addEventListener('pointermove', onMove, { passive: true })
-    window.addEventListener('pointerdown', onDown, { passive: true })
-    document.addEventListener('pointerleave', onLeave)
-    return () => {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerdown', onDown)
-      document.removeEventListener('pointerleave', onLeave)
-    }
-  }, [active])
+  /*
+   * There is deliberately no pointer listener here.
+   *
+   * A brush voice and chalk grains used to track pointer velocity across the
+   * page. Moving the mouse now makes no sound at all: the listener, the
+   * `elementFromPoint` quiet-zone probe it ran on every move, and the engine
+   * nodes behind it have all been removed. The only sounds the site makes are
+   * the ambient bed and the two route cues.
+   */
 
   /** Never leave an audio graph running behind a hidden tab. */
   useEffect(() => {

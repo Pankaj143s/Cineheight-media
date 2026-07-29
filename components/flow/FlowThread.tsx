@@ -353,7 +353,11 @@ export default function FlowThread() {
       // clip on X only: the route's off-screen excursions are meant to be cut
       // at the viewport edge (that is how the thread "leaves and re-enters"),
       // while the leading dot must never be clipped vertically.
-      style={{ zIndex: 1, overflowX: 'clip' }}
+      // The thread is decorative background: it sits at --z-thread, below every
+      // route's `.layer-content` wrapper (--z-content). That wrapper isolates
+      // its own stacking context, so no section can ever drop behind the line
+      // and no local z-index can lift the line above content.
+      style={{ zIndex: 'var(--z-thread)', overflowX: 'clip' }}
     >
       <svg
         ref={svgRef}

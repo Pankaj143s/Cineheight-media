@@ -810,17 +810,63 @@ if (hasFlag('probe')) {
   check('cursor trail sleeps while document is hidden', hiddenHashA != null && hiddenHashA === hiddenHashB, `${hiddenHashA} → ${hiddenHashB}`)
   await cdp.eval(`Object.defineProperty(document, 'hidden', { value: false, configurable: true }); document.dispatchEvent(new Event('visibilitychange'))`)
 
-  // Placeholder contracts must not issue requests until their status is ready.
-  const homePlaceholderLoads = await cdp.eval(
-    `performance.getEntriesByType('resource').filter(e => /\\/media\\/home-work\\//.test(e.name)).map(e => e.name)`
+  /*
+   * home-work / work-index media slots: sapale-yamaha, sindhudurg-education
+   * and divija-old-age-home are `desktop-ready` in content/mediaSlots.ts —
+   * real desktop asset, no mobile/ultrawide file yet. At 1440px the fallback
+   * <source> (no media query) must load the desktop asset; at a real mobile
+   * viewport the mobile-specific <source> must never be requested (see
+   * components/media/MediaSpecPlaceholder.tsx), so nobody 404s.
+   */
+  const DESKTOP_READY_IDS = ['sapale-yamaha', 'sindhudurg-education', 'divija-old-age-home']
+  const resourceNames = () => cdp.eval(`performance.getEntriesByType('resource').map(e => e.name)`)
+
+  const homeDesktopLoads = await resourceNames()
+  const homeDesktopMisses = DESKTOP_READY_IDS.filter(
+    (id) => !homeDesktopLoads.some((name) => name.endsWith(`/media/home-work/${id}-desktop.mp4`))
   )
-  check('homepage placeholders issue no media-slot network requests', homePlaceholderLoads.length === 0, homePlaceholderLoads.join(', '))
+  check(
+    'homepage desktop-ready slots load their real desktop video at 1440px',
+    homeDesktopMisses.length === 0,
+    homeDesktopMisses.join(', ')
+  )
+
   await goto(cdp, BASE + '/work')
   await sleep(700)
-  const indexPlaceholderLoads = await cdp.eval(
-    `performance.getEntriesByType('resource').filter(e => /\\/media\\/work-index\\//.test(e.name)).map(e => e.name)`
+  const indexDesktopLoads = await resourceNames()
+  const indexDesktopMisses = DESKTOP_READY_IDS.filter(
+    (id) => !indexDesktopLoads.some((name) => name.endsWith(`/media/work-index/${id}-desktop.webp`))
   )
-  check('work-index placeholders issue no media-slot network requests', indexPlaceholderLoads.length === 0, indexPlaceholderLoads.join(', '))
+  check(
+    'work-index desktop-ready slots load their real desktop image at 1440px',
+    indexDesktopMisses.length === 0,
+    indexDesktopMisses.join(', ')
+  )
+
+  // The real risk: a genuine mobile-width visitor must never request the
+  // not-yet-supplied mobile/ultrawide variants.
+  await setViewport(cdp, 390, 844, 2)
+  await goto(cdp, BASE + '/')
+  await sleep(700)
+  const homeMobileLoads = await resourceNames()
+  await goto(cdp, BASE + '/work')
+  await sleep(700)
+  const indexMobileLoads = await resourceNames()
+  const mobileLoads = [...homeMobileLoads, ...indexMobileLoads]
+  const forbiddenSuffixes = DESKTOP_READY_IDS.flatMap((id) => [
+    `/media/home-work/${id}-mobile.mp4`,
+    `/media/home-work/${id}-mobile.webp`,
+    `/media/home-work/${id}-ultrawide.mp4`,
+    `/media/home-work/${id}-ultrawide.webp`,
+    `/media/work-index/${id}-mobile.webp`,
+  ])
+  const forbiddenHits = forbiddenSuffixes.filter((suffix) => mobileLoads.some((name) => name.endsWith(suffix)))
+  check(
+    'desktop-ready slots never request their not-yet-supplied mobile/ultrawide variants at 390px',
+    forbiddenHits.length === 0,
+    forbiddenHits.join(', ')
+  )
+  await setViewport(cdp, 1440, 900, 2) // restore before downstream probes
 
   /*
    * The Work H1 used to be N stacked <h1> elements, each carrying the caller's

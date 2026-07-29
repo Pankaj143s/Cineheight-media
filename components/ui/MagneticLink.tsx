@@ -6,20 +6,24 @@ import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects } from '@/lib/useMediaPreferences'
 
 /**
- * A link that leans toward the pointer by at most `strength` px (default 8).
- * Restrained on purpose — enough to feel alive, never enough to make the target
- * hard to hit. Disabled on coarse pointers, reduced motion and low-power
- * devices, where it renders as an ordinary link.
+ * A call-to-action that responds to pointer proximity with light rather than
+ * movement.
  *
- * The transform lives on an inner span so the hit area never moves: the anchor
- * stays exactly where the browser laid it out.
+ * It used to translate its label toward the cursor by up to 8px. Even at that
+ * amplitude, type that slides around under the pointer reads as the interface
+ * lagging rather than as depth — and on a CTA it is the one label a visitor is
+ * trying to aim at. The lean is gone; what remains is a `--proximity` value
+ * (0 → 1) written on the wrapper as the pointer approaches, driving a soft blue
+ * halo. The baseline never moves, and the arrow keeps its own hover nudge.
+ *
+ * Disabled on coarse pointers, reduced motion and low-power devices, where it
+ * renders as an ordinary link.
  */
 export default function MagneticLink({
   href,
   children,
   className = '',
   style,
-  strength = 8,
   external = false,
   ...rest
 }: {
@@ -27,21 +31,18 @@ export default function MagneticLink({
   children: React.ReactNode
   className?: string
   style?: React.CSSProperties
-  strength?: number
   external?: boolean
 } & Omit<React.ComponentProps<'a'>, 'href' | 'style' | 'className'>) {
   const wrapRef = useRef<HTMLSpanElement>(null)
-  const innerRef = useRef<HTMLSpanElement>(null)
   const enabled = useCanRunRichEffects()
 
   useEffect(() => {
     if (!enabled) return
     const wrap = wrapRef.current
-    const inner = innerRef.current
-    if (!wrap || !inner) return
+    if (!wrap) return
 
-    const target = { x: 0, y: 0 }
-    const cur = { x: 0, y: 0 }
+    let target = 0
+    let cur = 0
     let raf = 0
     let last = performance.now()
     let running = false
@@ -49,11 +50,10 @@ export default function MagneticLink({
     const loop = (now: number) => {
       const dt = Math.min(50, now - last || 16)
       last = now
-      const f = damp(0.14, dt)
-      cur.x += (target.x - cur.x) * f
-      cur.y += (target.y - cur.y) * f
-      inner.style.transform = `translate3d(${cur.x.toFixed(2)}px, ${cur.y.toFixed(2)}px, 0)`
-      if (Math.abs(cur.x - target.x) < 0.05 && Math.abs(cur.y - target.y) < 0.05 && target.x === 0 && target.y === 0) {
+      cur += (target - cur) * damp(0.12, dt)
+      wrap.style.setProperty('--proximity', cur.toFixed(3))
+      if (Math.abs(cur - target) < 0.004) {
+        wrap.style.setProperty('--proximity', target.toFixed(3))
         running = false
         return
       }
@@ -70,21 +70,14 @@ export default function MagneticLink({
       const r = wrap.getBoundingClientRect()
       const dx = e.clientX - (r.left + r.width / 2)
       const dy = e.clientY - (r.top + r.height / 2)
-      const reach = Math.max(r.width, r.height) * 0.9
+      // A generous reach so the halo warms before the pointer arrives.
+      const reach = Math.max(r.width, r.height) * 1.6
       const d = Math.hypot(dx, dy)
-      if (d > reach) {
-        target.x = 0
-        target.y = 0
-      } else {
-        const fall = 1 - d / reach
-        target.x = clamp(dx * 0.35 * fall, -strength, strength)
-        target.y = clamp(dy * 0.35 * fall, -strength, strength)
-      }
+      target = d > reach ? 0 : clamp(1 - d / reach, 0, 1)
       start()
     }
     const onLeave = () => {
-      target.x = 0
-      target.y = 0
+      target = 0
       start()
     }
 
@@ -94,17 +87,18 @@ export default function MagneticLink({
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerleave', onLeave)
       cancelAnimationFrame(raf)
+      wrap.style.removeProperty('--proximity')
     }
-  }, [enabled, strength])
+  }, [enabled])
 
-  const body = (
-    <span ref={innerRef} className="inline-flex items-center gap-4 will-change-transform">
-      {children}
-    </span>
-  )
+  const body = <span className="inline-flex items-center gap-4">{children}</span>
 
   return (
-    <span ref={wrapRef} className="inline-block">
+    <span
+      ref={wrapRef}
+      className="proximity-link inline-block rounded-full"
+      style={{ ['--proximity' as string]: 0 }}
+    >
       {external ? (
         <a href={href} target="_blank" rel="noopener noreferrer" className={className} style={style} {...rest}>
           {body}

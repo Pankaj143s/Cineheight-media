@@ -373,15 +373,9 @@ export default function ClientMarquee() {
             </div>
           </div>
         )}
-
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-1/2 h-px"
-          style={{
-            background:
-              'linear-gradient(to right, transparent, rgba(0,137,255,0.2), transparent)',
-          }}
-        />
+        {/* The blue centre rule that used to run through the logo row was
+            removed — it cut every wordmark in half. The strip's own hairline
+            top/bottom borders carry the band. */}
       </div>
 
       <div data-flow-anchor="right" className="pointer-events-none h-px" aria-hidden="true" />

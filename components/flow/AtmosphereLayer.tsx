@@ -32,7 +32,12 @@ export default function AtmosphereLayer({
   accent?: string
 }) {
   return (
-    <div data-atmosphere aria-hidden="true" className="pointer-events-none fixed inset-0 z-0">
+    <div
+      data-atmosphere
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0"
+      style={{ zIndex: 'var(--z-atmosphere)' }}
+    >
       {/* Deep base — the near-black stage the whole site sits on */}
       <div
         className="absolute inset-0"

@@ -1,9 +1,12 @@
 /**
  * The Cineheight soundscape — entirely procedural Web Audio.
  *
- * Nothing here is downloaded. Every texture is synthesised from noise buffers
- * and oscillators, which keeps the payload at zero bytes, sidesteps licensing
- * entirely, and means the ambience has no loop seam to hear.
+ * Nothing here is downloaded. Every texture is synthesised from a noise buffer
+ * and two oscillators, which keeps the payload at zero bytes, sidesteps
+ * licensing entirely, and means the ambience has no loop seam to hear. (There
+ * is no approved ambient asset in `public/`; if one is ever supplied, it can be
+ * routed into `ambientDuck` in place of the noise bed without touching any
+ * caller — the ducking and gesture rules below already apply to it.)
  *
  * Design rules the graph enforces:
  *
@@ -12,27 +15,22 @@
  *    real user gesture. Browsers would block audible autoplay anyway; more to
  *    the point, surprise sound is hostile.
  *  - **The bed is felt, not heard.** Level sits low enough that most people
- *    only notice it when it stops.
- *  - **Video always wins.** When any video on the page is unmuted the bed and
- *    the pointer sounds duck out of its way, because two audio experiences
- *    competing is worse than either alone.
- *  - **Pointer sound is rate-limited.** A sound per `pointermove` would be
- *    hundreds of events a second. A token bucket caps it at a handful.
+ *    only notice it when it stops. Low-passed pink noise reads as room air, not
+ *    hiss — there is no beat, no melody and nothing above ~320Hz to fatigue.
+ *  - **Video always wins.** When any video on the page is unmuted the bed ducks
+ *    out of its way, because two audio experiences competing is worse than
+ *    either alone.
+ *  - **The pointer is silent.** Moving the mouse makes no sound at all. The
+ *    brush voice and chalk grains that used to track pointer velocity were
+ *    removed along with their nodes, their token bucket and their listener.
  */
 
-import { clamp } from '@/lib/utils'
-
 /** Peak level of the ambient bed. Deliberately very low. */
-const AMBIENT_LEVEL = 0.035
-const SUB_LEVEL = 0.014
+const AMBIENT_LEVEL = 0.03
+const SUB_LEVEL = 0.012
 /** Multiplier applied to the bed while a video is audible. */
-const DUCK_AMBIENT = 0.15
+const DUCK_AMBIENT = 0.14
 const DUCK_SFX = 0.08
-/** Micro-sound budget: tokens per second, and the ceiling on stored tokens. */
-const SFX_TOKENS_PER_S = 6
-const SFX_TOKEN_MAX = 4
-/** Pointer travel, in px, that must accumulate before a chalk grain fires. */
-const GRAIN_DISTANCE = 340
 
 type Cleanup = () => void
 
@@ -61,30 +59,15 @@ function fillPinkNoise(buffer: AudioBuffer) {
   }
 }
 
-/** White noise, used for the short brush and tick voices. */
-function fillWhiteNoise(buffer: AudioBuffer) {
-  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
-    const data = buffer.getChannelData(ch)
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1
-  }
-}
-
 export class SoundEngine {
   private ctx: AudioContext | null = null
   private master: GainNode | null = null
   private ambientDuck: GainNode | null = null
   private sfxDuck: GainNode | null = null
   private ambientGain: GainNode | null = null
-  private brushGain: GainNode | null = null
-  private brushFilter: BiquadFilterNode | null = null
-  private brushPan: StereoPannerNode | null = null
   private pinkBuffer: AudioBuffer | null = null
-  private whiteBuffer: AudioBuffer | null = null
   private cleanups: Cleanup[] = []
 
-  private tokens = SFX_TOKEN_MAX
-  private lastTokenRefill = 0
-  private travelSinceGrain = 0
   private ducked = false
   private running = false
 
@@ -112,11 +95,12 @@ export class SoundEngine {
     if (this.ctx.state === 'suspended') await this.ctx.resume()
     this.running = true
 
-    // Fade up rather than punching in.
+    // Fade up rather than punching in — a longer ramp than before, so the bed
+    // arrives without a perceptible "on".
     const now = this.ctx.currentTime
     this.master?.gain.cancelScheduledValues(now)
     this.master?.gain.setValueAtTime(this.master.gain.value, now)
-    this.master?.gain.linearRampToValueAtTime(1, now + 0.9)
+    this.master?.gain.linearRampToValueAtTime(1, now + 1.4)
   }
 
   /** Fade out and suspend. The graph is kept so restarting is instant. */
@@ -128,12 +112,12 @@ export class SoundEngine {
     const now = this.ctx.currentTime
     this.master.gain.cancelScheduledValues(now)
     this.master.gain.setValueAtTime(this.master.gain.value, now)
-    this.master.gain.linearRampToValueAtTime(0, now + 0.35)
+    this.master.gain.linearRampToValueAtTime(0, now + 0.5)
     this.running = false
     const ctx = this.ctx
     window.setTimeout(() => {
       if (!this.running && ctx.state === 'running') void ctx.suspend()
-    }, 420)
+    }, 600)
   }
 
   /** Release everything. Called when the provider unmounts. */
@@ -152,14 +136,14 @@ export class SoundEngine {
     else if (!suspend && this.running && this.ctx.state === 'suspended') void this.ctx.resume()
   }
 
-  /** Duck the bed and micro-sounds out of a video's way. */
+  /** Duck the bed out of a video's way. */
   setDucked(ducked: boolean) {
     if (this.ducked === ducked) return
     this.ducked = ducked
     if (!this.ctx || !this.ambientDuck || !this.sfxDuck) return
     const now = this.ctx.currentTime
     // Duck quickly, restore gently — the reverse feels like a mistake.
-    const time = ducked ? 0.3 : 0.7
+    const time = ducked ? 0.35 : 0.9
     for (const [node, level] of [
       [this.ambientDuck, DUCK_AMBIENT],
       [this.sfxDuck, DUCK_SFX],
@@ -204,39 +188,45 @@ export class SoundEngine {
     this.sfxDuck = ctx.createGain()
     this.sfxDuck.connect(this.master)
 
-    // ---- noise sources -------------------------------------------------
-    const pink = ctx.createBuffer(2, Math.floor(ctx.sampleRate * 6), ctx.sampleRate)
+    // ---- noise source --------------------------------------------------
+    const pink = ctx.createBuffer(2, Math.floor(ctx.sampleRate * 8), ctx.sampleRate)
     fillPinkNoise(pink)
     this.pinkBuffer = pink
-    const white = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 1), ctx.sampleRate)
-    fillWhiteNoise(white)
-    this.whiteBuffer = white
 
     // ---- ambient bed ---------------------------------------------------
-    // Pink noise through a low-pass reads as air rather than hiss. Looping a
-    // 6 s buffer of noise has no audible seam because noise has no phase to
+    // Pink noise through a low-pass reads as air rather than hiss. Looping an
+    // 8 s buffer of noise has no audible seam because noise has no phase to
     // mismatch.
     const noiseSource = ctx.createBufferSource()
     noiseSource.buffer = pink
     noiseSource.loop = true
 
+    // 320Hz with a soft Q: everything that could read as hiss or sibilance is
+    // simply not there. Two poles rather than one so the roll-off is gentle
+    // instead of a resonant edge.
     const lowpass = ctx.createBiquadFilter()
     lowpass.type = 'lowpass'
-    lowpass.frequency.value = 420
-    lowpass.Q.value = 0.6
+    lowpass.frequency.value = 320
+    lowpass.Q.value = 0.5
+
+    const lowpass2 = ctx.createBiquadFilter()
+    lowpass2.type = 'lowpass'
+    lowpass2.frequency.value = 620
+    lowpass2.Q.value = 0.4
 
     // Roll off the very bottom: bass-heavy rumble is fatiguing and inaudible
     // on the laptop speakers most visitors will use.
     const highpass = ctx.createBiquadFilter()
     highpass.type = 'highpass'
-    highpass.frequency.value = 90
+    highpass.frequency.value = 70
 
     this.ambientGain = ctx.createGain()
     this.ambientGain.gain.value = AMBIENT_LEVEL
 
     noiseSource.connect(highpass)
     highpass.connect(lowpass)
-    lowpass.connect(this.ambientGain)
+    lowpass.connect(lowpass2)
+    lowpass2.connect(this.ambientGain)
     this.ambientGain.connect(this.ambientDuck)
     noiseSource.start()
     this.cleanups.push(() => noiseSource.stop())
@@ -244,7 +234,7 @@ export class SoundEngine {
     // A soft low sine underneath gives the bed a floor without becoming a note.
     const sub = ctx.createOscillator()
     sub.type = 'sine'
-    sub.frequency.value = 56
+    sub.frequency.value = 52
     const subGain = ctx.createGain()
     subGain.gain.value = SUB_LEVEL
     sub.connect(subGain)
@@ -252,127 +242,33 @@ export class SoundEngine {
     sub.start()
     this.cleanups.push(() => sub.stop())
 
-    // Very slow amplitude drift so the bed breathes instead of sitting static.
-    const lfo = ctx.createOscillator()
-    lfo.type = 'sine'
-    lfo.frequency.value = 0.055
-    const lfoDepth = ctx.createGain()
-    lfoDepth.gain.value = AMBIENT_LEVEL * 0.42
-    lfo.connect(lfoDepth)
-    lfoDepth.connect(this.ambientGain.gain)
-    lfo.start()
-    this.cleanups.push(() => lfo.stop())
-
-    // ---- pointer brush -------------------------------------------------
-    // One continuously running noise voice whose gain and filter follow the
-    // pointer. Continuous means no per-move node churn; the gain envelope is
-    // what makes it a brush rather than a drone.
-    const brushSource = ctx.createBufferSource()
-    brushSource.buffer = pink
-    brushSource.loop = true
-
-    this.brushFilter = ctx.createBiquadFilter()
-    this.brushFilter.type = 'bandpass'
-    this.brushFilter.frequency.value = 1100
-    this.brushFilter.Q.value = 0.9
-
-    this.brushGain = ctx.createGain()
-    this.brushGain.gain.value = 0
-
-    this.brushPan = ctx.createStereoPanner()
-
-    brushSource.connect(this.brushFilter)
-    this.brushFilter.connect(this.brushGain)
-    this.brushGain.connect(this.brushPan)
-    this.brushPan.connect(this.sfxDuck)
-    brushSource.start()
-    this.cleanups.push(() => brushSource.stop())
-  }
-
-  /** Refill the micro-sound token bucket. */
-  private takeToken(now: number): boolean {
-    if (!this.lastTokenRefill) this.lastTokenRefill = now
-    const elapsed = (now - this.lastTokenRefill) / 1000
-    this.tokens = Math.min(SFX_TOKEN_MAX, this.tokens + elapsed * SFX_TOKENS_PER_S)
-    this.lastTokenRefill = now
-    if (this.tokens < 1) return false
-    this.tokens -= 1
-    return true
-  }
-
-  /**
-   * Pointer moved. `speed` is px/ms, `panX` is 0–1 across the viewport.
-   * `quiet` suppresses everything over text, forms and navigation.
-   */
-  pointerMove(speed: number, panX: number, distance: number, quiet: boolean) {
-    if (!this.running || !this.ctx || !this.brushGain || !this.brushFilter || !this.brushPan) return
-    const now = this.ctx.currentTime
-
-    const intensity = quiet ? 0 : clamp(speed / 2.2, 0, 1)
-    // Short attack, longer release: the sound arrives with the movement and
-    // trails off after it, like a brush lifting.
-    const target = intensity * 0.05
-    this.brushGain.gain.cancelScheduledValues(now)
-    this.brushGain.gain.setTargetAtTime(target, now, target > this.brushGain.gain.value ? 0.05 : 0.2)
-    this.brushFilter.frequency.setTargetAtTime(700 + intensity * 1900, now, 0.12)
-    this.brushPan.pan.setTargetAtTime(clamp(panX * 2 - 1, -1, 1), now, 0.15)
-
-    if (quiet) {
-      this.travelSinceGrain = 0
-      return
-    }
-    // Chalk grains fire on accumulated travel, not on every event, so they
-    // read as texture in the movement rather than a rattle.
-    this.travelSinceGrain += distance
-    if (this.travelSinceGrain >= GRAIN_DISTANCE) {
-      this.travelSinceGrain = 0
-      this.grain(panX)
-    }
-  }
-
-  /** A single tiny filtered noise grain. */
-  private grain(panX: number) {
-    const ctx = this.ctx
-    if (!ctx || !this.whiteBuffer || !this.sfxDuck) return
-    if (!this.takeToken(performance.now())) return
-
-    const src = ctx.createBufferSource()
-    src.buffer = this.whiteBuffer
-    src.loop = true
-    const filter = ctx.createBiquadFilter()
-    filter.type = 'highpass'
-    filter.frequency.value = 3200
-    const gain = ctx.createGain()
-    const pan = ctx.createStereoPanner()
-    pan.pan.value = clamp(panX * 2 - 1, -1, 1)
-
-    const now = ctx.currentTime
-    gain.gain.setValueAtTime(0, now)
-    gain.gain.linearRampToValueAtTime(0.02, now + 0.006)
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05)
-
-    src.connect(filter)
-    filter.connect(gain)
-    gain.connect(pan)
-    pan.connect(this.sfxDuck)
-    src.start(now)
-    src.stop(now + 0.06)
-    src.onended = () => {
-      src.disconnect()
-      filter.disconnect()
-      gain.disconnect()
-      pan.disconnect()
+    // Two very slow amplitude drifts at deliberately incommensurate rates
+    // (~23s and ~59s). Their sum never repeats within a visit, so the bed
+    // breathes without ever settling into an audible cycle.
+    for (const [rate, depth] of [
+      [0.043, AMBIENT_LEVEL * 0.26],
+      [0.017, AMBIENT_LEVEL * 0.14],
+    ] as const) {
+      const lfo = ctx.createOscillator()
+      lfo.type = 'sine'
+      lfo.frequency.value = rate
+      const lfoDepth = ctx.createGain()
+      lfoDepth.gain.value = depth
+      lfo.connect(lfoDepth)
+      lfoDepth.connect(this.ambientGain.gain)
+      lfo.start()
+      this.cleanups.push(() => lfo.stop())
     }
   }
 
   /** Soft rising sweep as the route mask closes. */
   routeOut() {
-    this.sweep(320, 2300, 0.36, 0.03)
+    this.sweep(320, 1900, 0.36, 0.022)
   }
 
   /** Softer falling resolve as the destination reveals. */
   routeIn() {
-    this.sweep(1900, 520, 0.44, 0.022)
+    this.sweep(1600, 520, 0.44, 0.016)
   }
 
   private sweep(from: number, to: number, seconds: number, level: number) {

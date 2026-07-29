@@ -11,7 +11,16 @@ export const contact = {
   email: 'grow@cineheight.com',
   /** Direct address used in the old footer/nav. */
   directEmail: 'shreyas@cineheight.com',
-  phone: '+91 8308765466',
+  /**
+   * Non-breaking space between the country code and the number.
+   *
+   * With a normal space this broke as "+91" / "8308765466" across two lines in
+   * narrow columns (the footer, the contact channel list), which reads as a
+   * layout fault rather than a phone number. Call sites also carry
+   * `whitespace-nowrap`; this makes the string itself unbreakable so a new call
+   * site cannot reintroduce the bug. The dialable form below is unaffected.
+   */
+  phone: '+91 8308765466',
   phoneHref: 'tel:+918308765466',
   whatsapp: 'https://wa.me/918308765466',
   location: 'Kankavli, Maharashtra, India',
@@ -58,6 +67,7 @@ export const socialLinks: SocialLink[] = [
 /** Old live nav had NO Insights item and no insight content exists —
  *  the item is intentionally absent (docs/ROUTE-MAP.md). */
 export const navItems = [
+  { label: 'Home', href: '/' },
   { label: 'Work', href: '/work' },
   { label: 'Services', href: '/services' },
   { label: 'About', href: '/about' },

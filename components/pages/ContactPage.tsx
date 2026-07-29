@@ -6,15 +6,13 @@ import KineticLabel from '@/components/motion/KineticLabel'
 import StrokeFillHeadline from '@/components/motion/StrokeFillHeadline'
 import ProjectContactForm from '@/components/contact/ProjectContactForm'
 import { createManagedFrameLoop } from '@/lib/managedFrame'
-import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects, useIsMobileTier } from '@/lib/useMediaPreferences'
-import { observeVisibleLayerPromotion } from '@/lib/visibleLayerPromotion'
 
 /**
- * The destination. One large project-start statement and the real channels
- * arranged as a composition that shifts around the pointer — the signal leans
- * toward whichever channel you approach, and the moment you commit, the link
- * is an ordinary anchor that navigates instantly.
+ * The destination. One large project-start statement and the real channels,
+ * with a decorative signal that leans toward whichever channel you approach;
+ * the moment you commit, the link is an ordinary anchor that navigates
+ * instantly. The channel type itself never moves — see the effect below.
  *
  * The expressive direct channels remain intact beside the shared, real
  * project form. Its API reports provider/configuration failures honestly.
@@ -61,14 +59,23 @@ export default function ContactPage() {
   const mobile = useIsMobileTier()
   const [focused, setFocused] = useState<number | null>(null)
 
-  // Channels drift with the pointer; the signal leans toward the nearest one.
+  /**
+   * The signal reaches from the statement toward whichever channel is nearest
+   * the pointer.
+   *
+   * The channels themselves used to translate up to ±14px toward the cursor.
+   * That has been removed: sliding readable contact details sideways under the
+   * pointer reads as lag, and the phone number and email are exactly the text a
+   * visitor is trying to hold still enough to read or copy. The proximity
+   * signal — a decorative line, never required to find a channel — carries the
+   * same "this one" intent without touching the type.
+   */
   useEffect(() => {
     if (!rich) return
     const root = rootRef.current
     if (!root) return
 
     const pointer = { x: 0, y: 0 }
-    const cur = itemRefs.current.map(() => ({ x: 0, y: 0 }))
     const itemLeft = new Float32Array(itemRefs.current.length)
     const centerX = new Float32Array(itemRefs.current.length)
     const centerY = new Float32Array(itemRefs.current.length)
@@ -86,42 +93,27 @@ export default function ContactPage() {
       itemRefs.current.forEach((el, index) => {
         if (!el) return
         const rect = el.getBoundingClientRect()
-        itemLeft[index] = rect.left - cur[index].x
-        centerX[index] = rect.left + rect.width / 2 - cur[index].x
-        centerY[index] = rect.top + rect.height / 2 - cur[index].y
+        itemLeft[index] = rect.left
+        centerX[index] = rect.left + rect.width / 2
+        centerY[index] = rect.top + rect.height / 2
       })
       measureDirty = false
     }
 
-    const animation = createManagedFrameLoop((_now, dt) => {
+    const animation = createManagedFrameLoop(() => {
       if (measureDirty) measure()
-      const f = damp(0.07, dt)
       let nearest = -1
       let nearestD = Infinity
-      let unsettled = false
 
       itemRefs.current.forEach((el, i) => {
         if (!el) return
-        const dx = pointer.x - centerX[i]
-        const dy = pointer.y - centerY[i]
-        const d = Math.hypot(dx, dy)
+        const d = Math.hypot(pointer.x - centerX[i], pointer.y - centerY[i])
         if (d < nearestD) {
           nearestD = d
           nearest = i
         }
-        // Near the pointer a channel leans in; far away it drifts on its own
-        // slow vector, so the field is never completely still.
-        const reach = 420
-        const pull = inside && d < reach ? (1 - d / reach) ** 2 : 0
-        const tx = inside ? clamp(dx * 0.05 * pull, -14, 14) : 0
-        const ty = inside ? clamp(dy * 0.05 * pull, -14, 14) : 0
-        cur[i].x += (tx - cur[i].x) * f
-        cur[i].y += (ty - cur[i].y) * f
-        if (Math.abs(tx - cur[i].x) > 0.02 || Math.abs(ty - cur[i].y) > 0.02) unsettled = true
-        el.style.transform = `translate3d(${cur[i].x.toFixed(2)}px, ${cur[i].y.toFixed(2)}px, 0)`
       })
 
-      // The thread reaches from the statement toward the nearest channel.
       const path = threadRef.current
       if (path && nearest >= 0 && inside) {
         const el = itemRefs.current[nearest]
@@ -140,7 +132,9 @@ export default function ContactPage() {
         path.style.opacity = '0'
       }
 
-      return unsettled
+      // The path is repointed only on pointer movement, so the loop can sleep
+      // as soon as it has drawn the current frame.
+      return false
     })
 
     const onMove = (e: PointerEvent) => {
@@ -162,15 +156,11 @@ export default function ContactPage() {
     root.addEventListener('pointerleave', onLeave)
     window.addEventListener('resize', onLayoutChange)
     window.addEventListener('scroll', onLayoutChange, { passive: true })
-    const stopPromotion = observeVisibleLayerPromotion(
-      itemRefs.current.filter((element): element is HTMLLIElement => Boolean(element))
-    )
     return () => {
       root.removeEventListener('pointermove', onMove)
       root.removeEventListener('pointerleave', onLeave)
       window.removeEventListener('resize', onLayoutChange)
       window.removeEventListener('scroll', onLayoutChange)
-      stopPromotion()
       animation.destroy()
     }
   }, [rich])
@@ -206,8 +196,8 @@ export default function ContactPage() {
 
       <section aria-label="Contact channels and project form" className="flow-gutter relative z-10" style={{ marginTop: mobile ? '8vh' : '12vh' }}>
         <div className="grid gap-x-14 gap-y-16 lg:grid-cols-12">
-          {/* The channel list drifts gently; the form never moves — a field
-              that shifts under the cursor while you type is hostile. */}
+          {/* Neither column moves under the pointer: a contact detail you are
+              reading, and a field you are typing into, must both hold still. */}
           <ul data-depth-layer="mid" className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:col-span-6">
             {CHANNELS.map((ch, i) => (
               <li
@@ -229,7 +219,7 @@ export default function ContactPage() {
                     {ch.label}
                   </p>
                   <p
-                    className="font-display mt-3 flex min-h-[44px] items-center font-bold text-text-100 transition-colors duration-300 group-hover:text-[var(--blue-200)] group-focus-visible:text-[var(--blue-200)]"
+                    className="font-display mt-3 flex min-h-[44px] items-center whitespace-nowrap font-bold text-text-100 transition-colors duration-300 group-hover:text-[var(--blue-200)] group-focus-visible:text-[var(--blue-200)]"
                     style={{ fontSize: 'clamp(1.2rem, 2.4vw, 2rem)', lineHeight: 1.04, letterSpacing: '-0.02em' }}
                   >
                     {ch.value}

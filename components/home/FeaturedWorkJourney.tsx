@@ -115,6 +115,24 @@ export default function FeaturedWorkJourney() {
   const activeRef = useRef(0)
   const [userPaused] = useState(false)
 
+  /**
+   * Has the sequence actually started presenting?
+   *
+   * `active` is 0 from mount, so without this gate the first project's metric
+   * would count up the instant the component mounts — while its copy block is
+   * still `autoAlpha: 0` and the visitor is somewhere up in the hero. The
+   * number would then be "already counted" by the time anyone could see it.
+   * The counters are handed `active && stageEntered` so the count begins on the
+   * frame the copy is genuinely being revealed.
+   */
+  const [stageEntered, setStageEntered] = useState(false)
+  const stageEnteredRef = useRef(false)
+  const markStageEntered = useCallback(() => {
+    if (stageEnteredRef.current) return
+    stageEnteredRef.current = true
+    setStageEntered(true)
+  }, [])
+
   const setActiveIndex = useCallback((i: number) => {
     if (i === activeRef.current) return
     activeRef.current = i
@@ -139,6 +157,8 @@ export default function FeaturedWorkJourney() {
           scrub: 0.6,
           onUpdate: (st) => {
             const p = st.progress
+            // Copy block 0 begins revealing at 0.06; arm the metrics just before.
+            if (p > 0.04) markStageEntered()
             setActiveIndex(p < 0.42 ? 0 : p < 0.72 ? 1 : 2)
           },
         },
@@ -185,7 +205,7 @@ export default function FeaturedWorkJourney() {
       })
     }, rootRef)
     return () => ctx.revert()
-  }, [reduced, mobile, setActiveIndex])
+  }, [reduced, mobile, setActiveIndex, markStageEntered])
 
   /* ------------------------------------------------------- mobile sequence */
   useIsomorphicLayoutEffect(() => {
@@ -202,7 +222,12 @@ export default function FeaturedWorkJourney() {
           )
         }
         const io = new IntersectionObserver(
-          ([e]) => { if (e.intersectionRatio > 0.5) setActiveIndex(i) },
+          ([e]) => {
+            if (e.intersectionRatio > 0.5) {
+              markStageEntered()
+              setActiveIndex(i)
+            }
+          },
           { threshold: [0, 0.5] }
         )
         io.observe(scene)
@@ -213,7 +238,7 @@ export default function FeaturedWorkJourney() {
       observers.forEach((io) => io.disconnect())
       ctx.revert()
     }
-  }, [mobile, reduced, setActiveIndex])
+  }, [mobile, reduced, setActiveIndex, markStageEntered])
 
   /* ------------------------------------------------------ video ownership */
   useEffect(() => {
@@ -347,7 +372,7 @@ export default function FeaturedWorkJourney() {
               </div>
             </Link>
             <div data-copy className="flow-gutter relative -mt-[7vh]">
-              <ProjectCopy cs={cs} index={i} compact active={active === i} />
+              <ProjectCopy cs={cs} index={i} compact active={stageEntered && active === i} />
             </div>
           </article>
         ))}
@@ -435,7 +460,7 @@ export default function FeaturedWorkJourney() {
             style={{ opacity: 0 }}
           >
             <div className="pointer-events-auto">
-              <ProjectCopy cs={cs} index={i} active={active === i} />
+              <ProjectCopy cs={cs} index={i} active={stageEntered && active === i} />
             </div>
           </div>
         ))}

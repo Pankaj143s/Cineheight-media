@@ -8,6 +8,7 @@ import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import { clamp, damp } from '@/lib/utils'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
+import { scrollToElementCenter } from '@/lib/scrollTo'
 
 /**
  * The phone-reel installation — the old project's `ReelsCoverflow` concept
@@ -311,12 +312,39 @@ export default function PhoneReelExperience({
     return { lightboxItems: out, realIndexToLightbox: toLb, lightboxToRealIndex: toReal }
   }, [reels])
 
-  /** Open the active reel in the shared lightbox (never a placeholder). */
-  const openActive = useCallback(() => {
-    if (reels[activeRef.current]?.isPlaceholder) return
-    setSourceRect(cardRefs.current[activeRef.current]?.getBoundingClientRect() ?? null)
-    setExpanded(activeRef.current)
-  }, [reels])
+  /**
+   * Bring the installation to the centre of the viewport, then open the active
+   * reel full size.
+   *
+   * The centring happens first and the source rect is measured *after* it
+   * settles, because the lightbox grows out of that rectangle — measuring
+   * before the scroll would make the panel appear to fly out of wherever the
+   * phone used to be. Under reduced motion the scroll is instant and the
+   * lightbox falls back to a plain fade, so nothing travels.
+   */
+  const openAt = useCallback(
+    (index: number) => {
+      if (reels[index]?.isPlaceholder) return
+      // Bring the requested handset to the centre of the carousel first, so the
+      // reel that opens is unambiguously the one that was tapped.
+      goTo(index)
+
+      const present = () => {
+        setSourceRect(cardRefs.current[index]?.getBoundingClientRect() ?? null)
+        setExpanded(index)
+      }
+
+      const stage = stageRef.current
+      if (!stage) {
+        present()
+        return
+      }
+      scrollToElementCenter(stage, { immediate: reduced, duration: 0.7, onComplete: present })
+    },
+    [reels, reduced, goTo]
+  )
+
+  const openActive = useCallback(() => openAt(activeRef.current), [openAt])
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowRight') {
@@ -536,20 +564,22 @@ export default function PhoneReelExperience({
             role="button"
             tabIndex={-1}
             aria-label={
-              i === active
-                ? r.isPlaceholder
-                  ? `${r.client} — ${r.title}. Awaiting the client file.`
-                  : `${r.client} — ${r.title}. Press to open full size.`
-                : `Show ${r.client} — ${r.title}`
+              r.isPlaceholder
+                ? `${r.client} — ${r.title}. Awaiting the client file.`
+                : `${r.client} — ${r.title}. Press to open full size.`
             }
             onClick={() => {
               if (dragged.current) {
+                // The pointer travelled far enough to be a drag, not a tap.
+                // Swiping the carousel must never open a reel by accident.
                 dragged.current = false
                 return
               }
-              // A side phone comes to the centre; the centre phone opens.
-              if (i === active) openActive()
-              else goTo(i)
+              // One interaction for every handset: it comes to the centre of
+              // the carousel, the section centres in the viewport, and that
+              // exact reel opens.
+              if (r.isPlaceholder) goTo(i)
+              else openAt(i)
             }}
             data-phone-card
             data-phone-active={i === active}

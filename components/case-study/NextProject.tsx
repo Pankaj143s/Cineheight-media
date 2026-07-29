@@ -2,11 +2,10 @@
 
 import { useEffect, useRef } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import type { CaseStudy } from '@/content/caseStudies'
-import { caseCover } from '@/content/presentationMedia'
+import { workIndexSlots } from '@/content/mediaSlots'
 import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
@@ -23,7 +22,17 @@ export default function NextProject({ next }: { next: CaseStudy }) {
   const reduced = useReducedMotion()
   const mobile = useIsMobileTier()
   const rich = useCanRunRichEffects()
-  const cover = caseCover(next.id)
+  /**
+   * The same poster the visitor will see for this project on /work.
+   *
+   * This block used to pull from `presentationMedia`'s `caseCover()`, a second
+   * family of reframed covers under /generated/presentation. Two sources for
+   * one project meant "next project" advertised a different image from the one
+   * the work index showed. `workIndexSlots` is now the single source; there is
+   * deliberately no fallback to the old covers, because silently showing a
+   * stale image is worse than showing none.
+   */
+  const slot = workIndexSlots[next.id]
 
   useIsomorphicLayoutEffect(() => {
     if (reduced) return
@@ -98,22 +107,34 @@ export default function NextProject({ next }: { next: CaseStudy }) {
           // Capped on short desktops so the scene never exceeds the viewport.
           style={{ height: mobile ? '58svh' : 'clamp(30rem, 78svh, 52rem)' }}
         >
-          {/* Dedicated 16:9 / 4:5 covers rather than a square reel poster
-              stretched across a full-width stage — that discarded roughly 40%
-              of the client's frame. */}
+          {/* The work-index cover for this project, so the promise here and the
+              poster on /work are literally the same file. */}
           <div data-next-inner data-depth-layer="back" className="absolute inset-[-10%]">
-            <picture>
-              <source media="(max-width: 767px)" srcSet={cover.mobile.src} />
-              <source media="(min-width: 768px)" srcSet={cover.desktop.src} />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={cover.desktop.src}
-                alt=""
-                className="h-full w-full object-cover"
-                loading="lazy"
-                decoding="async"
-              />
-            </picture>
+            {slot && (
+              <picture>
+                {/*
+                  The mobile variant is emitted only once the slot is fully
+                  `ready`. While it is `desktop-ready` the responsive file does
+                  not exist on disk, and pointing a <source> at a missing asset
+                  would give phones a broken image rather than a smaller one.
+                  This mirrors the gating in MediaSpecPlaceholder so both
+                  consumers of the slot behave identically.
+                */}
+                {slot.status === 'ready' && slot.mobile && (
+                  <source media="(max-width: 767px)" srcSet={slot.mobile.src} />
+                )}
+                <source media="(min-width: 768px)" srcSet={slot.desktop.src} />
+                <img
+                  src={slot.desktop.src}
+                  alt=""
+                  width={slot.desktop.width}
+                  height={slot.desktop.height}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </picture>
+            )}
           </div>
           {/* Two scrims, not one. The vertical gradient alone left the headline
               at roughly 0.47 coverage where it crossed SES's white poster plane

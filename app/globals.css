@@ -42,6 +42,37 @@
   --accent-sapale: #204497;
   --accent-ses: #334fa2;
   --accent-divija: #0092cb;
+
+  /* ------------------------------------------------------------
+     Layer stack — the single source of truth for paint order.
+
+     Every route wrapper isolates its own content (`isolation: isolate`),
+     so a section's internal z-index can never escape into this stack.
+     That is what keeps the decorative flow thread permanently behind
+     content without any negative z-index anywhere.
+
+       0  atmosphere (fixed gradient field)
+       1  flow thread + cursor trail canvas   <- decorative background
+      10  route content (isolated)            <- text, media, forms, controls
+      50  navbar
+      60  film grain
+      70  cursor glyph
+      80  route-transition overlay
+      95  modals / fullscreen media
+     ------------------------------------------------------------ */
+  --z-atmosphere: 0;
+  --z-thread: 1;
+  --z-content: 10;
+  --z-nav: 50;
+  --z-grain: 60;
+  --z-cursor: 70;
+  --z-route: 80;
+  --z-modal: 95;
+
+  /* Opaque dark-glass surface for form controls. Deliberately near-solid so
+     the flow thread can never bleed through a field and reduce legibility. */
+  --surface-field: rgba(9, 12, 18, 0.94);
+  --surface-field-focus: rgba(12, 16, 24, 0.97);
 }
 
 html {
@@ -93,16 +124,16 @@ html[data-signal-cursor='true'] select {
   cursor: auto;
 }
 .signal-cursor-dot {
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   translate: -50% -50%;
   background: var(--blue-050);
-  box-shadow: 0 0 6px 1px rgba(0, 137, 255, 0.62);
+  box-shadow: 0 0 7px 1px rgba(0, 137, 255, 0.62);
   transition: width 160ms ease, height 160ms ease, background 160ms ease;
 }
 .signal-cursor-target {
-  width: 14px;
-  height: 14px;
+  width: 17px;
+  height: 17px;
   translate: -50% -50%;
   border: 1px solid rgba(153, 207, 255, 0.62);
   opacity: 0;
@@ -118,8 +149,8 @@ html[data-signal-cursor='true'] select {
   scale: var(--cursor-click-scale);
 }
 [data-signal-cursor][data-cursor-mode='action'] .signal-cursor-dot {
-  width: 7px;
-  height: 7px;
+  width: 9px;
+  height: 9px;
   background: var(--blue-200);
 }
 [data-signal-cursor][data-cursor-mode='action'] .signal-cursor-target {
@@ -135,6 +166,22 @@ html[data-signal-cursor='true'] select {
 [data-text-layer-active='true'] {
   will-change: transform;
 }
+/* Inside the hero's water surface the native cursor takes over.
+   The signal cursor is a small glowing blue dot, and sitting exactly on the
+   point a ripple originates from it reads as part of the effect rather than as
+   a pointer. `HeroRippleBackground` sets the attribute while the pointer is
+   within the canvas; everywhere else on the site the custom cursor is
+   unchanged. */
+html[data-hero-surface='true'] [data-signal-cursor] {
+  opacity: 0 !important;
+}
+html[data-hero-surface='true'][data-signal-cursor='true'] body,
+html[data-hero-surface='true'][data-signal-cursor='true'] a,
+html[data-hero-surface='true'][data-signal-cursor='true'] button,
+html[data-hero-surface='true'][data-signal-cursor='true'] [role='button'] {
+  cursor: auto !important;
+}
+
 @media (prefers-reduced-motion: reduce), (pointer: coarse) {
   [data-signal-cursor] {
     display: none !important;
@@ -174,7 +221,7 @@ html[data-signal-cursor='true'] select {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 60;
+  z-index: var(--z-grain);
   opacity: 0.05;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -204,14 +251,13 @@ html[data-signal-cursor='true'] select {
 
 .route-loader-mark {
   opacity: 0;
-  animation-name: route-loader-mark;
   animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   animation-fill-mode: both;
 }
 
 .route-loader-word {
   letter-spacing: 0.42em;
-  animation: route-loader-tracking 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: route-loader-tracking 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .route-loader-progress {
@@ -220,10 +266,23 @@ html[data-signal-cursor='true'] select {
   will-change: transform;
 }
 
-@keyframes route-loader-mark {
-  0%, 18% { opacity: 0; transform: translateY(7px); }
-  48%, 74% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(-4px); }
+/*
+ * Two halves rather than one round trip.
+ *
+ * `-in` runs while the mask is closing and ENDS at full opacity; with
+ * `animation-fill-mode: both` it then holds there for as long as the route
+ * takes to commit. `-out` runs only during the reveal. A single keyframe that
+ * faded up and back down inside one phase meant the mark was legible for about
+ * 90ms and the whole transition read as an unexplained black screen.
+ */
+@keyframes route-loader-mark-in {
+  0% { opacity: 0; transform: translateY(8px); }
+  55%, 100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes route-loader-mark-out {
+  0%, 45% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-6px); }
 }
 
 @keyframes route-loader-tracking {
@@ -291,12 +350,14 @@ html[data-signal-cursor='true'] select {
   will-change: translate, scale;
 }
 
+/* The hovered step brightens. It used to also translate 4px to the right,
+   which made the step titles look like they were lagging behind the pointer;
+   the colour shift alone reads as "this one" without moving the baseline. */
 .process-step [data-process-title] {
-  transition: translate 280ms ease, color 280ms ease;
+  transition: color 280ms ease;
 }
 
 .process-step[data-process-hover='true'] [data-process-title] {
-  translate: 4px 0;
   color: var(--blue-200);
 }
 
@@ -365,6 +426,148 @@ html[data-signal-cursor='true'] select {
 /* ============================================================
    Flow composition helpers
    ============================================================ */
+
+/*
+ * The foreground layer every route's content lives in.
+ *
+ * `isolation: isolate` is the important half: it forces a stacking context at
+ * this exact level, so the dozens of internal contexts inside a page (every
+ * `will-change: transform` frame, every `[data-parallax-*]` element, every
+ * scrubbed media block) are sealed inside the content layer. Whatever they do
+ * with z-index locally, they can never interleave with the atmosphere or the
+ * flow thread underneath, and never rise above the navbar or the route overlay.
+ *
+ * Fixed chrome (navbar, grain, cursor, route overlay, modals) must stay a
+ * SIBLING of this wrapper, never a child, or its own z-index gets flattened in.
+ */
+.layer-content {
+  position: relative;
+  z-index: var(--z-content);
+  isolation: isolate;
+}
+
+/* ============================================================
+   /work — "View case study" affordance
+
+   The CTA used to be bare text plus a chevron in the same weight as the
+   tagline above it, and it read as a caption rather than as the way in. It is
+   now a bordered pill with a drawn underline and a very slow ambient pulse:
+   long enough between beats (7s) that it never nags, strong enough that the
+   eye finds it. Hover and keyboard focus stop the loop and take over with a
+   definite state, so the two never fight.
+   ============================================================ */
+[data-work-cta] {
+  animation: work-cta-pulse 7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+[data-work-cta-rule] {
+  transform: scaleX(0.18);
+  transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.group:hover [data-work-cta-rule],
+.group:focus-visible [data-work-cta-rule] {
+  transform: scaleX(1);
+}
+/* Pause the ambient loop the moment the visitor is actually on it. */
+.group:hover [data-work-cta],
+.group:focus-visible [data-work-cta] {
+  animation-play-state: paused;
+  box-shadow: 0 0 22px -6px rgba(0, 137, 255, 0.55);
+}
+[data-work-cta-arrow] {
+  animation: work-cta-arrow 7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.group:hover [data-work-cta-arrow],
+.group:focus-visible [data-work-cta-arrow] {
+  animation-play-state: paused;
+}
+
+@keyframes work-cta-pulse {
+  0%, 82%, 100% { box-shadow: 0 0 0 0 rgba(0, 137, 255, 0); }
+  90% { box-shadow: 0 0 20px -6px rgba(0, 137, 255, 0.5); }
+}
+/* Only the arrow travels — the label's baseline is fixed. */
+@keyframes work-cta-arrow {
+  0%, 80%, 100% { transform: translateX(0); }
+  88% { transform: translateX(5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-work-cta],
+  [data-work-cta-arrow] {
+    animation: none !important;
+  }
+  [data-work-cta-rule] {
+    transform: scaleX(1);
+    transition: none;
+  }
+}
+
+/* The showreel's single centre control. It recedes once the film is genuinely
+   playing with sound, and comes back in full whenever the pointer or the
+   keyboard reaches it — so pausing is always one obvious gesture away. */
+[data-showreel-control] {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 500ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 500ms cubic-bezier(0.22, 1, 0.36, 1), border-color 300ms ease;
+}
+[data-showreel-control][data-recede='true'] {
+  opacity: 0.22;
+  transform: scale(0.94);
+}
+[data-showreel-control][data-recede='true']:hover,
+[data-showreel-control][data-recede='true']:focus-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-showreel-control] {
+    transition: opacity 120ms linear;
+    transform: none !important;
+  }
+}
+
+/* A CTA warms as the pointer approaches — light, not displacement.
+   `--proximity` (0 → 1) is written by components/ui/MagneticLink. */
+.proximity-link {
+  box-shadow: 0 0 calc(var(--proximity, 0) * 26px) calc(var(--proximity, 0) * -4px)
+    rgba(0, 137, 255, calc(var(--proximity, 0) * 0.55));
+}
+
+/* ============================================================
+   Form controls — opaque dark glass
+
+   The flow thread passes behind the contact form. A 2.5%-white field let it
+   read straight through the input; these surfaces are near-solid so the line
+   can never reduce field legibility, while keeping the dark-glass look.
+   ============================================================ */
+.field-surface {
+  background: var(--surface-field);
+}
+.field-surface:hover {
+  background: var(--surface-field-focus);
+}
+.field-surface:focus {
+  background: var(--surface-field-focus);
+}
+.field-surface:disabled {
+  background: rgba(9, 12, 18, 0.7);
+  color: var(--text-500);
+  cursor: not-allowed;
+}
+/* Chrome/Safari paint autofilled fields a solid pale yellow that would tear a
+   hole in the dark form. The inset shadow is the only way to override it. */
+.field-surface:-webkit-autofill,
+.field-surface:-webkit-autofill:hover,
+.field-surface:-webkit-autofill:focus,
+.field-surface:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #0b0f16 inset !important;
+  box-shadow: 0 0 0 1000px #0b0f16 inset !important;
+  -webkit-text-fill-color: var(--text-100) !important;
+  caret-color: var(--text-100);
+  /* Long transition = the yellow flash never gets a chance to paint. */
+  transition: background-color 100000s ease-in-out 0s;
+}
 
 /* The shared safe gutter, as a variable so components that position against
    the content column (a media panel pinned to its right edge, for instance)

@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import Lenis from 'lenis'
 import { gsap, ScrollTrigger } from '@/lib/gsap'
 import { publishScrollSignal } from '@/lib/scrollSignal'
+import { registerLenis } from '@/lib/scrollTo'
 
 /**
  * The ONE smooth-scroll instance for the whole site. Mounted once in
@@ -59,6 +60,7 @@ export default function SmoothScrollProvider({ children }: { children: React.Rea
     }
     lenis.on('scroll', onScroll)
     onScroll(lenis)
+    registerLenis(lenis)
 
     const tick = (time: number) => lenis.raf(time * 1000)
     gsap.ticker.add(tick)
@@ -67,6 +69,7 @@ export default function SmoothScrollProvider({ children }: { children: React.Rea
     gsap.ticker.lagSmoothing(0)
 
     return () => {
+      registerLenis(null)
       lenis.off('scroll', onScroll)
       gsap.ticker.remove(tick)
       gsap.ticker.lagSmoothing(500, 33) // GSAP's default

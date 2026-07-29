@@ -8,6 +8,7 @@ import path from 'node:path'
 import { mediaManifest } from '../content/mediaManifest.ts'
 import { caseStudies } from '../content/caseStudies.ts'
 import { trustedClients, services } from '../content/siteContent.ts'
+import { featuredWorkSlots, workIndexSlots } from '../content/mediaSlots.ts'
 
 const PUB = path.resolve('public')
 let missing = 0
@@ -37,6 +38,13 @@ for (const cs of caseStudies) {
 }
 for (const c of trustedClients) check(c.logo, `trusted:${c.name}`)
 for (const s of services) check(s.image, `service:${s.id}`)
+for (const slots of [featuredWorkSlots, workIndexSlots]) {
+  for (const spec of Object.values(slots)) {
+    if (spec.status === 'placeholder') continue
+    check(spec.desktop.src, `mediaSlots:${spec.id}:desktop`)
+    if (spec.desktop.poster) check(spec.desktop.poster, `mediaSlots:${spec.id}:desktop:poster`)
+  }
+}
 
 console.log(missing === 0 ? 'All media paths resolve.' : `${missing} missing path(s).`)
 process.exit(missing === 0 ? 0 : 1)

@@ -19,15 +19,17 @@ const MediaSpecPlaceholder = forwardRef<HTMLVideoElement, MediaSpecPlaceholderPr
   ) {
     const [videoReady, setVideoReady] = useState(false)
 
-    if (spec.status === 'ready' && spec.mediaKind === 'video') {
+    if ((spec.status === 'ready' || spec.status === 'desktop-ready') && spec.mediaKind === 'video') {
       return (
         <div className={`relative h-full w-full overflow-hidden ${className}`}>
           <picture
             className="absolute inset-0 transition-opacity duration-500"
             style={{ opacity: videoReady ? 0 : 1 }}
           >
-            <source media="(max-width: 767px)" srcSet={spec.mobile.poster} />
-            {spec.ultrawide?.poster && (
+            {spec.status === 'ready' && (
+              <source media="(max-width: 767px)" srcSet={spec.mobile.poster} />
+            )}
+            {spec.status === 'ready' && spec.ultrawide?.poster && (
               <source media="(min-aspect-ratio: 21/9)" srcSet={spec.ultrawide.poster} />
             )}
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -50,8 +52,10 @@ const MediaSpecPlaceholder = forwardRef<HTMLVideoElement, MediaSpecPlaceholderPr
             aria-hidden="true"
             onCanPlay={() => setVideoReady(true)}
           >
-            <source media="(max-width: 767px)" src={spec.mobile.src} type="video/mp4" />
-            {spec.ultrawide && (
+            {spec.status === 'ready' && (
+              <source media="(max-width: 767px)" src={spec.mobile.src} type="video/mp4" />
+            )}
+            {spec.status === 'ready' && spec.ultrawide && (
               <source media="(min-aspect-ratio: 21/9)" src={spec.ultrawide.src} type="video/mp4" />
             )}
             <source src={spec.desktop.src} type="video/mp4" />
@@ -61,11 +65,13 @@ const MediaSpecPlaceholder = forwardRef<HTMLVideoElement, MediaSpecPlaceholderPr
       )
     }
 
-    if (spec.status === 'ready') {
+    if (spec.status === 'ready' || spec.status === 'desktop-ready') {
       return (
         <div className={`relative h-full w-full overflow-hidden ${className}`}>
           <picture>
-            <source media="(max-width: 767px)" srcSet={spec.mobile.src} />
+            {spec.status === 'ready' && (
+              <source media="(max-width: 767px)" srcSet={spec.mobile.src} />
+            )}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={spec.desktop.src}

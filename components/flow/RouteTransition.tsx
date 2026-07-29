@@ -2,13 +2,21 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { ScrollTrigger } from '@/lib/gsap'
 import { useReducedMotion } from '@/lib/useMediaPreferences'
 import { publishAudioEvent } from '@/lib/audio/audioBus'
 import { EASE_CONTROL, EASE_TRAVEL } from '@/lib/motionTokens'
+import { scrollToY, syncLenis } from '@/lib/scrollTo'
 
-const OUT_MS = 360
-const IN_MS = 300
-const COMPLETE_MS = 180
+/*
+ * Budget for a normal internal navigation: 300 + 140 + 230 ≈ 670 ms end to end.
+ * Long enough that the loading mark is genuinely read rather than glimpsed,
+ * short enough that it never feels like waiting. A slow route simply holds on
+ * the WAIT ramp below with the mark steady; it never extends the fast path.
+ */
+const OUT_MS = 300
+const IN_MS = 230
+const COMPLETE_MS = 140
 const NAVIGATION_TIMEOUT_MS = 10_000
 
 /**
@@ -38,6 +46,16 @@ export default function RouteTransition() {
   const pendingRef = useRef<string | null>(null)
   const startedAtRef = useRef(0)
   const timers = useRef<number[]>([])
+  /**
+   * Should the destination open at its top?
+   *
+   * True for ordinary pushed navigation — clicking "Next project" halfway down
+   * a case study must not drop you halfway down the next one, past its opening
+   * animations. False for history navigation, where the browser is restoring a
+   * real scroll position and overriding it would break Back/Forward, and false
+   * for links carrying a hash, which are asking for a specific anchor.
+   */
+  const forceTopRef = useRef(false)
 
   // Progress lives in refs and is painted straight to the DOM — no React state,
   // so a 60 Hz bar never re-renders the overlay.
@@ -116,10 +134,11 @@ export default function RouteTransition() {
   }, [])
 
   const begin = useCallback(
-    (target: string, push: boolean) => {
+    (target: string, push: boolean, forceTop = push) => {
       if (pendingRef.current) return false
       clearTimers()
       pendingRef.current = target
+      forceTopRef.current = forceTop
       startedAtRef.current = performance.now()
       completingRef.current = false
       progressRef.current = 0
@@ -169,10 +188,12 @@ export default function RouteTransition() {
       if (url.pathname === location.pathname) return
 
       event.preventDefault()
-      if (!begin(url.pathname + url.search, true)) {
-        // Never queue a second destination behind an in-flight transition.
-        return
-      }
+      // A link carrying a hash is asking for a specific anchor on the
+      // destination, so it keeps its own scroll behaviour.
+      begin(url.pathname + url.search + url.hash, true, !url.hash)
+      // A second click while a transition is in flight is ignored by `begin`,
+      // which is the point: the first destination always wins and the bar never
+      // restarts or jumps backwards.
     }
 
     const onPopState = () => {
@@ -219,6 +240,26 @@ export default function RouteTransition() {
       if (reduced) paint(1)
       schedule(() => {
         pendingRef.current = null
+
+        /*
+         * Position the destination while the overlay still covers it.
+         *
+         * Next's own scroll reset races Lenis, which keeps its own internal
+         * target and will animate back to the stale position on the next wheel
+         * event. Doing it here — explicitly, through the one scroll helper, and
+         * before anything is visible — makes the arrival deterministic instead.
+         */
+        if (forceTopRef.current) scrollToY(0, { immediate: true })
+        else syncLenis() // history restored the position; re-seat Lenis on it.
+
+        /*
+         * Re-measure every trigger against the settled position and the
+         * destination's real layout, so its entry animations start from their
+         * true `from` state rather than from wherever the previous page's
+         * measurements left them.
+         */
+        ScrollTrigger.refresh()
+
         // Guarantee a full bar at the moment the destination is revealed,
         // whatever the ramp happened to be doing.
         paint(1)
@@ -254,8 +295,8 @@ export default function RouteTransition() {
         data-route-loader
         data-route-phase={phase}
         data-route-progress={0}
-        className="pointer-events-none fixed inset-0 z-[80]"
-        style={{ contain: 'paint' }}
+        className="pointer-events-none fixed inset-0"
+        style={{ contain: 'paint', zIndex: 'var(--z-route)' }}
       >
         <div
           className="absolute inset-0 origin-top"
@@ -284,14 +325,24 @@ export default function RouteTransition() {
             }}
           />
         )}
+        {/*
+          The mark holds. It used to run a single 0 → 1 → 0 keyframe across one
+          phase duration and remount on the phase change, so it was on screen
+          for well under a fifth of a second and the transition read as a plain
+          black wipe. Now it rises during `out`, *stays* through the wait
+          however long the route takes, and only leaves during `in`.
+        */}
         <div
-          key={phase}
           className="route-loader-mark absolute inset-0 flex items-center justify-center"
-          style={{ animationDuration: `${phase === 'out' ? outDuration : inDuration}ms` }}
+          data-route-mark-phase={phase}
+          style={{
+            animationName: reduced ? 'none' : phase === 'out' ? 'route-loader-mark-in' : 'route-loader-mark-out',
+            animationDuration: `${phase === 'out' ? outDuration : inDuration}ms`,
+          }}
         >
-          <div className="w-[min(74vw,22rem)]">
+          <div className="w-[min(78vw,24rem)]">
             <div className="flex items-end justify-between gap-5">
-              <span className="route-loader-word font-display text-sm font-bold uppercase text-text-100 sm:text-base">
+              <span className="route-loader-word font-display text-base font-bold uppercase text-text-100 sm:text-lg">
                 Cineheight
               </span>
               <span
@@ -307,11 +358,14 @@ export default function RouteTransition() {
               the fill. `overflow` stays visible on the track so the light's
               glow is not clipped.
             */}
-            <div ref={trackRef} className="relative mt-4 h-px bg-white/10">
+            <div ref={trackRef} className="relative mt-5 h-[2px] rounded-full bg-white/12">
               <span
                 ref={barRef}
-                className="route-loader-progress absolute inset-0 block h-full origin-left bg-[var(--blue-500)]"
-                style={{ transform: reduced ? 'scaleX(0.9)' : 'scaleX(0)' }}
+                className="route-loader-progress absolute inset-0 block h-full origin-left rounded-full bg-[var(--blue-500)]"
+                style={{
+                  transform: reduced ? 'scaleX(0.9)' : 'scaleX(0)',
+                  boxShadow: '0 0 12px rgba(0,137,255,0.75)',
+                }}
               />
               {!reduced && (
                 <span

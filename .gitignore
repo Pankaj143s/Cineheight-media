@@ -16,3 +16,7 @@ next-env.d.ts
 
 # Media-generation intermediates (reproducible)
 .media-tmp/
+
+# Raw client-supplied source media — processed into public/media/* by
+# scripts/build-desktop-assets.mjs; not itself needed by the running site
+cineheight-desktop-assets/

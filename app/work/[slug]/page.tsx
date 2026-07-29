@@ -47,8 +47,10 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           their colour appears at page scale. */}
       <FlowDirector accent={cs.accentColor} />
       <Navbar />
-      <CaseStudyPage slug={slug} />
-      <Footer />
+      <div className="layer-content">
+        <CaseStudyPage slug={slug} />
+        <Footer />
+      </div>
       <div className="grain-overlay" aria-hidden="true" />
     </>
   )

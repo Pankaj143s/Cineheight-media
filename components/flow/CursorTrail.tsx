@@ -28,9 +28,15 @@ import { useMotionCapabilityProfile } from '@/lib/useMediaPreferences'
 const JUMP_PX = 220
 /** Idle time before the trail starts fading out. */
 const IDLE_MS = 130
-/** Time constants for the trail coming up and going away, in ms. */
+/**
+ * Time constants for the trail coming up and going away, in ms.
+ *
+ * The fade is deliberately much longer than the rise: the trail should arrive
+ * with the movement and then take its time leaving, which is what makes a
+ * longer tail read as elegant rather than as a gaming cursor.
+ */
 const RISE_TAU = 55
-const FADE_TAU = 150
+const FADE_TAU = 265
 /** Click ring envelope. */
 const CLICK_MS = 360
 
@@ -38,7 +44,7 @@ export default function CursorTrail() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const cursorRef = useRef<HTMLDivElement>(null)
   const profile = useMotionCapabilityProfile()
-  const trailCount = Math.max(8, profile.trailPointCount || 12)
+  const trailCount = Math.max(10, profile.trailPointCount || 16)
   const dprCap = profile.canvasDprCap
 
   useEffect(() => {
@@ -283,7 +289,7 @@ export default function CursorTrail() {
         data-cursor-trail
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 max-w-full"
-        style={{ zIndex: 1 }}
+        style={{ zIndex: 'var(--z-thread)' }}
       />
       {/*
         The cursor's parts are centred on a zero-size origin box placed exactly
@@ -293,7 +299,11 @@ export default function CursorTrail() {
         cursor behave like a real one at the edges and keeps it out of the
         overflow sweep.
       */}
-      <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[70] overflow-hidden">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 overflow-hidden"
+        style={{ zIndex: 'var(--z-cursor)' }}
+      >
         <div
           ref={cursorRef}
           data-signal-cursor

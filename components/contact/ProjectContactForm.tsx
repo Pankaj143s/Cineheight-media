@@ -6,10 +6,16 @@ import { contact, services } from '@/content/siteContent'
 type FormVariant = 'compact' | 'full'
 type FieldErrors = Record<string, string>
 
+/**
+ * `field-surface` (globals.css) gives every control a near-solid dark-glass
+ * background plus autofill and disabled styling. The previous `bg-white/[0.025]`
+ * was 97.5% transparent, so the decorative flow thread ran visibly through the
+ * inputs behind the text — z-index could not fix that, only opacity can.
+ */
 const fieldClass =
-  'font-body mt-2 min-h-[48px] w-full border-0 border-b bg-white/[0.025] px-3 py-3 text-base text-text-100 outline-none transition-colors placeholder:text-text-500 focus:border-[var(--blue-500)]'
+  'field-surface font-body mt-2 min-h-[48px] w-full rounded-sm border-0 border-b px-3 py-3 text-base text-text-100 outline-none transition-colors placeholder:text-text-500 focus:border-[var(--blue-500)]'
 const labelClass =
-  'font-display block text-[10px] font-medium uppercase text-text-400'
+  'font-display block text-[10px] font-medium uppercase text-text-300'
 
 export default function ProjectContactForm({ variant }: { variant: FormVariant }) {
   const startedAt = useRef(Date.now())
@@ -212,7 +218,7 @@ export default function ProjectContactForm({ variant }: { variant: FormVariant }
       {status === 'error' && (
         <div className="font-body mt-5 flex flex-wrap gap-x-6 gap-y-2 text-xs text-text-300">
           <a href={`mailto:${contact.email}`} className="inline-flex min-h-11 items-center hover:text-[var(--blue-200)]">Email {contact.email}</a>
-          <a href={contact.phoneHref} className="inline-flex min-h-11 items-center hover:text-[var(--blue-200)]">Call {contact.phone}</a>
+          <a href={contact.phoneHref} className="inline-flex min-h-11 items-center whitespace-nowrap hover:text-[var(--blue-200)]">Call {contact.phone}</a>
           <a href={contact.whatsapp} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center hover:text-[var(--blue-200)]">WhatsApp</a>
         </div>
       )}

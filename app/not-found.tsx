@@ -9,6 +9,7 @@ export default function NotFound() {
       <span id="top" />
       <FlowDirector />
       <Navbar />
+      <div className="layer-content">
       <main className="relative flex min-h-[70vh] items-center">
         <div className="mx-auto w-full max-w-[1500px] px-6 py-32 sm:px-10 lg:px-14">
           <p className="font-display text-[11px] font-medium uppercase" style={{ letterSpacing: '0.32em', color: 'var(--blue-400)' }}>
@@ -32,7 +33,8 @@ export default function NotFound() {
           </Link>
         </div>
       </main>
-      <Footer />
+        <Footer />
+      </div>
       <div className="grain-overlay" aria-hidden="true" />
     </>
   )

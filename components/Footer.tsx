@@ -48,7 +48,7 @@ export default function Footer({ variant = 'standalone' }: { variant?: 'standalo
               </a>
               <a
                 href={contact.phoneHref}
-                className="font-body inline-flex min-h-11 items-center text-base text-text-200 transition-colors hover:text-[var(--blue-200)]"
+                className="font-body inline-flex min-h-11 items-center whitespace-nowrap text-base text-text-200 transition-colors hover:text-[var(--blue-200)]"
               >
                 {contact.phone}
               </a>
