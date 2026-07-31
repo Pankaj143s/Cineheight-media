@@ -111,9 +111,11 @@ export default function HeroIntroSequence() {
   const [waveProgress, setWaveProgress] = useState(0)
   const [waveAmount, setWaveAmount] = useState(0)
   const [overlayOpacity, setOverlayOpacity] = useState(0)
+  /** HTML wordmark stays readable by default — canvas is enhancement only. */
   const [htmlWordmarkOpacity, setHtmlWordmarkOpacity] = useState(1)
   const [prefsReady, setPrefsReady] = useState(false)
-  const [resolvePath, setResolvePath] = useState('idle')
+  const resolveOnceRef = useRef(false)
+  const failOpenTimerRef = useRef(0)
 
   // Wait until after media-preference effects have applied (leave SSR/'static' defaults).
   useLayoutEffect(() => {
@@ -130,85 +132,100 @@ export default function HeroIntroSequence() {
   }, [])
 
   const signatureDesktop =
-    LIQUID_MEDIA_PROTO.enabled && prefsReady && !reduced && !mobile
+    LIQUID_MEDIA_PROTO.enabled && prefsReady && !reduced && !mobile && profile.level !== 'static'
 
-  // Title-sequence resolve (time-based). Settles to sharp HTML; no permanent wobble.
+  const revealHtmlWordmark = () => {
+    setHtmlWordmarkOpacity(1)
+    setOverlayOpacity(0)
+    setWaveAmount(0)
+    setWaveProgress(1)
+  }
+
+  // Title-sequence resolve. HTML is source of truth; never leave both layers invisible.
   useLayoutEffect(() => {
     if (!prefsReady) return
 
     if (reduced || !LIQUID_MEDIA_PROTO.enabled) {
-      setResolvePath('reduced')
-      setHtmlWordmarkOpacity(1)
-      setOverlayOpacity(0)
-      setWaveAmount(0)
-      setWaveProgress(1)
+      revealHtmlWordmark()
       return
     }
 
-    // Mobile: short mask, no canvas layer.
-    if (mobile) {
-      setResolvePath('mobile')
+    if (mobile || profile.level === 'static') {
       const el = wordmarkRef.current
+      revealHtmlWordmark()
       if (!el) return
-      setHtmlWordmarkOpacity(1)
-      setOverlayOpacity(0)
       const tween = gsap.fromTo(
         el,
-        { clipPath: 'inset(0 100% 0 0)', opacity: 0.55, filter: 'blur(6px)' },
-        { clipPath: 'inset(0 0% 0 0)', opacity: 1, filter: 'blur(0px)', duration: 0.9, ease: 'power2.out', delay: 0.15 }
+        { clipPath: 'inset(0 72% 0 0)', filter: 'blur(4px)' },
+        { clipPath: 'inset(0 0% 0 0)', filter: 'blur(0px)', duration: 0.85, ease: 'power2.out', delay: 0.12 }
       )
       return () => {
         tween.kill()
+        revealHtmlWordmark()
+        gsap.set(el, { clearProps: 'clipPath,filter' })
       }
     }
 
-    // Low capability: still show a composed mask, no continuous canvas cost.
-    if (profile.level === 'static') {
-      setResolvePath('static')
-      const el = wordmarkRef.current
-      if (!el) return
-      setHtmlWordmarkOpacity(1)
-      setOverlayOpacity(0)
-      const tween = gsap.fromTo(
-        el,
-        { clipPath: 'inset(0 85% 0 0)', opacity: 0.7, filter: 'blur(4px)' },
-        { clipPath: 'inset(0 0% 0 0)', opacity: 1, filter: 'blur(0px)', duration: 0.75, ease: 'power2.out', delay: 0.1 }
-      )
-      return () => {
-        tween.kill()
-      }
+    // Strict-mode remount after a finished resolve: stay sharp.
+    if (resolveOnceRef.current) {
+      revealHtmlWordmark()
+      return
     }
 
-    // Desktop balanced/high — canvas refraction resolve.
-    setResolvePath('refract')
-    setHtmlWordmarkOpacity(0)
-    setOverlayOpacity(1)
-    setWaveAmount(1)
     setWaveProgress(0)
+    setWaveAmount(1)
+    setOverlayOpacity(1)
+    // Keep HTML faintly present until handoff (fail-open if canvas stalls).
+    setHtmlWordmarkOpacity(0.4)
 
-    const state = { progress: 0, amount: 1, overlay: 1, html: 0 }
+    const state = { progress: 0, amount: 1, overlay: 1, html: 0.4 }
+    let finished = false
+
+    const finishSharp = () => {
+      if (finished) return
+      finished = true
+      resolveOnceRef.current = true
+      revealHtmlWordmark()
+      window.clearTimeout(failOpenTimerRef.current)
+    }
+
+    failOpenTimerRef.current = window.setTimeout(finishSharp, 2400)
+
     const tl = gsap.timeline({
-      delay: 0.25,
+      delay: 0.2,
       onUpdate: () => {
         setWaveProgress(state.progress)
         setWaveAmount(state.amount)
         setOverlayOpacity(state.overlay)
-        setHtmlWordmarkOpacity(state.html)
+        setHtmlWordmarkOpacity(Math.max(0.25, state.html))
       },
-      onComplete: () => {
-        setWaveAmount(0)
-        setOverlayOpacity(0)
-        setHtmlWordmarkOpacity(1)
-      },
+      onComplete: finishSharp,
     })
-    tl.to(state, { progress: 1, duration: 1.35, ease: 'power2.inOut' }, 0)
-      .to(state, { amount: 0, duration: 0.85, ease: 'power2.out' }, 0.85)
-      .to(state, { overlay: 0, html: 1, duration: 0.4, ease: 'power1.out' }, 1.5)
+
+    tl.to(state, { progress: 1, duration: 1.15, ease: 'power2.inOut' }, 0)
+      .to(state, { amount: 0, html: 1, duration: 0.55, ease: 'power2.out' }, 0.95)
+      .to(state, { overlay: 0, duration: 0.35, ease: 'power1.out' }, 1.35)
 
     return () => {
       tl.kill()
+      window.clearTimeout(failOpenTimerRef.current)
+      if (!finished) revealHtmlWordmark()
     }
   }, [prefsReady, reduced, mobile, profile.level])
+
+  // Tab restore: if both layers are weak, force sharp HTML.
+  useLayoutEffect(() => {
+    const onVis = () => {
+      if (document.hidden) return
+      if (htmlWordmarkOpacity < 0.5 && overlayOpacity < 0.15) revealHtmlWordmark()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('pageshow', onVis)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('pageshow', onVis)
+    }
+  }, [htmlWordmarkOpacity, overlayOpacity])
 
   // Pause drift when the hero is offscreen or the tab is hidden.
   useLayoutEffect(() => {
@@ -370,7 +387,8 @@ export default function HeroIntroSequence() {
           )
         }
         if (has(stCopy)) tl.fromTo(stCopy, { autoAlpha: 0, y: vh(2.4) }, { autoAlpha: 1, y: 0, ...spanDur(0.7, 0.86) }, 0.7)
-        tl.to(statement, { y: vh(-2), ...spanDur(0.86, 1.0) }, 0.86)
+        // Short composed hold into showreel — keep statement ownership, no dead trail.
+        tl.to(statement, { y: vh(-1.2), ...spanDur(0.9, 1.0) }, 0.9)
       }
 
       return () => {
@@ -388,12 +406,11 @@ export default function HeroIntroSequence() {
    * Reduced from 230vh/185vh. The timeline's positions are fractions of this
    * height, so every beat rescales with it — the sequence reads identically,
    * it simply asks for less scroll. The trailing slack was the larger half of
-   * the empty stretch between the brand statement and the showreel: the
-   * statement completes at progress 0.86, and the remaining 0.14 was 32vh of
-   * scrolling with a finished, static composition on screen. It is now ~15vh,
-   * which reads as the statement settling rather than as a stall.
+   * Trailing inactive range: statement visually settles by ~0.90. Desktop
+   * height kept tight so the remaining scrub (~0.10) is a short hold into
+   * showreel anticipation — not a dark empty trek.
    */
-  const sectionHeight = reduced ? 'auto' : mobile ? '165vh' : '205vh'
+  const sectionHeight = reduced ? 'auto' : mobile ? '148vh' : '172vh'
 
   return (
     <section ref={rootRef} aria-label="Cineheight Media introduction" style={{ height: sectionHeight }} className="relative">
@@ -463,12 +480,6 @@ export default function HeroIntroSequence() {
         {/* L3 — CINEHEIGHT (live HTML, the page's only h1) */}
         <div
           data-layer="title"
-          data-proto-ready={prefsReady ? '1' : '0'}
-          data-proto-level={profile.level}
-          data-proto-sig={signatureDesktop ? '1' : '0'}
-          data-proto-overlay={overlayOpacity.toFixed(2)}
-          data-proto-wave={waveProgress.toFixed(2)}
-          data-proto-path={resolvePath}
           className="absolute inset-0 z-[1] flex items-center justify-center will-change-transform"
           style={{ transform: 'translateY(-1vh)' }}
         >
