@@ -176,23 +176,25 @@ export default function HeroIntroSequence() {
     setWaveAmount(1)
     setOverlayOpacity(1)
     // Keep HTML faintly present until handoff (fail-open if canvas stalls).
-    setHtmlWordmarkOpacity(0.4)
+    // Stay low enough that the refraction overlay owns the read during the sweep.
+    setHtmlWordmarkOpacity(0.28)
 
-    const state = { progress: 0, amount: 1, overlay: 1, html: 0.4 }
+    const state = { progress: 0, amount: 1, overlay: 1, html: 0.28 }
     let finished = false
 
     const finishSharp = () => {
       if (finished) return
       finished = true
       resolveOnceRef.current = true
+      // Always land on a sharp HTML wordmark — never wave:1 / overlay:0.
       revealHtmlWordmark()
       window.clearTimeout(failOpenTimerRef.current)
     }
 
-    failOpenTimerRef.current = window.setTimeout(finishSharp, 2400)
+    failOpenTimerRef.current = window.setTimeout(finishSharp, 2800)
 
     const tl = gsap.timeline({
-      delay: 0.2,
+      delay: 0.18,
       onUpdate: () => {
         setWaveProgress(state.progress)
         setWaveAmount(state.amount)
@@ -202,9 +204,11 @@ export default function HeroIntroSequence() {
       onComplete: finishSharp,
     })
 
-    tl.to(state, { progress: 1, duration: 1.15, ease: 'power2.inOut' }, 0)
-      .to(state, { amount: 0, html: 1, duration: 0.55, ease: 'power2.out' }, 0.95)
-      .to(state, { overlay: 0, duration: 0.35, ease: 'power1.out' }, 1.35)
+    // Sweep across the wordmark first; only then resolve amount + HTML together,
+    // and keep the overlay alive until amount is nearly gone (avoids empty frame).
+    tl.to(state, { progress: 1, duration: 1.28, ease: 'power2.inOut' }, 0)
+      .to(state, { amount: 0, html: 1, duration: 0.62, ease: 'power2.out' }, 1.05)
+      .to(state, { overlay: 0, duration: 0.32, ease: 'power1.out' }, 1.55)
 
     return () => {
       tl.kill()

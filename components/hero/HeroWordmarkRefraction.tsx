@@ -103,23 +103,24 @@ export default function HeroWordmarkRefraction({
       if (a < 0.015) {
         ctx.drawImage(buffer, 0, 0)
       } else {
-        const slice = Math.max(1, Math.round(dpr))
-        const front = p * 1.35 - 0.18
+        // Slightly wider slices on balanced; high keeps 1px optical detail.
+        const slice = Math.max(1, Math.round(dpr * (profile.level === 'high' ? 1 : 1.5)))
+        const front = p * 1.28 - 0.12
         const t = now * 0.001
         for (let x = 0; x < w; x += slice) {
           const uvx = x / w
           const dist = uvx - front
-          const envelope = Math.exp(-dist * dist * 28)
-          const wave = Math.sin(uvx * 18 + t * 2.2) * 0.5 + 0.5
-          const mag = envelope * a * (0.55 + 0.45 * wave)
-          const dy = mag * 16 * dpr
-          const dx = mag * 5 * dpr
-          const unresolved = dist < 0 ? Math.min(1, Math.max(0, -dist * 2.2)) * a : 0
-          ctx.globalAlpha = 1 - unresolved * 0.4
+          const envelope = Math.exp(-dist * dist * 22)
+          const wave = Math.sin(uvx * 14 + t * 1.9) * 0.5 + 0.5
+          const mag = envelope * a * (0.62 + 0.38 * wave)
+          const dy = mag * 22 * dpr
+          const dx = mag * 7 * dpr
+          const unresolved = dist < 0 ? Math.min(1, Math.max(0, -dist * 2.0)) * a : 0
+          ctx.globalAlpha = 1 - unresolved * 0.45
           ctx.drawImage(buffer, x, 0, slice, h, x + dx, dy, slice, h)
-          if (mag > 0.1 && profile.level === 'high') {
-            ctx.globalAlpha = mag * 0.18
-            ctx.drawImage(buffer, x, 0, slice, h, x + dx + 1.1 * dpr, dy * 0.85, slice, h)
+          if (mag > 0.08 && profile.level === 'high') {
+            ctx.globalAlpha = mag * 0.22
+            ctx.drawImage(buffer, x, 0, slice, h, x + dx + 1.4 * dpr, dy * 0.8, slice, h)
           }
         }
         ctx.globalAlpha = 1
