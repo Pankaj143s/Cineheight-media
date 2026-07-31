@@ -49,40 +49,26 @@ function LogoMark({
   tier: number
 }) {
   const box = logoBox(client, tier)
-  const dark = client.needsLightPlate
 
   return (
     <li
       className="group flex h-[82px] w-[190px] shrink-0 list-none items-center justify-center px-5"
       title={client.name}
     >
-      <span
-        className="flex h-[72px] w-full items-center justify-center rounded-full px-4 transition-transform duration-500 ease-out group-hover:-translate-y-1"
-        style={
-          dark
-            ? {
-                background:
-                  'radial-gradient(ellipse at center, rgba(255,255,255,0.18), rgba(255,255,255,0.05) 55%, transparent 76%)',
-              }
-            : undefined
-        }
-      >
+      <span className="flex h-[72px] w-full items-center justify-center px-4 transition-transform duration-500 ease-out group-hover:-translate-y-1">
         <Image
           src={client.logo}
           alt={client.name}
           width={box.width}
           height={box.height}
           sizes={`${Math.max(120, box.width)}px`}
-          className="object-contain opacity-70 transition-[opacity,filter] duration-500 ease-out group-hover:opacity-100"
+          className="object-contain opacity-75 transition-opacity duration-500 ease-out group-hover:opacity-100"
           draggable={false}
           style={{
             width: box.width,
             height: box.height,
             maxWidth: 156,
             maxHeight: 58,
-            filter: dark
-              ? 'grayscale(1) brightness(2.6) contrast(0.85)'
-              : 'grayscale(1) brightness(1.08)',
           }}
         />
       </span>
@@ -324,9 +310,8 @@ export default function ClientMarquee() {
       </div>
 
       <div
-        className="relative mt-7 overflow-hidden border-y py-4"
+        className="relative mt-7 overflow-hidden py-4"
         style={{
-          borderColor: 'rgba(255,255,255,0.055)',
           transform: 'translate3d(var(--depth-x), var(--depth-y), 0)',
           transition: `transform 0.6s ${EASE_CONTROL}`,
         }}
