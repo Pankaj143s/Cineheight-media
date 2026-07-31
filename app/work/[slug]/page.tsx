@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Navbar from '@/components/Navbar'
-import Footer from '@/components/Footer'
+import PageClose from '@/components/layout/PageClose'
 import FlowDirector from '@/components/flow/FlowDirector'
 import CaseStudyPage from '@/components/case-study/CaseStudyPage'
 import { caseStudies, getCaseStudy } from '@/content/caseStudies'
@@ -49,7 +49,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       <Navbar />
       <div className="layer-content">
         <CaseStudyPage slug={slug} />
-        <Footer />
+        <PageClose />
       </div>
       <div className="grain-overlay" aria-hidden="true" />
     </>

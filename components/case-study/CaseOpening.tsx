@@ -6,21 +6,16 @@ import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import type { CaseStudy } from '@/content/caseStudies'
 import type { CasePresentation } from '@/content/caseStudyPresentation'
 import InlineVideo from '@/components/media/InlineVideo'
+import OpticalResolve from '@/components/motion/OpticalResolve'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import TrackingReveal from '@/components/motion/TrackingReveal'
+import EditorialMatteReveal from '@/components/motion/EditorialMatteReveal'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { CASE_OPENING_SIGNATURE } from '@/lib/liquidMedia/tokens'
+import { setSignalIntensity } from '@/lib/liquidMedia/signalIntensity'
 
 /**
- * Act 1 — the transformation.
- *
- * Deliberately holds ONE display statement, one supporting line and ONE proof.
- * The previous opening also carried the objective, the hook and several labels
- * around the film, so the visitor met five competing pieces of text before
- * learning what changed.
- *
- * Everything else — the full objective, the description, the complete stats —
- * still exists in `content/caseStudies.ts` and is used further down the page
- * and in metadata; it is simply not all shouted at once here.
+ * Act 1 — one strong opening signature per project (not a stack of effects).
  */
 export default function CaseOpening({
   cs,
@@ -34,19 +29,20 @@ export default function CaseOpening({
   const mobile = useIsMobileTier()
   const landscape = cs.topVideo.orientation === 'landscape'
   const m = presentation.primaryMetric
+  const signature = CASE_OPENING_SIGNATURE[cs.id] ?? 'film-gate'
 
   useIsomorphicLayoutEffect(() => {
     if (reduced) return
     const ctx = gsap.context((self) => {
       const media = self.selector!('[data-open-media]')[0]
       const type = self.selector!('[data-open-type]')[0]
-      if (media) {
+      if (media && !mobile) {
         gsap.fromTo(
           media,
-          { scale: 1.06, yPercent: -2 },
+          { scale: 1.05, yPercent: -2 },
           {
             scale: 1,
-            yPercent: 4,
+            yPercent: 3,
             ease: 'none',
             scrollTrigger: { trigger: rootRef.current, start: 'top top', end: 'bottom top', scrub: 1 },
           }
@@ -54,17 +50,33 @@ export default function CaseOpening({
       }
       if (type && !mobile) {
         gsap.to(type, {
-          yPercent: -22,
-          autoAlpha: 0.4,
+          yPercent: -14,
+          autoAlpha: 0.55,
           ease: 'none',
           scrollTrigger: { trigger: rootRef.current, start: 'top top', end: 'bottom top', scrub: 1 },
         })
       }
-    }, rootRef)
-    return () => ctx.revert()
-  }, [reduced, mobile])
 
-  /** The single proof, sized to sit beside the statement without competing. */
+      if (rootRef.current) {
+        gsap.timeline({
+          scrollTrigger: {
+            trigger: rootRef.current,
+            start: 'top 70%',
+            end: 'top 30%',
+            onEnter: () => setSignalIntensity(0.55),
+            onLeave: () => setSignalIntensity(0.2),
+            onEnterBack: () => setSignalIntensity(0.4),
+            onLeaveBack: () => setSignalIntensity(0.15),
+          },
+        })
+      }
+    }, rootRef)
+    return () => {
+      ctx.revert()
+      setSignalIntensity(0)
+    }
+  }, [reduced, mobile, cs.id])
+
   const proof = (
     <div className="flex items-baseline gap-4">
       <p
@@ -79,6 +91,24 @@ export default function CaseOpening({
     </div>
   )
 
+  const title =
+    signature === 'optical-title' ? (
+      <OpticalResolve
+        as="h1"
+        text={presentation.transformation}
+        delay={0.28}
+        className="type-display-1 font-display mt-7 max-w-[15ch] font-bold uppercase text-text-100"
+      />
+    ) : (
+      <SplitLineReveal
+        as="h1"
+        lines={[presentation.transformation]}
+        srLabel={presentation.transformation}
+        delay={0.1}
+        className="type-display-1 font-display mt-7 max-w-[15ch] font-bold uppercase text-text-100"
+      />
+    )
+
   const identity = (
     <div data-open-type className="relative z-10">
       <TrackingReveal
@@ -92,19 +122,8 @@ export default function CaseOpening({
       <p className="font-body mt-2 text-[11px] uppercase text-text-500" style={{ letterSpacing: '0.18em' }}>
         {cs.category} — {cs.year}
       </p>
-
-      <SplitLineReveal
-        as="h1"
-        lines={[presentation.transformation]}
-        srLabel={presentation.transformation}
-        delay={0.1}
-        className="type-display-1 font-display mt-7 max-w-[15ch] font-bold uppercase text-text-100"
-      />
-
-      <p className="font-body measure mt-7 text-base leading-relaxed text-text-200">
-        {presentation.supporting}
-      </p>
-
+      {title}
+      <p className="font-body measure mt-7 text-base leading-relaxed text-text-200">{presentation.supporting}</p>
       <div className="mt-9">{proof}</div>
       <span aria-hidden="true" className="mt-8 block h-px w-24" style={{ background: cs.accentColor }} />
     </div>
@@ -116,26 +135,34 @@ export default function CaseOpening({
     </p>
   )
 
-  // The parallax scale lives inside an overflow-hidden wrapper so it can never
-  // push past the viewport, and the caption stays outside it.
-  const film = (
-    <div className="relative w-full overflow-hidden">
-      <div data-open-media className="relative w-full will-change-transform">
-        <InlineVideo
-          src={cs.topVideo.src}
-          poster={cs.topVideo.poster}
-          label={`${cs.topVideo.title} — ${cs.client}`}
-          aspect={landscape ? '16 / 9' : '1 / 1'}
-        />
-      </div>
+  const matteForm =
+    signature === 'diagonal-media' ? 'diagonal-soft' : signature === 'film-gate' ? 'film-gate' : 'soft-iris'
+
+  const filmInner = (
+    <div data-open-media className="relative w-full will-change-transform">
+      <InlineVideo
+        src={cs.topVideo.src}
+        poster={cs.topVideo.poster}
+        label={`${cs.topVideo.title} — ${cs.client}`}
+        aspect={landscape ? '16 / 9' : '1 / 1'}
+      />
     </div>
   )
+
+  const film =
+    signature === 'optical-title' && !mobile ? (
+      <div className="relative w-full overflow-hidden">{filmInner}</div>
+    ) : (
+      <EditorialMatteReveal form={mobile ? 'vertical-rise' : matteForm} start="top 90%" className="relative w-full">
+        {filmInner}
+      </EditorialMatteReveal>
+    )
 
   if (mobile) {
     return (
       <section ref={rootRef} aria-label={`${cs.client} — opening`} className="relative z-10 pt-28">
         <div className="flow-gutter">{identity}</div>
-        <div className="mt-10">{film}</div>
+        <div className="mt-8">{film}</div>
         <div className="flow-gutter">{caption}</div>
       </section>
     )
@@ -143,15 +170,15 @@ export default function CaseOpening({
 
   if (landscape) {
     return (
-      <section ref={rootRef} aria-label={`${cs.client} — opening`} className="relative z-10 min-h-[100svh] pt-20">
-        <div className="relative w-full" style={{ minHeight: 'min(92svh, 56.25vw)' }}>
+      <section ref={rootRef} aria-label={`${cs.client} — opening`} className="relative z-10 min-h-[100svh] pt-16">
+        <div className="relative w-full" style={{ minHeight: 'min(94svh, 56.25vw)' }}>
           {film}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0"
             style={{ background: 'linear-gradient(to top, var(--bg-950) 2%, rgba(2,3,6,0.55) 42%, transparent 72%)' }}
           />
-          <div className="flow-gutter absolute inset-x-0 bottom-0 pb-[6vh]">{identity}</div>
+          <div className="flow-gutter absolute inset-x-0 bottom-0 pb-[5vh]">{identity}</div>
         </div>
         <div className="flow-gutter">{caption}</div>
         <div data-flow-anchor="edge-left" className="pointer-events-none h-px" aria-hidden="true" />
@@ -160,7 +187,7 @@ export default function CaseOpening({
   }
 
   return (
-    <section ref={rootRef} aria-label={`${cs.client} — opening`} className="relative z-10 pt-32">
+    <section ref={rootRef} aria-label={`${cs.client} — opening`} className="relative z-10 pt-28">
       <div className="flow-gutter grid grid-cols-12 items-center gap-x-10">
         <div className="col-span-6">{identity}</div>
         <div className="col-span-6 col-start-7 lg:col-span-5 lg:col-start-8">
