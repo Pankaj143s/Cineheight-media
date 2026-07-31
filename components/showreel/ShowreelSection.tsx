@@ -62,18 +62,16 @@ export default function ShowreelSection() {
       const frame = frameRef.current
       const video = videoRef.current
       if (!frame) return
-      // Starts at 'top 92%' — the frame is already materialising while the
-      // hero statement is still leaving, so the two read as one composition
-      // rather than as two sections with a dead screen between them.
+      // Begins while hero statement still owns the frame — removes empty travel.
       gsap.fromTo(
         frame,
-        { scale: mobile ? 0.94 : 0.78, autoAlpha: 0.55, clipPath: 'inset(12% 0% 12% 0%)' },
+        { scale: mobile ? 0.94 : 0.82, autoAlpha: 0.4, clipPath: 'inset(10% 0% 10% 0%)' },
         {
           scale: 1,
           autoAlpha: 1,
           clipPath: 'inset(0% 0% 0% 0%)',
           ease: 'none',
-          scrollTrigger: { trigger: sectionRef.current, start: 'top 96%', end: mobile ? 'top 48%' : 'top 38%', scrub: 1.15 },
+          scrollTrigger: { trigger: sectionRef.current, start: 'top 99%', end: mobile ? 'top 52%' : 'top 42%', scrub: 1.05 },
         }
       )
       if (video && !mobile) {
