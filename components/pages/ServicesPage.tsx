@@ -5,7 +5,7 @@ import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { services, closing, contact } from '@/content/siteContent'
 import KineticLabel from '@/components/motion/KineticLabel'
-import SplitLineReveal from '@/components/motion/SplitLineReveal'
+import OpticalResolve from '@/components/motion/OpticalResolve'
 import ScrollHeadline from '@/components/motion/ScrollHeadline'
 import MagneticLink from '@/components/ui/MagneticLink'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
@@ -265,16 +265,17 @@ export default function ServicesPage() {
 
   return (
     <main className="relative z-10">
-      <header className="flow-gutter relative pb-[4vh] pt-32 lg:pt-40">
+      <header className="flow-gutter relative pb-[4vh] pt-32 lg:pt-36">
         <KineticLabel text="WHAT WE DO" />
-        <SplitLineReveal
+        <OpticalResolve
           as="h1"
-          lines={['One system.', 'Six crafts.']}
-          srLabel="One system. Six crafts."
+          text="One system. Six crafts."
+          delay={0.34}
+          accentWords={['Six']}
           className="type-display-1 font-display mt-6 max-w-[14ch] font-bold uppercase text-text-100"
         />
         <p ref={introCopyRef} className="font-body measure mt-8 text-base leading-relaxed text-text-300">
-          Every discipline feeds the next — identity into content, content into campaigns, campaigns into growth.
+          Identity into content. Content into campaigns. Campaigns into growth.
         </p>
       </header>
 
@@ -288,9 +289,9 @@ export default function ServicesPage() {
               aria-label={s.title}
               className="relative flex flex-col justify-center"
               style={{
-                minHeight: mobile ? 'auto' : 'clamp(20rem, 46vh, 30rem)',
-                paddingBlock: mobile ? '3rem' : 'clamp(2rem, 4vh, 3.5rem)',
-                opacity: mobile || active === i ? 1 : 0.5,
+                minHeight: mobile ? 'auto' : 'clamp(16rem, 38vh, 26rem)',
+                paddingBlock: mobile ? '2.5rem' : 'clamp(1.5rem, 3.2vh, 2.8rem)',
+                opacity: mobile || active === i ? 1 : 0.42,
                 transition: reduced ? 'none' : 'opacity 0.5s ease',
               }}
             >
@@ -332,15 +333,38 @@ export default function ServicesPage() {
                 </h2>
               </div>
 
-              <p data-service-description data-mobile-reveal className="font-body mt-6 text-[15px] leading-relaxed text-text-200 sm:text-base" style={{ maxWidth: '42ch' }}>
+              <p
+                data-service-description
+                data-mobile-reveal
+                className="font-body mt-5 text-[15px] leading-relaxed text-text-200 sm:text-base"
+                style={{
+                  maxWidth: '38ch',
+                  opacity: mobile || active === i ? 1 : 0,
+                  maxHeight: mobile || active === i ? 120 : 0,
+                  overflow: 'hidden',
+                  transition: reduced ? 'none' : 'opacity 0.45s ease, max-height 0.45s ease',
+                }}
+              >
                 {s.description}
               </p>
               <p data-service-detail className="sr-only">
                 {s.detail}
               </p>
-              <ul className="sr-only">
+              <ul
+                className="mt-4 flex flex-wrap gap-x-4 gap-y-2"
+                style={{
+                  opacity: mobile || active === i ? 1 : 0,
+                  transition: reduced ? 'none' : 'opacity 0.4s ease',
+                }}
+                aria-hidden={mobile || active === i ? undefined : true}
+              >
                 {(DELIVERABLES[s.id] ?? []).map((d) => (
-                  <li key={d} data-service-deliverable>
+                  <li
+                    key={d}
+                    data-service-deliverable
+                    className="font-body list-none text-[11px] uppercase text-text-500"
+                    style={{ letterSpacing: '0.14em' }}
+                  >
                     {d}
                   </li>
                 ))}
