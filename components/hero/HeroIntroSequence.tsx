@@ -1,11 +1,14 @@
 'use client'
 
-import { useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { gsap, ScrollTrigger } from '@/lib/gsap'
 import { setHeroProgress } from '@/lib/heroProgress'
-import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { useIsMobileTier, useMotionCapabilityProfile, useReducedMotion } from '@/lib/useMediaPreferences'
 import { useRippleTier } from '@/lib/useRippleTier'
+import { LIQUID_MEDIA_PROTO } from '@/lib/liquidMedia/config'
+import { setSignalIntensity } from '@/lib/liquidMedia/signalIntensity'
+import HeroWordmarkRefraction from './HeroWordmarkRefraction'
 
 // Client-only, matching the FlowDirector dynamic-import pattern used
 // elsewhere so a reduced-motion visitor never downloads the chunk at all.
@@ -98,10 +101,114 @@ function Marquee({
  */
 export default function HeroIntroSequence() {
   const rootRef = useRef<HTMLElement>(null)
+  const wordmarkRef = useRef<HTMLSpanElement>(null)
   const driftTweens = useRef<gsap.core.Tween[]>([])
   const reduced = useReducedMotion()
   const mobile = useIsMobileTier()
   const rippleTier = useRippleTier()
+  const profile = useMotionCapabilityProfile()
+
+  const [waveProgress, setWaveProgress] = useState(0)
+  const [waveAmount, setWaveAmount] = useState(0)
+  const [overlayOpacity, setOverlayOpacity] = useState(0)
+  const [htmlWordmarkOpacity, setHtmlWordmarkOpacity] = useState(1)
+  const [prefsReady, setPrefsReady] = useState(false)
+  const [resolvePath, setResolvePath] = useState('idle')
+
+  // Wait until after media-preference effects have applied (leave SSR/'static' defaults).
+  useLayoutEffect(() => {
+    let alive = true
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (alive) setPrefsReady(true)
+      })
+    })
+    return () => {
+      alive = false
+      cancelAnimationFrame(id)
+    }
+  }, [])
+
+  const signatureDesktop =
+    LIQUID_MEDIA_PROTO.enabled && prefsReady && !reduced && !mobile
+
+  // Title-sequence resolve (time-based). Settles to sharp HTML; no permanent wobble.
+  useLayoutEffect(() => {
+    if (!prefsReady) return
+
+    if (reduced || !LIQUID_MEDIA_PROTO.enabled) {
+      setResolvePath('reduced')
+      setHtmlWordmarkOpacity(1)
+      setOverlayOpacity(0)
+      setWaveAmount(0)
+      setWaveProgress(1)
+      return
+    }
+
+    // Mobile: short mask, no canvas layer.
+    if (mobile) {
+      setResolvePath('mobile')
+      const el = wordmarkRef.current
+      if (!el) return
+      setHtmlWordmarkOpacity(1)
+      setOverlayOpacity(0)
+      const tween = gsap.fromTo(
+        el,
+        { clipPath: 'inset(0 100% 0 0)', opacity: 0.55, filter: 'blur(6px)' },
+        { clipPath: 'inset(0 0% 0 0)', opacity: 1, filter: 'blur(0px)', duration: 0.9, ease: 'power2.out', delay: 0.15 }
+      )
+      return () => {
+        tween.kill()
+      }
+    }
+
+    // Low capability: still show a composed mask, no continuous canvas cost.
+    if (profile.level === 'static') {
+      setResolvePath('static')
+      const el = wordmarkRef.current
+      if (!el) return
+      setHtmlWordmarkOpacity(1)
+      setOverlayOpacity(0)
+      const tween = gsap.fromTo(
+        el,
+        { clipPath: 'inset(0 85% 0 0)', opacity: 0.7, filter: 'blur(4px)' },
+        { clipPath: 'inset(0 0% 0 0)', opacity: 1, filter: 'blur(0px)', duration: 0.75, ease: 'power2.out', delay: 0.1 }
+      )
+      return () => {
+        tween.kill()
+      }
+    }
+
+    // Desktop balanced/high — canvas refraction resolve.
+    setResolvePath('refract')
+    setHtmlWordmarkOpacity(0)
+    setOverlayOpacity(1)
+    setWaveAmount(1)
+    setWaveProgress(0)
+
+    const state = { progress: 0, amount: 1, overlay: 1, html: 0 }
+    const tl = gsap.timeline({
+      delay: 0.25,
+      onUpdate: () => {
+        setWaveProgress(state.progress)
+        setWaveAmount(state.amount)
+        setOverlayOpacity(state.overlay)
+        setHtmlWordmarkOpacity(state.html)
+      },
+      onComplete: () => {
+        setWaveAmount(0)
+        setOverlayOpacity(0)
+        setHtmlWordmarkOpacity(1)
+      },
+    })
+    tl.to(state, { progress: 1, duration: 1.35, ease: 'power2.inOut' }, 0)
+      .to(state, { amount: 0, duration: 0.85, ease: 'power2.out' }, 0.85)
+      .to(state, { overlay: 0, html: 1, duration: 0.4, ease: 'power1.out' }, 1.5)
+
+    return () => {
+      tl.kill()
+    }
+  }, [prefsReady, reduced, mobile, profile.level])
 
   // Pause drift when the hero is offscreen or the tab is hidden.
   useLayoutEffect(() => {
@@ -193,7 +300,16 @@ export default function HeroIntroSequence() {
           end: 'bottom bottom',
           scrub: 1.05,
           invalidateOnRefresh: true,
-          onUpdate: (st) => setHeroProgress(st.progress),
+          onUpdate: (st) => {
+            setHeroProgress(st.progress)
+            // Continuum signal: brief intensify near statement settle, then cool for showreel.
+            if (LIQUID_MEDIA_PROTO.enabled) {
+              const p = st.progress
+              let cue = 0
+              if (p > 0.62 && p < 0.92) cue = Math.sin(((p - 0.62) / 0.3) * Math.PI) * 0.55
+              setSignalIntensity(cue)
+            }
+          },
         },
       })
 
@@ -229,18 +345,38 @@ export default function HeroIntroSequence() {
           .to(blue, { autoAlpha: 0.05, ...spanDur(0.84, 1.0) }, 0.84)
       }
 
-      // ---- Statement rises from below and crossfades in as the title thins.
+      // ---- Statement rises through liquid-field language (clip + clear), not a plain fade.
       if (has(statement)) {
-        tl.fromTo(statement, { y: vh(42), autoAlpha: 0 }, { y: 0, autoAlpha: 1, ...spanDur(0.44, 0.86) }, 0.44)
-        if (stLines[0]) tl.fromTo(stLines[0], { yPercent: 112 }, { yPercent: 0, ...spanDur(0.58, 0.74) }, 0.58)
-        if (stLines[1]) tl.fromTo(stLines[1], { yPercent: 112 }, { yPercent: 0, ...spanDur(0.62, 0.78) }, 0.62)
+        tl.fromTo(
+          statement,
+          { y: vh(28), autoAlpha: 0, filter: 'blur(10px)' },
+          { y: 0, autoAlpha: 1, filter: 'blur(0px)', ...spanDur(0.44, 0.86) },
+          0.44
+        )
+        if (stLines[0]) {
+          tl.fromTo(
+            stLines[0],
+            { clipPath: 'inset(0 100% 0 0)', yPercent: 18 },
+            { clipPath: 'inset(0 0% 0 0)', yPercent: 0, ...spanDur(0.56, 0.74) },
+            0.56
+          )
+        }
+        if (stLines[1]) {
+          tl.fromTo(
+            stLines[1],
+            { clipPath: 'inset(0 100% 0 0)', yPercent: 18 },
+            { clipPath: 'inset(0 0% 0 0)', yPercent: 0, ...spanDur(0.6, 0.78) },
+            0.6
+          )
+        }
         if (has(stCopy)) tl.fromTo(stCopy, { autoAlpha: 0, y: vh(2.4) }, { autoAlpha: 1, y: 0, ...spanDur(0.7, 0.86) }, 0.7)
-        // ---- 0.86→1.0: a barely-there continued upward drift so the lower edge
-        // is ready for the showreel entrance — no dead pause.
         tl.to(statement, { y: vh(-2), ...spanDur(0.86, 1.0) }, 0.86)
       }
 
-      return () => tl.scrollTrigger?.kill()
+      return () => {
+        tl.scrollTrigger?.kill()
+        if (LIQUID_MEDIA_PROTO.enabled) setSignalIntensity(0)
+      }
     }, rootRef)
 
     return () => ctx.revert()
@@ -327,15 +463,38 @@ export default function HeroIntroSequence() {
         {/* L3 — CINEHEIGHT (live HTML, the page's only h1) */}
         <div
           data-layer="title"
+          data-proto-ready={prefsReady ? '1' : '0'}
+          data-proto-level={profile.level}
+          data-proto-sig={signatureDesktop ? '1' : '0'}
+          data-proto-overlay={overlayOpacity.toFixed(2)}
+          data-proto-wave={waveProgress.toFixed(2)}
+          data-proto-path={resolvePath}
           className="absolute inset-0 z-[1] flex items-center justify-center will-change-transform"
           style={{ transform: 'translateY(-1vh)' }}
         >
           <h1 className="m-0 text-center">
-            <span aria-hidden="true" className="hero-title block" style={{ fontSize: 'clamp(64px, 18.6vw, 21.5rem)' }}>
+            <span
+              ref={wordmarkRef}
+              aria-hidden="true"
+              className="hero-title block"
+              style={{
+                fontSize: 'clamp(64px, 18.6vw, 21.5rem)',
+                opacity: htmlWordmarkOpacity,
+              }}
+            >
               CINEHEIGHT
             </span>
             <span className="sr-only">Cineheight Media — Branding and Digital Growth Agency</span>
           </h1>
+          {signatureDesktop && (
+            <HeroWordmarkRefraction
+              sourceRef={wordmarkRef}
+              active={signatureDesktop}
+              progress={waveProgress}
+              amount={waveAmount}
+              overlayOpacity={overlayOpacity}
+            />
+          )}
         </div>
 
         {/* L4 — front-left natural cloud IN FRONT of the title (z-4), over C-I-N.

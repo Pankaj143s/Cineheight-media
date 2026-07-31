@@ -10,9 +10,12 @@ import KineticLabel from '@/components/motion/KineticLabel'
 import StrokeFillHeadline from '@/components/motion/StrokeFillHeadline'
 import MediaSpecPlaceholder from '@/components/media/MediaSpecPlaceholder'
 import CountUp from '@/components/ui/CountUp'
+import LiquidMatte, { type MatteForm } from '@/components/home/LiquidMatte'
 import { clamp, damp } from '@/lib/utils'
 import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { LIQUID_MEDIA_PROTO } from '@/lib/liquidMedia/config'
+import { setSignalIntensity } from '@/lib/liquidMedia/signalIntensity'
 
 /**
  * Selected work — one full-viewport-width media stage the three projects pass
@@ -49,15 +52,14 @@ function ProjectCopy({
 }) {
   return (
     <>
+      {/* Meta kept in DOM for restore; visually quiet in media-led prototype */}
       <p
         className="font-body text-[11px] uppercase text-text-500"
-        style={{ letterSpacing: '0.22em' }}
+        style={{ letterSpacing: '0.22em', opacity: LIQUID_MEDIA_PROTO.hideSelectedWorkIntroBody ? 0.72 : 1 }}
       >
         <span style={{ color: 'var(--blue-400)' }}>{String(index + 1).padStart(2, '0')}</span>
         <span className="mx-1.5 opacity-50">/</span>
         {String(PROJECTS.length).padStart(2, '0')}
-        <span className="mx-3 opacity-40">—</span>
-        {cs.category} · {cs.year}
       </p>
 
       <h3
@@ -72,7 +74,10 @@ function ProjectCopy({
       </p>
 
       <div className={`mt-7 flex flex-wrap items-end gap-x-10 gap-y-5 ${compact ? '' : ''}`}>
-        <p className="font-display font-bold leading-none text-text-100" style={{ fontSize: 'calc(clamp(2.4rem, 4.6vw, 4.4rem) * var(--display-scale))' }}>
+        <p
+          className="font-display font-bold leading-none text-text-100"
+          style={{ fontSize: 'calc(clamp(2.8rem, 5.4vw, 5.2rem) * var(--display-scale))' }}
+        >
           <CountUp
             value={cs.headlineStat.value}
             prefix={cs.headlineStat.prefix}
@@ -127,6 +132,8 @@ export default function FeaturedWorkJourney() {
    */
   const [stageEntered, setStageEntered] = useState(false)
   const stageEnteredRef = useRef(false)
+  const [matteForm, setMatteForm] = useState<MatteForm>('film-gate')
+  const [matteProgress, setMatteProgress] = useState(0)
   const markStageEntered = useCallback(() => {
     if (stageEnteredRef.current) return
     stageEnteredRef.current = true
@@ -148,6 +155,8 @@ export default function FeaturedWorkJourney() {
       const intro = self.selector!('[data-intro]')[0] as HTMLElement
       if (frames.length !== PROJECTS.length) return
 
+      const matte = { p: 0 }
+
       const tl = gsap.timeline({
         defaults: { ease: 'none' },
         scrollTrigger: {
@@ -157,42 +166,68 @@ export default function FeaturedWorkJourney() {
           scrub: 0.6,
           onUpdate: (st) => {
             const p = st.progress
-            // Copy block 0 begins revealing at 0.06; arm the metrics just before.
             if (p > 0.04) markStageEntered()
             setActiveIndex(p < 0.42 ? 0 : p < 0.72 ? 1 : 2)
+
+            // Prototype matte language: film-gate on P1, diagonal bar for P1→P2 only.
+            if (p < 0.28) {
+              setMatteForm('film-gate')
+              setMatteProgress(Math.min(1, p / 0.14))
+            } else if (p < 0.48) {
+              setMatteForm('diagonal-bar')
+              setMatteProgress((p - 0.28) / 0.2)
+              setSignalIntensity(0.35 + Math.sin(((p - 0.28) / 0.2) * Math.PI) * 0.25)
+            } else {
+              setMatteForm('open')
+              setMatteProgress(1)
+              // Cool signal after wipe; soft entrance cue already spent.
+              if (p < 0.55) setSignalIntensity(0.12)
+              else setSignalIntensity(0)
+            }
+
+            // Section entrance cue
+            if (p > 0.01 && p < 0.08) setSignalIntensity(0.4)
           },
         },
       })
 
-      // The introduction is the sequence's first beat; it lifts as project 1 lands.
       if (intro) tl.fromTo(intro, { autoAlpha: 1, y: 0 }, { autoAlpha: 0, y: -60, duration: 0.09 }, 0.03)
 
-      // Each project starts arriving well before the previous has finished
-      // leaving — without the overlap the scroll passes through a trough where
-      // neither project is on screen and a whole viewport reads as empty.
-      frames.forEach((frame, i) => {
-        const inAt = i === 0 ? 0 : i === 1 ? 0.3 : 0.6
-        // The first project's media is already on screen behind the opening
-        // statement — starting the sequence on a black slate wasted a whole
-        // screen and showed the visitor no work at the exact moment the section
-        // claims to be about the work.
-        tl.fromTo(
-          frame,
-          i === 0
-            ? { autoAlpha: 0.62, clipPath: 'inset(8% 0% 8% 0%)', scale: 1.04 }
-            : { autoAlpha: 0, clipPath: 'inset(50% 0% 50% 0%)', scale: 1.08 },
-          { autoAlpha: 1, clipPath: 'inset(0% 0% 0% 0%)', scale: 1, duration: i === 0 ? 0.12 : 0.16 },
-          inAt
-        )
-        // Hand over only once the incoming project is already established.
-        if (i < PROJECTS.length - 1) {
-          const outAt = i === 0 ? 0.32 : 0.62
-          tl.to(frame, { autoAlpha: 0, clipPath: 'inset(50% 0% 50% 0%)', duration: 0.14 }, outAt)
-        }
-      })
+      // P1 — cinematic film-gate open to full-bleed, then quiet hold
+      tl.fromTo(
+        frames[0],
+        { autoAlpha: 0.7, clipPath: 'inset(38% 0% 38% 0%)', scale: 1.03 },
+        { autoAlpha: 1, clipPath: 'inset(0% 0% 0% 0%)', scale: 1, duration: 0.14 },
+        0
+      )
 
-      // Copy follows its own project closely, and each block holds until the
-      // next one has arrived — so there is never a screen with no label on it.
+      // P1→P2 — restrained diagonal liquid bar (prototype signature wipe)
+      tl.fromTo(
+        frames[1],
+        { autoAlpha: 0, clipPath: 'polygon(0% 0%, 0% 0%, -12% 100%, 0% 100%)', scale: 1.02 },
+        {
+          autoAlpha: 1,
+          clipPath: 'polygon(0% 0%, 115% 0%, 103% 100%, 0% 100%)',
+          scale: 1,
+          duration: 0.18,
+        },
+        0.3
+      )
+      tl.to(
+        frames[0],
+        { autoAlpha: 0, duration: 0.14 },
+        0.34
+      )
+
+      // P2→P3 — keep existing simpler handoff (out of prototype polish scope)
+      tl.fromTo(
+        frames[2],
+        { autoAlpha: 0, clipPath: 'inset(50% 0% 50% 0%)', scale: 1.08 },
+        { autoAlpha: 1, clipPath: 'inset(0% 0% 0% 0%)', scale: 1, duration: 0.16 },
+        0.6
+      )
+      tl.to(frames[1], { autoAlpha: 0, clipPath: 'inset(50% 0% 50% 0%)', duration: 0.14 }, 0.62)
+
       copies.forEach((block, i) => {
         const at = i === 0 ? 0.06 : i === 1 ? 0.34 : 0.64
         const outAt = i === 0 ? 0.3 : 0.6
@@ -203,8 +238,13 @@ export default function FeaturedWorkJourney() {
           tl.to(block, { autoAlpha: 0, y: -40, duration: 0.06 }, outAt)
         }
       })
+
+      void matte
     }, rootRef)
-    return () => ctx.revert()
+    return () => {
+      ctx.revert()
+      setSignalIntensity(0)
+    }
   }, [reduced, mobile, setActiveIndex, markStageEntered])
 
   /* ------------------------------------------------------- mobile sequence */
@@ -331,7 +371,14 @@ export default function FeaturedWorkJourney() {
         text="Creative that moved people — and numbers."
         className="type-display-1 font-display mt-6 font-bold uppercase text-text-100"
       />
-      <p className="font-body measure-wide mt-7 text-base leading-relaxed text-text-300">
+      {/* PROTO: intro body hidden visually — preserved for reversible restore */}
+      <p
+        className={
+          LIQUID_MEDIA_PROTO.hideSelectedWorkIntroBody
+            ? 'sr-only'
+            : 'font-body measure-wide mt-7 text-base leading-relaxed text-text-300'
+        }
+      >
         Brand systems, films and campaigns built to produce real-world outcomes.
       </p>
     </div>
@@ -429,6 +476,14 @@ export default function FeaturedWorkJourney() {
               />
             </div>
           ))}
+          {/* Liquid matte overlay — film-gate hold + diagonal P1→P2; enhanced edge gated */}
+          {!reduced && LIQUID_MEDIA_PROTO.enabled && (
+            <LiquidMatte
+              form={matteForm}
+              progress={matteProgress}
+              enhancedEdge={LIQUID_MEDIA_PROTO.enhancedMatteEdge}
+            />
+          )}
         </div>
 
         {/* the whole stage is one link to the active project */}

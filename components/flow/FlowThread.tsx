@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { clamp } from '@/lib/utils'
 import { useIsNarrow, useReducedMotion } from '@/lib/useMediaPreferences'
 import { readScrollSignal, subscribeScrollSignal } from '@/lib/scrollSignal'
+import { subscribeSignalIntensity } from '@/lib/liquidMedia/signalIntensity'
 
 /**
  * The continuous #0089FF signal thread.
@@ -105,6 +106,19 @@ export default function FlowThread() {
 
   const reduced = useReducedMotion()
   const narrow = useIsNarrow(767)
+
+  // Restrained continuum cue — multiplies stroke opacity; never a progress bar.
+  useEffect(() => {
+    if (reduced) return
+    const base = 0.34
+    return subscribeSignalIntensity((v) => {
+      const path = pathRef.current
+      if (!path) return
+      const next = base + v * 0.28
+      path.style.opacity = String(Math.min(0.62, next))
+      path.style.strokeWidth = String(narrow ? 1.75 + v * 0.35 : 2.25 + v * 0.55)
+    })
+  }, [reduced, narrow])
 
   // Geometry cached between frames — the scroll handler must never measure.
   const geo = useRef<{
@@ -379,7 +393,10 @@ export default function FlowThread() {
             // Undrawn until the effect measures — never a full-path flash.
             strokeDasharray: 4000,
             strokeDashoffset: 4000,
+            // Continuum cue multiplies base opacity (restrained; never a loader).
+            ['--signal-cue' as string]: '0',
           }}
+          data-signal-path
         />
       </svg>
 
