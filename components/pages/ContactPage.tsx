@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { contact, closing } from '@/content/siteContent'
 import KineticLabel from '@/components/motion/KineticLabel'
-import StrokeFillHeadline from '@/components/motion/StrokeFillHeadline'
+import OpticalResolve from '@/components/motion/OpticalResolve'
 import ProjectContactForm from '@/components/contact/ProjectContactForm'
 import { createManagedFrameLoop } from '@/lib/managedFrame'
-import { useCanRunRichEffects, useIsMobileTier } from '@/lib/useMediaPreferences'
+import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 
 /**
  * The destination. One large project-start statement and the real channels,
@@ -57,7 +57,9 @@ export default function ContactPage() {
   const threadRef = useRef<SVGPathElement>(null)
   const rich = useCanRunRichEffects()
   const mobile = useIsMobileTier()
+  const reduced = useReducedMotion()
   const [focused, setFocused] = useState<number | null>(null)
+  const [formActive, setFormActive] = useState(false)
 
   /**
    * The signal reaches from the statement toward whichever channel is nearest
@@ -71,7 +73,7 @@ export default function ContactPage() {
    * same "this one" intent without touching the type.
    */
   useEffect(() => {
-    if (!rich) return
+    if (!rich || reduced || formActive) return
     const root = rootRef.current
     if (!root) return
 
@@ -126,14 +128,12 @@ export default function ContactPage() {
             'd',
             `M ${x1} ${y1} C ${x1 + (x2 - x1) * 0.45} ${y1}, ${x2 - (x2 - x1) * 0.3} ${y2}, ${x2} ${y2}`
           )
-          path.style.opacity = '0.55'
+          path.style.opacity = '0.45'
         }
       } else if (path) {
         path.style.opacity = '0'
       }
 
-      // The path is repointed only on pointer movement, so the loop can sleep
-      // as soon as it has drawn the current frame.
       return false
     })
 
@@ -163,12 +163,11 @@ export default function ContactPage() {
       window.removeEventListener('scroll', onLayoutChange)
       animation.destroy()
     }
-  }, [rich])
+  }, [rich, reduced, formActive])
 
   return (
     <main ref={rootRef} className="relative z-10 overflow-hidden">
-      {/* the reaching signal — decorative, never required to find a channel */}
-      {rich && (
+      {rich && !reduced && !formActive && (
         <svg aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full" style={{ zIndex: 1 }} fill="none">
           <path
             ref={threadRef}
@@ -183,21 +182,22 @@ export default function ContactPage() {
 
       <header className="flow-gutter relative z-10 pb-[4vh] pt-32 lg:pt-40">
         <KineticLabel text="START A PROJECT" />
-        <StrokeFillHeadline
+        <OpticalResolve
           as="h1"
-          text={closing.question}
-          className="font-display mt-6 font-bold uppercase text-text-100"
-          style={{ fontSize: 'clamp(2.8rem, 11vw, 9.5rem)', lineHeight: 0.86, letterSpacing: '-0.045em' }}
+          text="Let's build something worth remembering."
+          delay={0.3}
+          accentWords={['remembering.']}
+          className="font-display mt-6 max-w-[14ch] font-bold uppercase text-text-100"
+          style={{ fontSize: 'clamp(2.4rem, 9vw, 7.5rem)', lineHeight: 0.88, letterSpacing: '-0.04em' }}
         />
-        <p className="font-body measure mt-9 text-base leading-relaxed text-text-300 sm:text-lg">
+        <p className="sr-only">{closing.question}</p>
+        <p className="font-body measure mt-8 text-base leading-relaxed text-text-300 sm:text-lg">
           Share the brief. A real person replies — and helps you find the right next step.
         </p>
       </header>
 
-      <section aria-label="Contact channels and project form" className="flow-gutter relative z-10" style={{ marginTop: mobile ? '8vh' : '12vh' }}>
+      <section aria-label="Contact channels and project form" className="flow-gutter relative z-10" style={{ marginTop: mobile ? '7vh' : '10vh' }}>
         <div className="grid gap-x-14 gap-y-16 lg:grid-cols-12">
-          {/* Neither column moves under the pointer: a contact detail you are
-              reading, and a field you are typing into, must both hold still. */}
           <ul data-depth-layer="mid" className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:col-span-6">
             {CHANNELS.map((ch, i) => (
               <li
@@ -234,14 +234,31 @@ export default function ContactPage() {
               </li>
             ))}
           </ul>
-          <div className="lg:col-span-6">
+          <div
+            className="relative lg:col-span-6"
+            data-interaction-quiet
+            onFocusCapture={() => setFormActive(true)}
+            onBlurCapture={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFormActive(false)
+            }}
+          >
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -inset-6 -z-10 rounded-[2rem]"
+              style={{
+                background: formActive
+                  ? 'radial-gradient(ellipse 70% 60% at 50% 40%, rgba(0,137,255,0.08), transparent 70%)'
+                  : 'radial-gradient(ellipse 70% 60% at 50% 40%, rgba(0,137,255,0.04), transparent 70%)',
+                transition: 'background 0.6s ease',
+              }}
+            />
             <ProjectContactForm variant="full" />
           </div>
         </div>
         <div data-flow-anchor="right" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '50%' }} aria-hidden="true" />
       </section>
 
-      <section aria-label="Studio" className="flow-gutter relative z-10" style={{ marginTop: mobile ? '10vh' : '16vh' }}>
+      <section aria-label="Studio" className="flow-gutter relative z-10" style={{ marginTop: mobile ? '8vh' : '12vh' }}>
         <p className="font-display text-[10px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.3em' }}>
           Studio
         </p>

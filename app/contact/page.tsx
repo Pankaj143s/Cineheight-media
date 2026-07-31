@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Navbar from '@/components/Navbar'
-import Footer from '@/components/Footer'
+import PageClose from '@/components/layout/PageClose'
 import FlowDirector from '@/components/flow/FlowDirector'
 import ContactPage from '@/components/pages/ContactPage'
 
@@ -19,7 +19,7 @@ export default function Page() {
       <Navbar />
       <div className="layer-content">
         <ContactPage />
-        <Footer />
+        <PageClose />
       </div>
       <div className="grain-overlay" aria-hidden="true" />
     </>
