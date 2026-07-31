@@ -93,7 +93,7 @@ export default function NextProject({ next }: { next: CaseStudy }) {
   }, [rich])
 
   return (
-    <section aria-label="Next project" className="relative z-10" style={{ marginTop: mobile ? '12vh' : '18vh' }}>
+    <section aria-label="Next project" className="relative z-10" style={{ marginTop: mobile ? '8vh' : '12vh' }}>
       <Link
         ref={rootRef}
         href={`/work/${next.id}`}
