@@ -1,25 +1,5 @@
 # HERO-CLOUD-SYSTEM — cineheight-single-flow-v2
 
-> ## experiment/cineheight-layered-cloud-hero-v1 — stationary layered banks (CURRENT on this branch)
->
-> Marquee / traverse continuous drift is **removed** on this experiment branch.
-> `HeroIntroSequence` is a stationary three-depth composition at rest:
->
-> | Layer | Role | z (sticky stage) |
-> |---|---|---|
-> | Atmosphere + ripple | base | below |
-> | L1 Distant (`back-soft`, `haze-band`) | soft bank behind wordmark | `z-0` |
-> | L2 Midground (`front-left/right`, `puff`) | wider bottom band | `z-1` |
-> | Title + refraction | CINEHEIGHT | `z-2` |
-> | L3 Foreground bank | occludes lower letters (~15–22% desktop) | `z-4` |
-> | Hero→showreel dark blend | dissolves into `#020306` | `z-5` |
-> | Statement | brand line | `z-6` |
->
-> Motion: restrained **scroll parallax only** (distant ≪ mid ≪ fore); none under
-> reduced-motion or capability `static`. Mobile drops haze/puff/right mid plates.
-> Asset pipeline / repair notes below still apply; live layout contract above
-> supersedes marquee/traverse placement in older sections.
->
 > ## hero-v4 repair — the drifting rectangle + solid occlusion (2026-07-30)
 >
 > Two defects, both fixed by a new post-process pass,

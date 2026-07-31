@@ -71,7 +71,7 @@ export default function ShowreelSection() {
           autoAlpha: 1,
           clipPath: 'inset(0% 0% 0% 0%)',
           ease: 'none',
-          scrollTrigger: { trigger: sectionRef.current, start: 'top 100%', end: mobile ? 'top 52%' : 'top 42%', scrub: 1.05 },
+          scrollTrigger: { trigger: sectionRef.current, start: 'top 99%', end: mobile ? 'top 52%' : 'top 42%', scrub: 1.05 },
         }
       )
       if (video && !mobile) {
