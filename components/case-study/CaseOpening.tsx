@@ -143,15 +143,15 @@ export default function CaseOpening({
 
   if (landscape) {
     return (
-      <section ref={rootRef} aria-label={`${cs.client} — opening`} className="relative z-10 pt-24">
-        <div className="relative mx-auto max-w-[1820px]" style={{ width: '96%' }}>
+      <section ref={rootRef} aria-label={`${cs.client} — opening`} className="relative z-10 min-h-[100svh] pt-20">
+        <div className="relative w-full" style={{ minHeight: 'min(92svh, 56.25vw)' }}>
           {film}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0"
-            style={{ background: 'linear-gradient(to top, var(--bg-950) 1%, rgba(2,3,6,0.6) 38%, transparent 68%)' }}
+            style={{ background: 'linear-gradient(to top, var(--bg-950) 2%, rgba(2,3,6,0.55) 42%, transparent 72%)' }}
           />
-          <div className="flow-gutter absolute inset-x-0 bottom-0 pb-[5vh]">{identity}</div>
+          <div className="flow-gutter absolute inset-x-0 bottom-0 pb-[6vh]">{identity}</div>
         </div>
         <div className="flow-gutter">{caption}</div>
         <div data-flow-anchor="edge-left" className="pointer-events-none h-px" aria-hidden="true" />

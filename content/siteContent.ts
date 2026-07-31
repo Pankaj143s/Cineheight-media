@@ -169,7 +169,7 @@ export const about = {
   headline: 'Everything a brand needs. One team.',
   supporting: 'Strategy, design, content and campaigns — under one roof.',
   journey: 'One team, the whole journey: strategy to launch to growth.',
-  capabilities: ['Creative Excellence', 'Strategic Approach', 'Complete Solutions', 'Results-Driven'],
+  capabilities: ['Make it seen.', 'Make it felt.', 'Make it convert.', 'Make it last.'],
 }
 
 // ------------------------------------------------------- trusted clients

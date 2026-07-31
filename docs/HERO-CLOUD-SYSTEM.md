@@ -1,5 +1,122 @@
 # HERO-CLOUD-SYSTEM — cineheight-single-flow-v2
 
+> ## hero-v4 repair — the drifting rectangle + solid occlusion (2026-07-30)
+>
+> Two defects, both fixed by a new post-process pass,
+> `scripts/repair-hero-clouds.mjs`, run via `npm run clouds:repair`.
+>
+> ### 1. A visible rectangle drifted across the hero
+>
+> The `trim({ threshold: 8 })` that closed `recoverCheckerAlpha()` crops to the
+> alpha bounding box, which **removes the black safety margin** the four G4 crops
+> keep by hand. `cloude-1.jpg`'s wisp runs off its own frame, so the bounding box
+> *was* the frame and `cloud-haze-band.webp` shipped truncated. Measured alpha
+> (0–255) on the shipped file:
+>
+> | edge | max | avg | px > 40 |
+> |---|---|---|---|
+> | right | 248 | **131.7** | 483 / 575 |
+> | bottom | 253 | **80.7** | 865 / 1800 |
+> | top / left | 19 / 18 | 0.0 / 0.2 | 0 |
+>
+> Rendered at 76vw as a marquee, that hard cut swept across the stage on a ~130s
+> loop. Minor residue elsewhere: `cloud-traveller` right column max 144,
+> `cloud-back-soft` left column max 104, `cloud-puff-accent` top row max 47.
+>
+> **The spec always claimed "every crop keeps black margin so alpha reaches 0
+> before the edge". It is now enforced rather than assumed:**
+> `scripts/lib/cloud-alpha.mjs` `featherAlpha()` ramps each border to exactly 0
+> with a smoothstep, and **both** asset scripts assert a zero border and fail
+> otherwise. All six assets now measure 0 on all four borders.
+>
+> `cloud-haze-band` needed wide ramps (right 340px, bottom 210px) because the
+> inward profile showed alpha still ~97 avg 480px in from the right and a uniform
+> 85–94 across the whole bottom — the wisp was cropped through its **middle**, not
+> near its edge. The sources are gone (see below), so that content dissolves
+> rather than being recovered. On a 0.12-opacity haze band a soft-bottomed fade is
+> the right look anyway.
+>
+> ### 2. Letters ghosted through "solid" clouds
+>
+> 15–25% of each front asset sat in the alpha 120–190 shoulder — exactly where a
+> bright letter reads through a cloud meant to occlude it. `solidifyAlpha()`
+> (`a' = 255·clamp((a−40)/110)^0.85`) maps ≥150 to fully opaque and compresses the
+> shoulder, keeping a soft rim. Layer opacity then goes to a flat 1 so the baked
+> alpha alone decides what shows.
+>
+> | asset | % alpha > 230 before → after |
+> |---|---|
+> | `cloud-front-left` | 14.5% → 37.4% |
+> | `cloud-front-right` | 15.4% → 38.1% |
+> | `cloud-traveller` | 24.7% → 41.5% |
+> | `cloud-puff-accent` | 6.8% → 39.9% |
+>
+> Deliberately **not** solidified: `back-soft` and `haze-band` stay soft
+> atmosphere. Component opacities: `front-left`/`front-right`/`puff-accent`
+> 0.9/0.9/0.55 → **1**; `traveller` 0.34/0.4 → **0.85/0.9** (held under 1 because
+> it crosses the middle of the word, not the baseline); hazes unchanged at
+> 0.1/0.12.
+>
+> ### 3. Tone — the stock clouds were flat white
+>
+> Mean RGB where alpha > 200: the G4 front clouds paint **166,171,185** and
+> `back-soft` **116,119,128**, but both stock clouds were **255,255,255**.
+> Invisible at 0.55/0.12 opacity; a white blob at 1. `puff-accent` is retoned to
+> 166,171,185 and `haze-band` to 116,119,128 (it was painting ~2.2× brighter than
+> its same-tier sibling at identical opacity).
+>
+> ### 4. Marquee seam
+>
+> Both hazes tiled at `cloudWidthVw === periodVw`, i.e. edge-to-edge. Once the
+> edges feather to 0 that seam becomes a thinning band sweeping through, so the
+> copies now overlap: `back` 54/64vw, `haze-band` 62/76vw, with `dur` scaled
+> (110→93, 130→106) to hold the previous drift speed. Two copies still cover the
+> track at every offset — the excess width means a gap can never open, so no third
+> copy is needed.
+>
+> ### 5. The masters are now committed
+>
+> `g4-clouds-master.png`, `cloude-1.jpg` and `cloude-2.jpg` were scratchpad-only
+> by design and **have been lost**. The shipped WebPs are the only surviving
+> source, so they are committed to `assets/hero-cloud-masters/` (outside `public/`,
+> deliberately NOT gitignored — the "raw sources stay out of git" rule stated
+> below is exactly how the originals were lost). `repair-hero-clouds.mjs` reads
+> that folder and writes `public/generated/hero-v4/`, so it is idempotent and
+> re-runnable. See `assets/hero-cloud-masters/README.md`.
+
+> ## hero-v4 addendum — two stock clouds (2026-07-30)
+>
+> Two user-supplied stock images (`cloude-1.jpg`, wide wispy haze/smoke ~3.5:1;
+> `cloude-2.jpg`, one well-defined puffy cumulus ~1.6:1) added as two more
+> depth layers in the SAME hero-v4 system — no version bump, same palette,
+> same master timeline. Both were JPEGs (no alpha) whose "transparent"
+> background was baked in as a checkerboard-over-composite; recovered via
+> `recoverCheckerAlpha()` in `scripts/process-hero-clouds.mjs` (wide pre-blur
+> to flatten the checker's high-frequency contrast, a background-band
+> percentile cutoff, a median filter to kill sparse JPEG speckle a percentile
+> alone can't catch, then `trim()`). Outputs live alongside the four G4
+> assets in `public/generated/hero-v4/`: `cloud-haze-band.webp` (1800px wide)
+> and `cloud-puff-accent.webp` (900px wide). Raw source JPEGs and the
+> recovery script's throwaway draft were not committed (same rule as every
+> earlier G1–G4 master: raw generation/source material stays out of git).
+>
+> **Superseded on two points by the repair above:** the closing `trim()` is what
+> produced the drifting rectangle and is now followed by a transparent `extend()`
+> + `featherAlpha()` + a zero-border assertion; and the "raw source stays out of
+> git" rule cost us these masters permanently, so `assets/hero-cloud-masters/` is
+> committed.
+>
+> Layers (`components/hero/HeroIntroSequence.tsx`, desktop only — same rule
+> as `front-right`, mobile stays limited to one front cloud + traveller):
+> - `haze-band` (**z-2**, back tier, with `back`) — second Marquee, left 8%/w
+>   76%/top 42%/h 10vh, opacity 0.12, drifts opposite `back` (reverse, 106s).
+>   Parallax −7vh (rise→0.96), matching `back`'s "slowest" role.
+> - `puff-accent` (**z-4**, front tier, with `front-left`/`front-right`) — a
+>   third distinct silhouette, driven by its own offscreen `data-traverse`
+>   pass (17vw wide, 85s, phase 0.7) rather than a marquee, at top 49% (a
+>   touch higher than the other front clouds) for variety. Parallax −41vh
+>   (rise→0.9), opacity crossfade grouped with fl/fr (→0.08 remnant, [0.6,0.84]).
+
 > ## hero-v4 (CURRENT) — natural clouds + labelled master timeline
 >
 > hero-v3 (below) fixed the plate/pedestal problem with true-alpha wisps, but the

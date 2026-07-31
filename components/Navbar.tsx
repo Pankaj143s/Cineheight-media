@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { subscribeHeroProgress } from '@/lib/heroProgress'
+import { setLenisStopped } from '@/lib/scrollTo'
 import { useReducedMotion } from '@/lib/useMediaPreferences'
 import SoundToggle from '@/components/audio/SoundToggle'
 import { navItems } from '@/content/siteContent'
@@ -13,6 +14,9 @@ import { navItems } from '@/content/siteContent'
  * ~68% (hysteresis prevents flicker). On every other route it is visible
  * immediately. Items are the verified real routes (no Insights — no insight
  * content exists; docs/ROUTE-MAP.md).
+ *
+ * Mobile menu mirrors MediaLightbox accessibility: Escape, focus trap, focus
+ * restore, inert when closed, iOS-safe body scroll lock, and Lenis stop/start.
  */
 export default function Navbar() {
   const pathname = usePathname()
@@ -21,6 +25,13 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const visibleRef = useRef(!isHome)
   const reduced = useReducedMotion()
+  const menuId = useId()
+  const menuPanelId = `mobile-menu-${menuId}`
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const restoreFocusRef = useRef<HTMLElement | null>(null)
+
+  const closeMenu = useCallback(() => setMenuOpen(false), [])
 
   useEffect(() => {
     if (!isHome) {
@@ -37,6 +48,101 @@ export default function Navbar() {
       }
     })
   }, [isHome])
+
+  // Close on route change so a client navigation never leaves the panel open.
+  useEffect(() => {
+    setMenuOpen(false)
+  }, [pathname])
+
+  // Body scroll lock + Lenis pause while the menu is open.
+  useEffect(() => {
+    if (!menuOpen) return
+    const y = window.scrollY
+    const body = document.body
+    const prev = {
+      position: body.style.position,
+      top: body.style.top,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    }
+    body.style.position = 'fixed'
+    body.style.top = `-${y}px`
+    body.style.width = '100%'
+    body.style.overflow = 'hidden'
+    setLenisStopped(true)
+    return () => {
+      body.style.position = prev.position
+      body.style.top = prev.top
+      body.style.width = prev.width
+      body.style.overflow = prev.overflow
+      setLenisStopped(false)
+      window.scrollTo(0, y)
+    }
+  }, [menuOpen])
+
+  // Focus: remember opener, move into panel, trap Tab, Escape closes.
+  useEffect(() => {
+    if (!menuOpen) return
+    restoreFocusRef.current = document.activeElement as HTMLElement
+    const panel = panelRef.current
+    const firstLink = panel?.querySelector<HTMLElement>('a[href]')
+    firstLink?.focus()
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        closeMenu()
+        return
+      }
+      if (e.key !== 'Tab' || !panel) return
+      const focusables = panel.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+      if (focusables.length === 0) return
+      const first = focusables[0]
+      const last = focusables[focusables.length - 1]
+      // Include the toggle so Shift+Tab from the first link can reach it,
+      // then wrap; when focus is on the toggle and Tab is pressed, enter panel.
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        toggleRef.current?.focus()
+      } else if (e.shiftKey && document.activeElement === toggleRef.current) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        toggleRef.current?.focus()
+      } else if (!e.shiftKey && document.activeElement === toggleRef.current) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      restoreFocusRef.current?.focus?.()
+    }
+  }, [menuOpen, closeMenu])
+
+  // Outside click / tap dismisses the open menu.
+  useEffect(() => {
+    if (!menuOpen) return
+    const onPointer = (e: PointerEvent) => {
+      const t = e.target as Node
+      if (panelRef.current?.contains(t) || toggleRef.current?.contains(t)) return
+      closeMenu()
+    }
+    document.addEventListener('pointerdown', onPointer)
+    return () => document.removeEventListener('pointerdown', onPointer)
+  }, [menuOpen, closeMenu])
+
+  // Keep the closed panel out of the accessibility tree / tab order.
+  useEffect(() => {
+    const panel = panelRef.current
+    if (!panel) return
+    if (menuOpen) panel.removeAttribute('inert')
+    else panel.setAttribute('inert', '')
+  }, [menuOpen])
 
   return (
     <header
@@ -58,7 +164,6 @@ export default function Navbar() {
       aria-hidden={!visible}
     >
       <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-5 sm:px-8 lg:h-[72px] lg:px-10">
-        {/* Wordmark — stacked, as in the approved reference */}
         <Link href="/" className="flex flex-col leading-none" aria-label="Cineheight Media — home">
           <span
             className="font-display text-[15px] font-700 text-text-100"
@@ -74,7 +179,6 @@ export default function Navbar() {
           </span>
         </Link>
 
-        {/* Desktop links */}
         <nav aria-label="Primary" className="hidden items-center gap-8 lg:flex">
           {navItems.map((item) => (
             <Link
@@ -90,7 +194,6 @@ export default function Navbar() {
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Visible at every breakpoint — sound must always be one tap away. */}
           <SoundToggle />
           <Link
             href="/contact"
@@ -103,12 +206,12 @@ export default function Navbar() {
             </svg>
           </Link>
 
-          {/* Mobile menu button — ≥44px touch target */}
           <button
+            ref={toggleRef}
             type="button"
             className="flex h-11 w-11 items-center justify-center lg:hidden"
             aria-expanded={menuOpen}
-            aria-controls="mobile-menu"
+            aria-controls={menuPanelId}
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             onClick={() => setMenuOpen((v) => !v)}
           >
@@ -126,15 +229,20 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile menu */}
       <div
-        id="mobile-menu"
+        ref={panelRef}
+        id={menuPanelId}
         className="lg:hidden"
+        role={menuOpen ? 'dialog' : undefined}
+        aria-modal={menuOpen ? true : undefined}
+        aria-label={menuOpen ? 'Primary mobile' : undefined}
+        aria-hidden={!menuOpen}
         style={{
           maxHeight: menuOpen ? '420px' : '0',
           overflow: 'hidden',
           transition: reduced ? 'none' : 'max-height 0.4s cubic-bezier(0.22,1,0.36,1)',
           background: 'rgba(2,3,6,0.94)',
+          visibility: menuOpen ? 'visible' : 'hidden',
         }}
       >
         <nav aria-label="Primary mobile" className="flex flex-col px-6 pb-6 pt-2">
@@ -142,7 +250,8 @@ export default function Navbar() {
             <Link
               key={item.label}
               href={item.href}
-              onClick={() => setMenuOpen(false)}
+              onClick={closeMenu}
+              tabIndex={menuOpen ? undefined : -1}
               aria-current={pathname === item.href ? 'page' : undefined}
               className="border-b py-3.5 text-sm uppercase text-text-200"
               style={{ letterSpacing: '0.22em', borderColor: 'var(--border)' }}
@@ -152,7 +261,8 @@ export default function Navbar() {
           ))}
           <Link
             href="/contact"
-            onClick={() => setMenuOpen(false)}
+            onClick={closeMenu}
+            tabIndex={menuOpen ? undefined : -1}
             className="mt-5 inline-flex items-center justify-center gap-2 rounded-full border px-5 py-3 text-xs font-medium uppercase text-text-100"
             style={{ letterSpacing: '0.2em', borderColor: 'var(--blue-alpha-40)' }}
           >

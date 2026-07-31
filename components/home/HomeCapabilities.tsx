@@ -56,25 +56,22 @@ function mediaFor(cs: typeof sapale, reelIndex: number) {
 const PILLARS: Pillar[] = [
   {
     index: '01',
-    title: 'Build the brand',
-    description:
-      'Positioning and identity systems that make your brand distinctive and ready to grow.',
+    title: 'Make it seen.',
+    description: 'Identity systems that make a brand distinctive and ready to grow.',
     includes: ['Brand strategy', 'Identity design', 'Visual systems'],
     media: mediaFor(sapale, 2), // Fascino brand film
   },
   {
     index: '02',
-    title: 'Create attention',
-    description:
-      'Social content, reels and campaign films designed to earn attention and stay memorable.',
+    title: 'Make it felt.',
+    description: 'Films, reels and content built to earn attention and stay memorable.',
     includes: ['Social media', 'Content creation', 'Reels & films'],
     media: mediaFor(divija, 0), // Diwali campaign
   },
   {
     index: '03',
-    title: 'Drive growth',
-    description:
-      'Performance campaigns that turn visibility into qualified enquiries and measurable growth.',
+    title: 'Make it convert.',
+    description: 'Campaigns that turn visibility into qualified enquiries and growth.',
     includes: ['Performance marketing', 'Lead generation', 'Optimisation'],
     media: mediaFor(ses, 2), // Consistency story
   },
@@ -200,7 +197,7 @@ export default function HomeCapabilities() {
   const mediaStage = (
     <div
       className="relative w-full overflow-hidden"
-      style={{ aspectRatio: '16 / 10', background: 'var(--bg-900)' }}
+      style={{ aspectRatio: '16 / 9', background: 'var(--bg-900)' }}
     >
       {PILLARS.map((p, i) => (
         <div
@@ -377,7 +374,7 @@ export default function HomeCapabilities() {
     <section
       ref={rootRef}
       id="services"
-      aria-label="How we help brands grow"
+      aria-label="What Cineheight does"
       className="relative z-10"
       style={{
         marginTop: 'calc(clamp(3.5rem, 10vh, 8rem) * var(--scene-gap))',
@@ -396,13 +393,16 @@ export default function HomeCapabilities() {
       )}
 
       <div className="flow-gutter relative">
-        <KineticLabel text="HOW WE HELP BRANDS GROW" />
+        <KineticLabel text="WHAT WE DO" />
         <SplitLineReveal
           as="h2"
-          lines={['One team to build the brand,', 'create attention and drive growth.']}
-          srLabel="One team to build the brand, create attention and drive growth."
-          className="type-display-2 font-display mt-6 max-w-[24ch] font-bold uppercase text-text-100"
+          lines={['Brands people choose.']}
+          srLabel="Brands people choose."
+          className="type-display-1 font-display mt-6 max-w-[18ch] font-bold uppercase text-text-100"
         />
+        <p className="font-body measure mt-6 text-base leading-relaxed text-text-300">
+          Strategy, identity, content and performance — one team turning attention into measurable growth.
+        </p>
       </div>
 
       <div className="flow-gutter relative mt-10 grid grid-cols-12 items-center gap-x-12 sm:mt-14">

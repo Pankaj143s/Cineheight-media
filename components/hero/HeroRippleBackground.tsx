@@ -60,11 +60,28 @@ interface TierConfig {
   caustic: number
   tint: number
   detail: number
-  throttleMs: number
-  /** Minimum pointer travel between drops, in CSS pixels. */
-  minDropPx: number
+  /**
+   * Pure normalisation constant (CSS px) for the energy/strength accounting
+   * below — no longer a drop-injection gate. Historically this was
+   * `minDropPx`, a minimum-travel gate that (combined with `throttleMs`)
+   * caused single-point drops to land ~72-110ms / ~24-28px apart, which read
+   * as discrete "taps" instead of a continuous flowing trail. The gate is
+   * gone; the number lives on purely to keep per-pixel strength calibrated
+   * to what it was before.
+   */
+  energyRefPx: number
   /** Pointer speed, in CSS px/s, that earns a full-strength drop. */
   refSpeedPx: number
+  /** Sub-drop spacing along the pointer's path, in CSS px — the resolution
+   *  of the interpolated trail (see the injection loop for how it's used). */
+  dropSpacingPx: number
+  /** Hard cap on interpolated sub-drops injected in a single frame, so a
+   *  fast flick can't spike the drop queue or GPU cost. */
+  maxSubDropsPerFrame: number
+  /** Distance (CSS px) beyond which a pointer jump is treated as a
+   *  teleport (tab-switch return, cursor warp) rather than a drag — queues
+   *  one drop at the destination instead of walking a fake path across it. */
+  teleportPx: number
   autoMinMs: number
   autoMaxMs: number
   maxEnergy: number
@@ -96,20 +113,22 @@ const TIERS: Record<RippleTier, TierConfig> = {
     analyticSlope: 0.08,
     frontSpeed: 0.066,
     perturbance: 0.028,
-    specular: 0.075,
-    rim: 0.042,
-    shade: 0.30,
-    caustic: 22.0,
+    specular: 0.088,
+    rim: 0.048,
+    shade: 0.34,
+    caustic: 24.0,
     tint: 0.5,
     detail: 1.0,
-    throttleMs: 72,
-    minDropPx: 24,
+    energyRefPx: 24,
     refSpeedPx: 900,
+    dropSpacingPx: 8,
+    maxSubDropsPerFrame: 6,
+    teleportPx: 220,
     autoMinMs: 3200,
     autoMaxMs: 4800,
     maxEnergy: 3.0,
     maxSteps: 3,
-    maxDropsPerFrame: 2,
+    maxDropsPerFrame: 8,
     preferHighest: true,
     fadeStart: 0.56,
     fadeEnd: 0.97,
@@ -126,20 +145,22 @@ const TIERS: Record<RippleTier, TierConfig> = {
     analyticSlope: 0.08,
     frontSpeed: 0.066,
     perturbance: 0.026,
-    specular: 0.072,
-    rim: 0.040,
-    shade: 0.29,
-    caustic: 21.0,
+    specular: 0.082,
+    rim: 0.044,
+    shade: 0.32,
+    caustic: 22.5,
     tint: 0.5,
     detail: 1.0,
-    throttleMs: 80,
-    minDropPx: 26,
+    energyRefPx: 26,
     refSpeedPx: 900,
+    dropSpacingPx: 9,
+    maxSubDropsPerFrame: 5,
+    teleportPx: 200,
     autoMinMs: 3600,
     autoMaxMs: 5200,
     maxEnergy: 2.6,
     maxSteps: 3,
-    maxDropsPerFrame: 2,
+    maxDropsPerFrame: 6,
     preferHighest: false,
     fadeStart: 0.56,
     fadeEnd: 0.97,
@@ -162,14 +183,16 @@ const TIERS: Record<RippleTier, TierConfig> = {
     caustic: 30.0,
     tint: 0.45,
     detail: 0.85,
-    throttleMs: 110,
-    minDropPx: 28,
+    energyRefPx: 28,
     refSpeedPx: 900,
+    dropSpacingPx: 11,
+    maxSubDropsPerFrame: 4,
+    teleportPx: 180,
     autoMinMs: 4200,
     autoMaxMs: 6400,
     maxEnergy: 2.0,
     maxSteps: 2,
-    maxDropsPerFrame: 1,
+    maxDropsPerFrame: 4,
     preferHighest: false,
     fadeStart: 0.58,
     fadeEnd: 0.98,
@@ -314,6 +337,8 @@ export default function HeroRippleBackground({ tier }: { tier: RippleTier }) {
     let lastDropAt = 0
     let lastDropU = 0.5
     let lastDropV = 0.5
+    /** Verification-only counter: total drops ever queued, read by `__cineheightRipple.dropCount`. */
+    let dropCount = 0
     let lastPointerMoveAt = -1e9
     let nextAutoAt = performance.now() + cfg.autoMinMs
     let simAccum = 0
@@ -520,8 +545,9 @@ export default function HeroRippleBackground({ tier }: { tier: RippleTier }) {
        * black stage instead of over a surface still being poked.
        */
       if (scrollFade < 0.85) return
-      if (dropQueue.length >= cfg.maxDropsPerFrame * 4) return
+      if (dropQueue.length >= cfg.maxDropsPerFrame) return
       dropQueue.push({ u, v, strength })
+      dropCount++
       if (!simulating) {
         if (analytic.length >= MAX_ANALYTIC) analytic.shift()
         analytic.push({ u, v, born: performance.now(), strength: Math.abs(strength) })
@@ -583,24 +609,64 @@ export default function HeroRippleBackground({ tier }: { tier: RippleTier }) {
           else delete root.dataset.heroSurface
         }
 
-        if (ptrDirty && inside && now - lastDropAt >= cfg.throttleMs) {
+        if (ptrDirty && inside) {
           // Distance in CSS pixels. It used to be measured in height-normalised
           // units, which made the threshold viewport-dependent (~14px at
           // 1440x900) and impossible to reason about against a pointer spec.
           const distPx = Math.hypot((u - lastDropU) * cssW, (v - lastDropV) * cssH)
-          if (distPx >= cfg.minDropPx || now - lastDropAt > 600) {
-            // Speed is measured per ACCEPTED sample, so the result does not
-            // depend on the device's pointer report rate (60 Hz–1 kHz, and
-            // coalesced under load). A slow drift ripples gently; a sweep
-            // ripples more, but never past the energy cap.
-            const speedPxPerS = (distPx / Math.max(1, now - lastDropAt)) * 1000
-            const speedK = clamp(speedPxPerS / cfg.refSpeedPx, 0.45, 1.15)
+          const elapsed = now - lastDropAt
+          if (distPx > cfg.teleportPx || elapsed > 300) {
+            // Re-entry / cursor warp (tab-switch return, a jump across the
+            // hero) — one drop at the destination. Walking a path across a
+            // jump like this would draw a false trail across empty water.
             const gain = clamp(1 - energy / cfg.maxEnergy, 0.2, 1)
-            queueDrop(u, v, -tune.dropStrength * speedK * gain)
+            queueDrop(u, v, -tune.dropStrength * gain)
+            energy = Math.min(cfg.maxEnergy, energy + gain)
             lastDropAt = now
             lastDropU = u
             lastDropV = v
-            energy += speedK * gain
+          } else if (distPx > 0) {
+            // Smooth flowing trail: the simulation used to receive one
+            // fully-formed, instantaneous drop per accepted sample (72-110ms
+            // and 24-28px apart), which read as discrete "taps" rather than
+            // continuous forcing. Instead, walk the segment from the last
+            // sample to this one in small sub-steps, each a fraction of the
+            // full drop strength — the SUM of those fractions across the
+            // WALKED distance always equals what one full-strength drop over
+            // that distance would have been (see `perStepStrength` below), so
+            // subdivision only changes smoothness, never total injected
+            // energy or the already-calibrated amplitude/decay character.
+            const speedPxPerS = (distPx / Math.max(1, elapsed)) * 1000
+            const speedK = clamp(speedPxPerS / cfg.refSpeedPx, 0.45, 1.15)
+            const gain = clamp(1 - energy / cfg.maxEnergy, 0.2, 1)
+            /*
+             * Cap how much distance a single frame is allowed to "pay for" —
+             * the same ceiling `speedK` already puts on per-drop strength,
+             * extended to distance. Without this, a single coalesced frame
+             * reporting an abnormally large on-screen jump (a fast real flick,
+             * or several queued pointermove events collapsing into one rAF
+             * tick) would inject energy proportional to that raw distance
+             * with no upper bound, blowing straight through `maxEnergy` in
+             * one frame. Any distance beyond the cap is caught up over the
+             * following frames — self-correcting, not skipped or dumped.
+             */
+            const maxWalkPx = (cfg.refSpeedPx * 1.15 * Math.max(1, elapsed)) / 1000
+            const walkedDistPx = Math.min(distPx, maxWalkPx)
+            const frac = walkedDistPx / distPx
+            const targetU = lastDropU + (u - lastDropU) * frac
+            const targetV = lastDropV + (v - lastDropV) * frac
+            const steps = clamp(Math.round(walkedDistPx / cfg.dropSpacingPx), 1, cfg.maxSubDropsPerFrame)
+            const perStepStrength = (-tune.dropStrength * speedK * gain * (walkedDistPx / steps)) / cfg.energyRefPx
+            for (let i = 1; i <= steps; i++) {
+              const t = i / steps
+              queueDrop(lastDropU + (targetU - lastDropU) * t, lastDropV + (targetV - lastDropV) * t, perStepStrength)
+            }
+            energy = Math.min(cfg.maxEnergy, energy + speedK * gain * (walkedDistPx / cfg.energyRefPx))
+            lastDropAt = now
+            lastDropU = targetU
+            lastDropV = targetV
+          } else {
+            lastDropAt = now
           }
           ptrDirty = false
         }
@@ -809,6 +875,10 @@ export default function HeroRippleBackground({ tier }: { tier: RippleTier }) {
       },
       get energy() {
         return energy
+      },
+      /** Verification-only: total drops queued since mount. */
+      get dropCount() {
+        return dropCount
       },
       /** Flatten the surface so the opaque plate can be diffed against the DOM. */
       freeze(on: boolean) {

@@ -48,8 +48,36 @@ function useMediaQuery(query: string, fallback = false): boolean {
   return matches
 }
 
+/**
+ * Like {@link useMediaQuery}, but also reports whether the real match has been
+ * read on the client. Until `ready` is true, consumers must not assume the
+ * fallback is authoritative (CountUp uses this to avoid zeroing a figure before
+ * it knows reduced-motion is off).
+ */
+function useMediaQueryReady(query: string, fallback = false): { matches: boolean; ready: boolean } {
+  const [matches, setMatches] = useState(fallback)
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    const mql = window.matchMedia(query)
+    const update = () => setMatches(mql.matches)
+    update()
+    setReady(true)
+    mql.addEventListener('change', update)
+    return () => mql.removeEventListener('change', update)
+  }, [query])
+
+  return { matches, ready }
+}
+
 export function useReducedMotion(): boolean {
   return useMediaQuery('(prefers-reduced-motion: reduce)')
+}
+
+/** Reduced-motion preference plus a client-ready flag for animation gates. */
+export function useReducedMotionState(): { reduced: boolean; ready: boolean } {
+  const { matches, ready } = useMediaQueryReady('(prefers-reduced-motion: reduce)')
+  return { reduced: matches, ready }
 }
 
 /** Width-only check — use for LAYOUT variants (a touch laptop still gets the

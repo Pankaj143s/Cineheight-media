@@ -212,9 +212,18 @@ html[data-hero-surface='true'][data-signal-cursor='true'] [role='button'] {
 
 /* NOTE: the hero-v2 cloud compositing helpers (.cloud-screen mix-blend + the
    .mask-group-* / .mask-center-soft / .mask-haze radial masks) were removed in
-   the hero-v3 pass. v3 wisps carry true baked alpha (see HERO-CLOUD-SYSTEM.md),
+   the hero-v3 pass. v3/v4 clouds carry true baked alpha (see HERO-CLOUD-SYSTEM.md),
    so they composite normally with no screen-blend and no radial masks — which
-   is exactly what eliminated the visible plate/pedestal look. */
+   is exactly what eliminated the visible plate/pedestal look.
+
+   That "no straight edges" guarantee is a property of the ASSETS, not of any CSS
+   here, so nothing in this file can enforce it — and hero-v4 did regress: a
+   `trim()` in the asset pipeline cropped cloud-haze-band straight through the
+   wisp, leaving a hard edge that drifted across the hero. It is enforced at
+   build time now: scripts/lib/cloud-alpha.mjs ramps every border to alpha 0 and
+   both asset scripts ASSERT it. Do not add a CSS mask to compensate for an
+   asset-level edge — fixing it in the pipeline is what keeps the clouds
+   compositing normally. */
 
 /* Film grain — inline SVG turbulence, extremely low opacity */
 .grain-overlay {
@@ -489,6 +498,28 @@ html[data-hero-surface='true'][data-signal-cursor='true'] [role='button'] {
 @keyframes work-cta-arrow {
   0%, 80%, 100% { transform: translateX(0); }
   88% { transform: translateX(5px); }
+}
+
+/* Hero dust motes: fade in, drift a little, fade back out before looping —
+   the reset is invisible since opacity is ~0 at the loop point. Per-mote
+   variety comes from the `--mote-opacity` / `--mote-drift-x` custom
+   properties set inline (HeroDustMotes.tsx), not from this keyframe. */
+@keyframes hero-dust-drift {
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: 0; }
+  12% { opacity: var(--mote-opacity, 0.25); }
+  50% { transform: translate3d(var(--mote-drift-x, 12px), -10px, 0); opacity: calc(var(--mote-opacity, 0.25) * 0.55); }
+  88% { opacity: var(--mote-opacity, 0.25); }
+}
+
+/* Shooting stars: invisible for most of the cycle, then a brief fast streak
+   along an explicit screen-space vector (`--star-dx`/`--star-dy`, plain
+   pixels — dy > 0 is down). The long idle stretch (0-88%) is what makes it
+   read as "occasional" rather than a constant stream. */
+@keyframes hero-shooting-star {
+  0%, 88%, 100% { opacity: 0; transform: translate(0, 0); }
+  89% { opacity: 1; }
+  94% { opacity: 1; transform: translate(var(--star-dx, 160px), var(--star-dy, 60px)); }
+  96% { opacity: 0; transform: translate(var(--star-dx, 160px), var(--star-dy, 60px)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -106,3 +106,10 @@ export function scrollToElementCenter(el: HTMLElement, opts: ScrollToOptions = {
 export function syncLenis() {
   lenis?.scrollTo(window.scrollY, { immediate: true, force: true })
 }
+
+/** Pause / resume the shared Lenis instance (mobile menu, modals). */
+export function setLenisStopped(stopped: boolean) {
+  if (!lenis) return
+  if (stopped) lenis.stop()
+  else lenis.start()
+}

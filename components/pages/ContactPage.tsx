@@ -185,12 +185,12 @@ export default function ContactPage() {
         <KineticLabel text="START A PROJECT" />
         <StrokeFillHeadline
           as="h1"
-          text="Let's build your brand."
+          text={closing.question}
           className="font-display mt-6 font-bold uppercase text-text-100"
-          style={{ fontSize: 'clamp(2.6rem, 10vw, 9rem)', lineHeight: 0.88, letterSpacing: '-0.04em' }}
+          style={{ fontSize: 'clamp(2.8rem, 11vw, 9.5rem)', lineHeight: 0.86, letterSpacing: '-0.045em' }}
         />
         <p className="font-body measure mt-9 text-base leading-relaxed text-text-300 sm:text-lg">
-          Tell us what you are building. A real person will reply and help you find the right next step.
+          Share the brief. A real person replies — and helps you find the right next step.
         </p>
       </header>
 

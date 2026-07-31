@@ -121,12 +121,10 @@ export default function ServicesPage() {
     const number = entry.querySelector('[data-service-number]')
     const title = entry.querySelector('[data-service-title]')
     const description = entry.querySelector('[data-service-description]')
-    const detail = entry.querySelector('[data-service-detail]')
-    const deliverables = entry.querySelectorAll('[data-service-deliverable]')
     const rule = entry.querySelector('[data-service-rule]')
 
     if (!first) {
-      gsap.to([number, title, description, detail, deliverables], {
+      gsap.to([number, title, description], {
         autoAlpha: 1,
         y: 0,
         duration: 0.24,
@@ -150,18 +148,6 @@ export default function ServicesPage() {
         { autoAlpha: 0.55, y: 14 },
         { autoAlpha: 1, y: 0, duration: 0.5, ease: 'power2.out' },
         '<0.16'
-      )
-      .fromTo(
-        detail,
-        { autoAlpha: 0.55, y: 10 },
-        { autoAlpha: 1, y: 0, duration: 0.55, ease: 'power2.out' },
-        '<0.15'
-      )
-      .fromTo(
-        deliverables,
-        { autoAlpha: 0.55, y: 7 },
-        { autoAlpha: 1, y: 0, duration: 0.35, stagger: 0.055, ease: 'power1.out' },
-        '<0.12'
       )
       .fromTo(rule, { scaleX: 0.12, opacity: 0.24 }, { scaleX: 1, opacity: 0.8, duration: 0.65, ease: 'power3.out' }, 0)
     return () => {
@@ -232,7 +218,7 @@ export default function ServicesPage() {
   const canvas = (
     <div
       className="relative w-full overflow-hidden"
-      style={{ aspectRatio: '16 / 10', background: 'var(--bg-900)' }}
+      style={{ aspectRatio: '16 / 9', background: 'var(--bg-900)' }}
     >
       {services.map((s, i) => (
         // eslint-disable-next-line @next/next/no-img-element
@@ -283,13 +269,12 @@ export default function ServicesPage() {
         <KineticLabel text="WHAT WE DO" />
         <SplitLineReveal
           as="h1"
-          lines={['Six disciplines.', 'One connected system.']}
-          srLabel="Six disciplines. One connected system."
-          className="type-display-1 font-display mt-6 max-w-[18ch] font-bold uppercase text-text-100"
+          lines={['One system.', 'Six crafts.']}
+          srLabel="One system. Six crafts."
+          className="type-display-1 font-display mt-6 max-w-[14ch] font-bold uppercase text-text-100"
         />
         <p ref={introCopyRef} className="font-body measure mt-8 text-base leading-relaxed text-text-300">
-          Strategy, design, content and campaigns work best when they are built together — every service below feeds
-          the next.
+          Every discipline feeds the next — identity into content, content into campaigns, campaigns into growth.
         </p>
       </header>
 
@@ -334,9 +319,9 @@ export default function ServicesPage() {
                 <h2
                   className="min-w-0 font-display font-bold uppercase text-text-100"
                   style={{
-                    fontSize: 'calc(clamp(1.5rem, 3.2vw, 2.8rem) * var(--display-scale))',
-                    lineHeight: 1.02,
-                    letterSpacing: '-0.022em',
+                    fontSize: 'calc(clamp(1.85rem, 4.2vw, 3.6rem) * var(--display-scale))',
+                    lineHeight: 1.0,
+                    letterSpacing: '-0.03em',
                   }}
                 >
                   <span className="block overflow-hidden pb-[0.13em] -mb-[0.13em]">
@@ -347,16 +332,15 @@ export default function ServicesPage() {
                 </h2>
               </div>
 
-              <p data-service-description data-mobile-reveal className="font-body mt-5 text-[15px] leading-relaxed text-text-200 sm:text-base" style={{ maxWidth: '50ch' }}>
+              <p data-service-description data-mobile-reveal className="font-body mt-6 text-[15px] leading-relaxed text-text-200 sm:text-base" style={{ maxWidth: '42ch' }}>
                 {s.description}
               </p>
-              <p data-service-detail data-mobile-reveal className="font-body mt-3 text-sm leading-relaxed text-text-500" style={{ maxWidth: '52ch' }}>
+              <p data-service-detail className="sr-only">
                 {s.detail}
               </p>
-
-              <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-1.5">
+              <ul className="sr-only">
                 {(DELIVERABLES[s.id] ?? []).map((d) => (
-                  <li key={d} data-service-deliverable data-mobile-reveal className="font-body list-none text-[12px] text-text-500">
+                  <li key={d} data-service-deliverable>
                     {d}
                   </li>
                 ))}

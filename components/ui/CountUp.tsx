@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
-import { useReducedMotion } from '@/lib/useMediaPreferences'
+import { useReducedMotionState } from '@/lib/useMediaPreferences'
 
 /**
  * Counts to a verified figure once.
@@ -31,16 +31,18 @@ import { useReducedMotion } from '@/lib/useMediaPreferences'
  *  1. The rendered markup contains the real value. It is zeroed in a layout
  *     effect, before paint — so if JavaScript never runs, or the module fails
  *     to load, the figure is simply there rather than stuck at 0.
- *  2. "Already ran" is latched only when a run *completes*. Latching it when a
- *     run *starts* was the original bug: React Strict Mode invokes the effect,
- *     cancels it, and re-invokes it, so the cancelled first run consumed the
- *     one permitted run and the element kept its literal "0" forever.
- *  3. Cancelling never leaves a partial figure behind permanently — being
+ *  2. Zeroing waits until the reduced-motion preference is known on the client.
+ *     Assuming motion is allowed (SSR fallback) and zeroing immediately used to
+ *     leave reduced-motion visitors stuck on a literal "0" when animation was
+ *     then skipped.
+ *  3. "Already ran" is latched only when a run *completes*. Latching it when a
+ *     run *starts* was the original Strict Mode bug: the cancelled first run
+ *     consumed the one permitted run and the element kept its literal "0".
+ *  4. Cancelling never leaves a partial figure behind permanently — being
  *     deactivated mid-count writes the final value immediately.
- *  4. A failsafe timer armed alongside each run writes the final value if that
- *     run has not completed in time (a stalled rAF, a backgrounded tab that
- *     never returns focus, an observer that never fires).
- *  5. If the observer cannot be constructed at all, the final value is written
+ *  5. A failsafe timer armed alongside each run writes the final value if that
+ *     run has not completed in time.
+ *  6. If the observer cannot be constructed at all, the final value is written
  *     on the spot.
  */
 export default function CountUp({
@@ -72,10 +74,11 @@ export default function CountUp({
   playKey?: string | number
 }) {
   const ref = useRef<HTMLSpanElement>(null)
-  const reduced = useReducedMotion()
+  const { reduced, ready: motionReady } = useReducedMotionState()
   const numeric = Number(value)
   const animatable = Number.isFinite(numeric) && value.trim() !== ''
-  const willAnimate = animatable && !reduced
+  // Do not animate until the real prefers-reduced-motion match is known.
+  const willAnimate = motionReady && animatable && !reduced
 
   /**
    * Which trigger this instance uses, fixed at mount. A component whose parent
@@ -98,17 +101,21 @@ export default function CountUp({
   }, [value])
 
   /**
-   * Zero the figure before the browser paints, so the count always begins from
-   * 0 without the real value flashing first. Deliberately a layout effect and
-   * deliberately not part of the render output: the markup React produces (and
-   * the server sends) carries the true figure, which is what a visitor sees if
-   * this effect never runs.
+   * Zero only when a count will actually run. If motion is disabled (or not yet
+   * resolved), keep / restore the authored figure — never leave a stale zero.
    */
   useLayoutEffect(() => {
-    if (!willAnimate || doneRef.current) return
+    if (!motionReady) return
+    if (!animatable || reduced) {
+      cancelAnimationFrame(rafRef.current)
+      runningRef.current = false
+      writeFinal()
+      return
+    }
+    if (doneRef.current) return
     const decimals = (value.split('.')[1] ?? '').length
     if (ref.current) ref.current.textContent = (0).toFixed(decimals)
-  }, [willAnimate, value])
+  }, [animatable, motionReady, reduced, value, writeFinal])
 
   // Re-arm when the caller changes the play key.
   useEffect(() => {

@@ -91,7 +91,7 @@ export default function AboutPage() {
           ]}
           srLabel={about.headline}
           className="font-display mt-6 font-bold text-text-100"
-          style={{ fontSize: 'clamp(2.6rem, 9vw, 8.4rem)', lineHeight: 0.9, letterSpacing: '-0.04em' }}
+          style={{ fontSize: 'clamp(3rem, 11vw, 9.5rem)', lineHeight: 0.88, letterSpacing: '-0.045em' }}
         />
         <p className="font-body measure mt-9 text-lg leading-relaxed text-text-300 sm:text-xl">{about.supporting}</p>
       </header>

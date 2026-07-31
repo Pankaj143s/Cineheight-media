@@ -67,13 +67,13 @@ export default function ShowreelSection() {
       // rather than as two sections with a dead screen between them.
       gsap.fromTo(
         frame,
-        { scale: mobile ? 0.96 : 0.86, autoAlpha: 0.75, clipPath: 'inset(7% 0% 7% 0%)' },
+        { scale: mobile ? 0.94 : 0.78, autoAlpha: 0.55, clipPath: 'inset(12% 0% 12% 0%)' },
         {
           scale: 1,
           autoAlpha: 1,
           clipPath: 'inset(0% 0% 0% 0%)',
           ease: 'none',
-          scrollTrigger: { trigger: sectionRef.current, start: 'top 92%', end: mobile ? 'top 52%' : 'top 42%', scrub: 1 },
+          scrollTrigger: { trigger: sectionRef.current, start: 'top 96%', end: mobile ? 'top 48%' : 'top 38%', scrub: 1.15 },
         }
       )
       if (video && !mobile) {

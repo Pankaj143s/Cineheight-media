@@ -179,15 +179,15 @@ export default function FeaturedWorkJourney() {
         tl.fromTo(
           frame,
           i === 0
-            ? { autoAlpha: 0.62, clipPath: 'inset(6% 4% 6% 4%)', scale: 1.04 }
-            : { autoAlpha: 0, clipPath: 'inset(14% 10% 14% 10%)', scale: 1.06 },
-          { autoAlpha: 1, clipPath: 'inset(0% 0% 0% 0%)', scale: 1, duration: i === 0 ? 0.12 : 0.14 },
+            ? { autoAlpha: 0.62, clipPath: 'inset(8% 0% 8% 0%)', scale: 1.04 }
+            : { autoAlpha: 0, clipPath: 'inset(50% 0% 50% 0%)', scale: 1.08 },
+          { autoAlpha: 1, clipPath: 'inset(0% 0% 0% 0%)', scale: 1, duration: i === 0 ? 0.12 : 0.16 },
           inAt
         )
         // Hand over only once the incoming project is already established.
         if (i < PROJECTS.length - 1) {
           const outAt = i === 0 ? 0.32 : 0.62
-          tl.to(frame, { autoAlpha: 0, clipPath: 'inset(10% 6% 10% 6%)', duration: 0.12 }, outAt)
+          tl.to(frame, { autoAlpha: 0, clipPath: 'inset(50% 0% 50% 0%)', duration: 0.14 }, outAt)
         }
       })
 
@@ -388,7 +388,7 @@ export default function FeaturedWorkJourney() {
       id="work"
       aria-label="Selected work"
       className="relative z-10"
-      style={{ height: '300vh' }}
+      style={{ height: '270vh' }}
     >
       <div className="sticky top-0 h-[100svh] w-full overflow-hidden">
         {/* full-viewport-width media stage */}

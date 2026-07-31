@@ -5,14 +5,11 @@ import dynamic from 'next/dynamic'
 import { gsap, ScrollTrigger } from '@/lib/gsap'
 import { setHeroProgress } from '@/lib/heroProgress'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { useRippleTier } from '@/lib/useRippleTier'
 
 // Client-only, matching the FlowDirector dynamic-import pattern used
 // elsewhere so a reduced-motion visitor never downloads the chunk at all.
-//
-// experiment/hero-bg-video: this is the background surface currently mounted
-// below. `HeroRippleBackground.tsx` and `lib/ripple/*` are untouched on disk
-// — see the L1.5 comment below for how to swap back.
-const HeroVideoBackground = dynamic(() => import('./HeroVideoBackground'), { ssr: false })
+const HeroRippleBackground = dynamic(() => import('./HeroRippleBackground'), { ssr: false })
 
 // hero-v4 — natural rounded clouds with true baked alpha (no screen-blend,
 // no radial masks). v3 wisps (smoke-like, one with empty alpha) are retired.
@@ -21,6 +18,11 @@ const ASSETS = {
   frontLeft: '/generated/hero-v4/cloud-front-left.webp',
   frontRight: '/generated/hero-v4/cloud-front-right.webp',
   traveller: '/generated/hero-v4/cloud-traveller.webp',
+  // Two stock clouds (checker-alpha recovered, see scripts/process-hero-clouds.mjs),
+  // added as extra depth layers in the SAME hero-v4 system — desktop only, same
+  // rule as front-right (mobile stays limited to one front cloud + traveller).
+  hazeBand: '/generated/hero-v4/cloud-haze-band.webp',
+  puffAccent: '/generated/hero-v4/cloud-puff-accent.webp',
 }
 
 /**
@@ -29,6 +31,16 @@ const ASSETS = {
  * lands copy-2 where copy-1 was — continuous drift, NO reversal, NO snap.
  * `reverse` drifts rightward. Scroll parallax animates the OUTER wrapper; this
  * inner track only animates xPercent, so transforms never collide.
+ *
+ * Set `cloudWidthVw` GREATER than `periodVw` for a layer whose asset feathers to
+ * alpha 0 at its own edges (the two hazes). Tiled at exactly one period the two
+ * copies sit edge-to-edge, so the pair of transparent edges reads as a thinning
+ * band sweeping through the layer; the excess width makes them cross-fade
+ * instead. Two copies still cover the track at every offset — the overlap means
+ * a gap can never open (a third copy would only add a wasted decode).
+ *
+ * A cloud NARROWER than the period is the opposite case, and intentional: the
+ * gap is the empty sky a single cloud drifts across.
  */
 function Marquee({
   src,
@@ -89,6 +101,7 @@ export default function HeroIntroSequence() {
   const driftTweens = useRef<gsap.core.Tween[]>([])
   const reduced = useReducedMotion()
   const mobile = useIsMobileTier()
+  const rippleTier = useRippleTier()
 
   // Pause drift when the hero is offscreen or the tab is hidden.
   useLayoutEffect(() => {
@@ -154,6 +167,8 @@ export default function HeroIntroSequence() {
       const fl = q('[data-layer="front-left"]')
       const fr = q('[data-layer="front-right"]')
       const trav = q('[data-layer="traveller"]')
+      const hazeBand = q('[data-layer="haze-band"]')
+      const puffAccent = q('[data-layer="puff-accent"]')
       const blue = q('[data-layer="transition-light"]')
       const statement = q('[data-layer="statement"]')
       const stLines = q('[data-line-inner]')
@@ -186,33 +201,44 @@ export default function HeroIntroSequence() {
       // (positions/durations are scroll fractions of the 0→1 timeline).
       const spanDur = (from: number, to: number) => ({ duration: to - from })
 
+      // Desktop-only layers (haze-band, front-right, puff-accent) are absent on
+      // mobile — skip empty query results so GSAP never warns "target not found".
+      const has = (els: ArrayLike<Element> | null | undefined) => (els?.length ?? 0) > 0
+
       // ---- Parallax rise (all start together at 0.12, different distances) ----
       const rise = 0.12
-      tl.fromTo(trav, { y: 0 }, { y: vh(-48), ...spanDur(rise, 0.85) }, rise) // fastest
-        .fromTo(fl, { y: 0 }, { y: vh(-40), ...spanDur(rise, 0.9) }, rise)
-        .fromTo(fr, { y: 0 }, { y: vh(-42), ...spanDur(rise, 0.9) }, rise)
-        .fromTo(title, { y: 0, scale: 1 }, { y: vh(-30), scale: 1.06, ...spanDur(rise, 0.9) }, rise) // medium
-        .fromTo(back, { y: 0 }, { y: vh(-8), ...spanDur(rise, 0.96) }, rise) // slowest
+      if (has(trav)) tl.fromTo(trav, { y: 0 }, { y: vh(-48), ...spanDur(rise, 0.85) }, rise) // fastest
+      if (has(fl)) tl.fromTo(fl, { y: 0 }, { y: vh(-40), ...spanDur(rise, 0.9) }, rise)
+      if (has(fr)) tl.fromTo(fr, { y: 0 }, { y: vh(-42), ...spanDur(rise, 0.9) }, rise)
+      if (has(puffAccent)) tl.fromTo(puffAccent, { y: 0 }, { y: vh(-41), ...spanDur(rise, 0.9) }, rise)
+      if (has(title)) tl.fromTo(title, { y: 0, scale: 1 }, { y: vh(-30), scale: 1.06, ...spanDur(rise, 0.9) }, rise)
+      if (has(back)) tl.fromTo(back, { y: 0 }, { y: vh(-8), ...spanDur(rise, 0.96) }, rise)
+      if (has(hazeBand)) tl.fromTo(hazeBand, { y: 0 }, { y: vh(-7), ...spanDur(rise, 0.96) }, rise)
 
       // ---- Opacity crossfades (gentle, gradual — no abrupt fades) ----
-      tl.to(trav, { autoAlpha: 0, ...spanDur(0.34, 0.56) }, 0.34)
-        .to(title, { autoAlpha: 0, ...spanDur(0.44, 0.76) }, 0.44) // title fades slowly as it rises
-        .to([...fl, ...fr], { autoAlpha: 0.08, ...spanDur(0.6, 0.84) }, 0.6) // become faint upper remnants
-        .to(back, { autoAlpha: 0.4, ...spanDur(0.7, 0.92) }, 0.7) // haze lingers, dissolves last
+      if (has(trav)) tl.to(trav, { autoAlpha: 0, ...spanDur(0.34, 0.56) }, 0.34)
+      if (has(title)) tl.to(title, { autoAlpha: 0, ...spanDur(0.44, 0.76) }, 0.44)
+      const frontRemnants = [...fl, ...fr, ...puffAccent]
+      if (frontRemnants.length) tl.to(frontRemnants, { autoAlpha: 0.08, ...spanDur(0.6, 0.84) }, 0.6)
+      const backRemnants = [...back, ...hazeBand]
+      if (backRemnants.length) tl.to(backRemnants, { autoAlpha: 0.4, ...spanDur(0.7, 0.92) }, 0.7)
 
       // ---- #0089FF transition illumination (≤0.10) bridging the two states.
-      tl.fromTo(blue, { autoAlpha: 0 }, { autoAlpha: 0.1, ...spanDur(0.5, 0.7) }, 0.5)
-        .to(blue, { autoAlpha: 0.05, ...spanDur(0.84, 1.0) }, 0.84)
+      if (has(blue)) {
+        tl.fromTo(blue, { autoAlpha: 0 }, { autoAlpha: 0.1, ...spanDur(0.5, 0.7) }, 0.5)
+          .to(blue, { autoAlpha: 0.05, ...spanDur(0.84, 1.0) }, 0.84)
+      }
 
       // ---- Statement rises from below and crossfades in as the title thins.
-      tl.fromTo(statement, { y: vh(42), autoAlpha: 0 }, { y: 0, autoAlpha: 1, ...spanDur(0.44, 0.86) }, 0.44)
-        .fromTo(stLines[0], { yPercent: 112 }, { yPercent: 0, ...spanDur(0.58, 0.74) }, 0.58)
-        .fromTo(stLines[1], { yPercent: 112 }, { yPercent: 0, ...spanDur(0.62, 0.78) }, 0.62)
-        .fromTo(stCopy, { autoAlpha: 0, y: vh(2.4) }, { autoAlpha: 1, y: 0, ...spanDur(0.7, 0.86) }, 0.7)
-
-      // ---- 0.86→1.0: a barely-there continued upward drift so the lower edge
-      // is ready for the showreel entrance — no dead pause.
-      tl.to(statement, { y: vh(-2), ...spanDur(0.86, 1.0) }, 0.86)
+      if (has(statement)) {
+        tl.fromTo(statement, { y: vh(42), autoAlpha: 0 }, { y: 0, autoAlpha: 1, ...spanDur(0.44, 0.86) }, 0.44)
+        if (stLines[0]) tl.fromTo(stLines[0], { yPercent: 112 }, { yPercent: 0, ...spanDur(0.58, 0.74) }, 0.58)
+        if (stLines[1]) tl.fromTo(stLines[1], { yPercent: 112 }, { yPercent: 0, ...spanDur(0.62, 0.78) }, 0.62)
+        if (has(stCopy)) tl.fromTo(stCopy, { autoAlpha: 0, y: vh(2.4) }, { autoAlpha: 1, y: 0, ...spanDur(0.7, 0.86) }, 0.7)
+        // ---- 0.86→1.0: a barely-there continued upward drift so the lower edge
+        // is ready for the showreel entrance — no dead pause.
+        tl.to(statement, { y: vh(-2), ...spanDur(0.86, 1.0) }, 0.86)
+      }
 
       return () => tl.scrollTrigger?.kill()
     }, rootRef)
@@ -237,9 +263,7 @@ export default function HeroIntroSequence() {
     <section ref={rootRef} aria-label="Cineheight Media introduction" style={{ height: sectionHeight }} className="relative">
       {/* Transparent stage (body bg is the same #020306) so the fixed
           background signal route shows through the hero's dark negative space. */}
-      <div
-        className={reduced ? 'relative h-screen overflow-hidden' : 'sticky top-0 h-screen overflow-hidden'}
-      >
+      <div className={reduced ? 'relative h-screen overflow-hidden' : 'sticky top-0 h-screen overflow-hidden'}>
         {/* L1 — base atmosphere: faint navy depth + near-invisible blue title-base light */}
         <div
           aria-hidden="true"
@@ -252,28 +276,53 @@ export default function HeroIntroSequence() {
           style={{ background: 'radial-gradient(ellipse 42% 13% at 50% 57%, rgba(0,137,255,0.5), transparent 72%)', opacity: 0.07 }}
         />
 
-        {/* L1.5 — the hero background surface.
+        {/* L1.5 — the hero background surface: the WebGL water ripple.
             Sitting here in DOM order with z-index:auto is what puts it above
-            the two ambient gradients above and below the haze (z-0), the
-            title (z-1) and the clouds (z-3/z-4) — no z-index changes anywhere
-            else, regardless of which surface is mounted.
+            the two ambient gradients above and below everything that carries a
+            z-index — no z-index changes anywhere else, regardless of which
+            surface is mounted.
 
-            experiment/hero-bg-video: the water-ripple canvas is swapped for
-            the background video here, at the same slot, for an A/B look.
-            Revert with `git checkout redesign/cinematic-flow`, or restore the
-            ripple manually: re-add `import { useRippleTier } from
-            '@/lib/useRippleTier'`, `const HeroRippleBackground = dynamic(() =>
-            import('./HeroRippleBackground'), { ssr: false })`, `const
-            rippleTier = useRippleTier()`, and swap this line for
-            `{rippleTier && <HeroRippleBackground tier={rippleTier} />}`. */}
-        <HeroVideoBackground />
+            The local stack, bottom to top (sealed by .layer-content's
+            `isolation: isolate`, so none of it escapes the hero):
+              z-1  title (the h1)
+              z-2  back haze + haze band   ── EVERY cloud paints above the word
+              z-3  transition illumination
+              z-4  front-left / front-right / puff-accent
+              z-5  traveller
+              z-6  brand statement
+            The two hazes used to sit at z-0, under the title. They are above it
+            now so the whole cloud system reads as being in front of the word,
+            which costs nothing in legibility: at 0.12 opacity a near-white haze
+            over the #f5f7fa→#b8bfc9 letter gradient is imperceptible, while over
+            the #020306 stage it still reads as atmosphere. */}
+        {rippleTier && <HeroRippleBackground tier={rippleTier} />}
 
-        {/* L2 — soft background haze behind the word (barely noticeable) */}
-        <div aria-hidden="true" className="absolute z-0" style={{ left: '18%', width: '64%', top: '52%', height: '12vh', opacity: mobile ? 0.1 : 0.12 }}>
+        {/* L2 — soft background haze, now IN FRONT of the word (barely noticeable).
+            Cloud wider than the period so the two copies cross-fade — see Marquee.
+            `dur` is scaled with the period to hold the previous drift speed. */}
+        <div aria-hidden="true" className="absolute z-[2]" style={{ left: '18%', width: '64%', top: '52%', height: '12vh', opacity: mobile ? 0.1 : 0.12 }}>
           <div data-layer="back" className="absolute inset-0 h-full w-full will-change-transform">
-            <Marquee src={ASSETS.back} periodVw={mobile ? 96 : 64} cloudWidthVw={mobile ? 96 : 64} dur={110} phase={0.3} />
+            <Marquee src={ASSETS.back} periodVw={mobile ? 84 : 54} cloudWidthVw={mobile ? 96 : 64} dur={93} phase={0.3} />
           </div>
         </div>
+
+        {/* L2 — second back-tier haze band (stock cloud, hero-v4 addendum), a
+            different height/drift from `back` so the atmosphere reads with more
+            depth. Desktop only, same rule as front-right below.
+
+            THIS is the layer that put a drifting rectangle in the hero: its asset
+            was cropped by `trim()` straight through the wisp, leaving alpha ~132
+            on the right column and ~81 on the bottom row. The repair feathers
+            those edges over 340px / 210px, which is also why the 14vw copy
+            overlap below matters — the right edge is now a long fade that needs a
+            partner to fade into. See scripts/repair-hero-clouds.mjs. */}
+        {!mobile && (
+          <div aria-hidden="true" className="absolute z-[2]" style={{ left: '8%', width: '76%', top: '42%', height: '10vh', opacity: 0.12 }}>
+            <div data-layer="haze-band" className="absolute inset-0 h-full w-full will-change-transform">
+              <Marquee src={ASSETS.hazeBand} periodVw={62} cloudWidthVw={76} dur={106} phase={0.62} reverse />
+            </div>
+          </div>
+        )}
 
         {/* L3 — CINEHEIGHT (live HTML, the page's only h1) */}
         <div
@@ -289,35 +338,75 @@ export default function HeroIntroSequence() {
           </h1>
         </div>
 
-        {/* L4 — front-left natural cloud IN FRONT of the title (z-3), over C-I-N */}
+        {/* L4 — front-left natural cloud IN FRONT of the title (z-4), over C-I-N.
+            Opacity is a flat 1: the asset's own baked alpha decides what shows.
+            Anything below 1 leaks the bright letter through the cloud's OPAQUE
+            core, which is what previously read as the text "blending with" the
+            cloud rather than being hidden by it. The repair pass also narrowed
+            each asset's mid-alpha shoulder (solid coverage 12-24% -> 37-42%), so
+            the body now occludes and only the wispy rim lets the letter through.
+            The drop-shadow stays: over a clean alpha silhouette it reinforces
+            the occlusion read. See scripts/repair-hero-clouds.mjs. */}
         <div
           data-layer="front-left"
           aria-hidden="true"
-          className="absolute z-[3] will-change-transform"
-          style={{ left: mobile ? '-10vw' : '-14vw', width: mobile ? '90vw' : '52vw', top: mobile ? '56%' : '53%', opacity: mobile ? 0.62 : 0.66 }}
+          className="absolute z-[4] will-change-transform"
+          style={{
+            left: mobile ? '-10vw' : '-14vw',
+            width: mobile ? '90vw' : '52vw',
+            top: mobile ? '56%' : '53%',
+            opacity: 1,
+            filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.3))',
+          }}
         >
           <Marquee src={ASSETS.frontLeft} periodVw={mobile ? 90 : 52} cloudWidthVw={mobile ? 44 : 20} dur={78} phase={0.18} />
         </div>
 
-        {/* L4 — front-right natural cloud (z-3), over G-H-T. Different form/height
+        {/* L4 — front-right natural cloud (z-4), over G-H-T. Different form/height
             (distinct G4 cloud), drifts the OPPOSITE way. Desktop only. */}
         {!mobile && (
           <div
             data-layer="front-right"
             aria-hidden="true"
-            className="absolute z-[3] will-change-transform"
-            style={{ left: '62vw', width: '52vw', top: '54.5%', opacity: 0.62 }}
+            className="absolute z-[4] will-change-transform"
+            style={{ left: '62vw', width: '52vw', top: '54.5%', opacity: 1, filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.3))' }}
           >
             <Marquee src={ASSETS.frontRight} periodVw={52} cloudWidthVw={22} dur={90} phase={0.5} reverse />
           </div>
         )}
 
-        {/* L5 — small travelling cloud (z-4), crosses selected middle letters */}
+        {/* L4 — puff-accent cloud (stock cloud, hero-v4 addendum), a third
+            distinct front-tier silhouette (z-4). Drifts via its own offscreen
+            traversal (like the traveller below) rather than a marquee, for
+            variety against the two marquee-driven front clouds — different
+            top band and timing so it doesn't read as a duplicate. Desktop only.
+            Its asset was flat white (255,255,255) while the G4 clouds paint at
+            166,171,185 — harmless at the old 0.55 opacity, a white blob at 1, so
+            the repair pass retones it to match the front tier. */}
+        {!mobile && (
+          <div
+            data-layer="puff-accent"
+            aria-hidden="true"
+            className="absolute z-[4] will-change-transform"
+            style={{ top: '49%', left: 0, width: '100%', opacity: 1, filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.3))' }}
+          >
+            <div data-traverse data-dur={85} data-phase={0.7} className="absolute top-0 will-change-transform" style={{ width: '17vw' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={ASSETS.puffAccent} alt="" draggable={false} className="w-full" style={{ height: 'auto' }} />
+            </div>
+          </div>
+        )}
+
+        {/* L5 — small travelling cloud (z-5), crosses selected middle letters.
+            Raised from 0.34/0.4: at that opacity it was the worst offender for
+            letters reading through a cloud. Held just under 1 because this one
+            crosses the MIDDLE of the word rather than the baseline, so a fully
+            opaque pass would blank whole letters instead of grazing them. */}
         <div
           data-layer="traveller"
           aria-hidden="true"
-          className="absolute z-[4] will-change-transform"
-          style={{ top: mobile ? '55%' : '54%', left: 0, width: '100%', opacity: mobile ? 0.34 : 0.4 }}
+          className="absolute z-[5] will-change-transform"
+          style={{ top: mobile ? '55%' : '54%', left: 0, width: '100%', opacity: mobile ? 0.85 : 0.9 }}
         >
           <div data-traverse data-dur={mobile ? 64 : 72} data-phase={0.42} className="absolute top-0 will-change-transform" style={{ width: mobile ? '24vw' : '12vw' }}>
             {/* natural aspect, no stretch */}
@@ -330,7 +419,7 @@ export default function HeroIntroSequence() {
         <div
           data-layer="transition-light"
           aria-hidden="true"
-          className="absolute inset-0 z-[2]"
+          className="absolute inset-0 z-[3]"
           style={{
             background: 'radial-gradient(ellipse 55% 34% at 50% 64%, rgba(0,137,255,0.5), transparent 74%)',
             opacity: 0,
@@ -342,7 +431,7 @@ export default function HeroIntroSequence() {
         {!reduced && (
           <div
             data-layer="statement"
-            className="absolute inset-0 z-[5] flex items-center will-change-transform"
+            className="absolute inset-0 z-[6] flex items-center will-change-transform"
             style={{ opacity: 0, visibility: 'hidden' }}
           >
             <div className="mx-auto w-full max-w-[1500px] px-6 sm:px-10 lg:px-14">
