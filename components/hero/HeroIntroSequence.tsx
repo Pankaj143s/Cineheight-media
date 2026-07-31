@@ -229,13 +229,13 @@ export default function HeroIntroSequence() {
       // RM / capability-static path skips spatial tweens entirely.
       if (allowParallax) {
         const rise = 0.1
-        if (has(distant)) tl.fromTo(distant, { y: 0 }, { y: vh(mobile ? -1.2 : -2), ...spanDur(rise, 0.95) }, rise)
-        if (has(mid)) tl.fromTo(mid, { y: 0 }, { y: vh(mobile ? -2.5 : -4.5), ...spanDur(rise, 0.92) }, rise)
+        if (has(distant)) tl.fromTo(distant, { y: 0 }, { y: vh(mobile ? -1.2 : -1.8), ...spanDur(rise, 0.95) }, rise)
+        if (has(mid)) tl.fromTo(mid, { y: 0 }, { y: vh(mobile ? -2.8 : -4.2), ...spanDur(rise, 0.92) }, rise)
         if (has(fore)) {
           tl.fromTo(
             fore,
             { y: 0, scale: 1 },
-            { y: vh(mobile ? -4 : -7.5), scale: mobile ? 1.01 : 1.02, ...spanDur(rise, 0.9) },
+            { y: vh(mobile ? -4.5 : -8), scale: mobile ? 1.01 : 1.025, ...spanDur(rise, 0.9) },
             rise
           )
         }
