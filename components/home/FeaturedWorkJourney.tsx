@@ -196,46 +196,43 @@ export default function FeaturedWorkJourney() {
       // P1 — cinematic film-gate open to full-bleed, then quiet hold
       tl.fromTo(
         frames[0],
-        { autoAlpha: 0.7, clipPath: 'inset(38% 0% 38% 0%)', scale: 1.03 },
+        { autoAlpha: 0.85, clipPath: 'inset(34% 0% 34% 0%)', scale: 1.02 },
         { autoAlpha: 1, clipPath: 'inset(0% 0% 0% 0%)', scale: 1, duration: 0.14 },
         0
       )
 
-      // P1→P2 — restrained diagonal liquid bar (prototype signature wipe)
+      // P1→P2 — incoming already present (poster/media) under diagonal matte;
+      // outgoing only releases after ownership transfers (no empty bright gap).
       tl.fromTo(
         frames[1],
-        { autoAlpha: 0, clipPath: 'polygon(0% 0%, 0% 0%, -12% 100%, 0% 100%)', scale: 1.02 },
+        { autoAlpha: 1, clipPath: 'polygon(0% 0%, 0% 0%, -8% 100%, 0% 100%)', scale: 1.015 },
         {
           autoAlpha: 1,
-          clipPath: 'polygon(0% 0%, 115% 0%, 103% 100%, 0% 100%)',
+          clipPath: 'polygon(0% 0%, 112% 0%, 100% 100%, 0% 100%)',
           scale: 1,
-          duration: 0.18,
+          duration: 0.2,
         },
-        0.3
+        0.28
       )
-      tl.to(
-        frames[0],
-        { autoAlpha: 0, duration: 0.14 },
-        0.34
-      )
+      tl.to(frames[0], { autoAlpha: 0, duration: 0.1 }, 0.4)
 
-      // P2→P3 — keep existing simpler handoff (out of prototype polish scope)
+      // P2→P3 — simpler handoff; keep overlap so stage never empties
       tl.fromTo(
         frames[2],
-        { autoAlpha: 0, clipPath: 'inset(50% 0% 50% 0%)', scale: 1.08 },
+        { autoAlpha: 1, clipPath: 'inset(48% 0% 48% 0%)', scale: 1.04 },
         { autoAlpha: 1, clipPath: 'inset(0% 0% 0% 0%)', scale: 1, duration: 0.16 },
         0.6
       )
-      tl.to(frames[1], { autoAlpha: 0, clipPath: 'inset(50% 0% 50% 0%)', duration: 0.14 }, 0.62)
+      tl.to(frames[1], { autoAlpha: 0, duration: 0.1 }, 0.7)
 
       copies.forEach((block, i) => {
-        const at = i === 0 ? 0.06 : i === 1 ? 0.34 : 0.64
-        const outAt = i === 0 ? 0.3 : 0.6
+        const at = i === 0 ? 0.06 : i === 1 ? 0.36 : 0.66
+        const outAt = i === 0 ? 0.3 : 0.62
         const parts = block.children
-        tl.fromTo(block, { autoAlpha: 0, y: 44 }, { autoAlpha: 1, y: 0, duration: 0.08 }, at)
-        tl.fromTo(parts, { autoAlpha: 0, y: 22 }, { autoAlpha: 1, y: 0, duration: 0.07, stagger: 0.02 }, at + 0.012)
+        tl.fromTo(block, { autoAlpha: 0, y: 36 }, { autoAlpha: 1, y: 0, duration: 0.08 }, at)
+        tl.fromTo(parts, { autoAlpha: 0, y: 18 }, { autoAlpha: 1, y: 0, duration: 0.07, stagger: 0.02 }, at + 0.012)
         if (i < PROJECTS.length - 1) {
-          tl.to(block, { autoAlpha: 0, y: -40, duration: 0.06 }, outAt)
+          tl.to(block, { autoAlpha: 0, y: -28, duration: 0.06 }, outAt)
         }
       })
 
@@ -437,9 +434,9 @@ export default function FeaturedWorkJourney() {
       className="relative z-10"
       style={{ height: '270vh' }}
     >
-      <div className="sticky top-0 h-[100svh] w-full overflow-hidden">
+      <div className="sticky top-0 h-[100svh] w-full overflow-hidden" style={{ background: 'var(--bg-950)' }}>
         {/* full-viewport-width media stage */}
-        <div ref={stageRef} className="absolute inset-0" style={{ ['--media-x' as string]: '0px', ['--media-y' as string]: '0px' }}>
+        <div ref={stageRef} className="absolute inset-0" style={{ ['--media-x' as string]: '0px', ['--media-y' as string]: '0px', background: 'var(--bg-950)' }}>
           {PROJECTS.map((cs, i) => (
             <div
               key={cs.id}

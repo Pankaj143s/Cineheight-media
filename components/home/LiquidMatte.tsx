@@ -66,9 +66,9 @@ export default function LiquidMatte({ progress, form, enhancedEdge = false, clas
       const x = -0.2 * w + diag * 1.4 * w
       const grad = ctx.createLinearGradient(x - 40, 0, x + 40, h)
       grad.addColorStop(0, 'rgba(0,137,255,0)')
-      grad.addColorStop(0.45, 'rgba(0,137,255,0.14)')
-      grad.addColorStop(0.5, 'rgba(255,255,255,0.18)')
-      grad.addColorStop(0.55, 'rgba(0,137,255,0.12)')
+      grad.addColorStop(0.45, 'rgba(0,137,255,0.06)')
+      grad.addColorStop(0.5, 'rgba(220,238,255,0.08)')
+      grad.addColorStop(0.55, 'rgba(0,137,255,0.05)')
       grad.addColorStop(1, 'rgba(0,137,255,0)')
       ctx.fillStyle = grad
       ctx.fillRect(0, 0, w, h)
@@ -94,7 +94,6 @@ export default function LiquidMatte({ progress, form, enhancedEdge = false, clas
             {form === 'diagonal-bar' ? (
               <polygon
                 points={
-                  // Expanding revealed region behind a diagonal front
                   diag >= 1
                     ? '0,0 1,0 1,1 0,1'
                     : `0,0 ${Math.min(1, diag * 1.15)},0 ${Math.min(1, diag * 1.15 - 0.12)},1 0,1`
@@ -106,17 +105,16 @@ export default function LiquidMatte({ progress, form, enhancedEdge = false, clas
           </clipPath>
         </defs>
       </svg>
-      {/* Base matte indicator (for film-gate the stage uses CSS clip on frames) */}
       <div
         data-matte-base
         className="absolute inset-0"
         style={{
           clipPath: form === 'film-gate' ? clipPath : form === 'diagonal-bar' ? `url(#liquid-matte-${uid})` : undefined,
-          boxShadow: form === 'film-gate' && p < 0.98 ? 'inset 0 0 0 1px rgba(0,137,255,0.08)' : undefined,
+          boxShadow: form === 'film-gate' && p < 0.98 ? 'inset 0 0 0 1px rgba(0,137,255,0.05)' : undefined,
         }}
       />
       {useEnhanced && form === 'diagonal-bar' && p > 0.02 && p < 0.98 && (
-        <canvas ref={canvasRef} className="absolute inset-0" style={{ mixBlendMode: 'screen', opacity: 0.85 }} />
+        <canvas ref={canvasRef} className="absolute inset-0" style={{ mixBlendMode: 'screen', opacity: 0.45 }} />
       )}
     </div>
   )
