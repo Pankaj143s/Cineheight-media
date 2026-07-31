@@ -167,6 +167,8 @@ export const processSteps: ProcessStep[] = [
 // ----------------------------------------------------------------- about
 export const about = {
   headline: 'Everything a brand needs. One team.',
+  /** Display-scale belief for the About manifesto (source headline preserved above). */
+  belief: 'Brands people choose — built as one system.',
   supporting: 'Strategy, design, content and campaigns — under one roof.',
   journey: 'One team, the whole journey: strategy to launch to growth.',
   capabilities: ['Make it seen.', 'Make it felt.', 'Make it convert.', 'Make it last.'],
