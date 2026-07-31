@@ -317,7 +317,7 @@ export default function RouteTransition() {
               height: 2,
               background:
                 'linear-gradient(to right, transparent, #0089FF 20%, #DCEEFF 50%, #0089FF 80%, transparent)',
-              boxShadow: '0 0 16px 3px rgba(0,137,255,0.6)',
+              boxShadow: '0 0 16px 3px rgba(0,137,255,0.45)',
               animation:
                 phase === 'out'
                   ? `route-signal-down ${outDuration}ms ${EASE_TRAVEL} forwards`
