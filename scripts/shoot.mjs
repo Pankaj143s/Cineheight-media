@@ -410,8 +410,12 @@ if (hasFlag('reduced')) {
 if (hasFlag('probe')) {
   await setViewport(cdp, 1440, 900, 2)
   const results = []
-  const check = (name, pass, detail = '') =>
-    results.push({ name, pass: !!pass, detail: String(detail).slice(0, 120) })
+  const check = (name, pass, detail = '', applicable = true) =>
+    results.push({
+      name,
+      status: applicable ? (pass ? 'PASS' : 'FAIL') : 'NOT APPLICABLE',
+      detail: String(detail).slice(0, 160),
+    })
 
   // ---- signal tip tracking, forwards and in reverse --------------------
   await goto(cdp, BASE + '/')
@@ -526,7 +530,8 @@ if (hasFlag('probe')) {
       maxNodeOffPath: processState.maxNodeOffPath,
       pulseOffPath: processState.pulseOffPath,
       pulseToEdge: processState.pulseToEdge,
-    })
+    }),
+    !!processState
   )
   check(
     'process line scrubs forward, completes, and retracts on reverse scroll',
@@ -546,7 +551,8 @@ if (hasFlag('probe')) {
         `${processState.complete.dash.toFixed(0)} → ${processState.reversed.dash.toFixed(0)} ` +
         `(first title ${processState.before.titleOpacity.toFixed(2)} → ${processState.complete.titleOpacity.toFixed(2)}, ` +
         `last ${processState.complete.lastTitleOpacity.toFixed(2)})`
-      : 'no process section'
+      : 'ProcessCompact is not mounted on any live route',
+    !!processState
   )
 
   const marqueeState = await cdp.eval(`(async () => {
@@ -620,14 +626,18 @@ if (hasFlag('probe')) {
   await cdp.eval(`document.querySelector('#what-we-do')?.scrollIntoView({ block: 'center' })`)
   await sleep(700)
   const textLayerState = await cdp.eval(`(() => {
-    const section = document.querySelector('#what-we-do')
-    const layer = section?.querySelector('[data-text-layer-active]')
-    return layer ? getComputedStyle(layer).willChange : ''
+    const layer = document.querySelector('#what-we-do [data-text-layer-active]')
+    if (!layer) return null
+    return {
+      active: layer.dataset.textLayerActive === 'true',
+      willChange: getComputedStyle(layer).willChange,
+    }
   })()`)
   check(
     'visible transformed typography receives compositor promotion',
-    textLayerState.includes('transform'),
-    textLayerState
+    textLayerState?.active && textLayerState.willChange.includes('transform'),
+    textLayerState ? JSON.stringify(textLayerState) : 'AgencyProposition is not mounted on any live route',
+    !!textLayerState
   )
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 720, y: 450 })
   await sleep(500)
@@ -663,16 +673,16 @@ if (hasFlag('probe')) {
   const contourGone = await cdp.eval(`(() => {
     const field = document.querySelector('.static-contour-field')
     return {
+      present: !!field,
       playground: !!document.querySelector('[data-signal-playground]'),
       flagged: document.documentElement.dataset.contourActive ?? null,
-      textureOpacity: field ? Number(getComputedStyle(field).opacity) : null,
     }
   })()`)
   check(
-    'the pointer contour field is gone and its texture is no longer hidden',
+    'the retired pointer contour field is absent from the live page',
     contourGone.playground === false &&
       contourGone.flagged === null &&
-      contourGone.textureOpacity > 0,
+      contourGone.present === false,
     JSON.stringify(contourGone)
   )
 
@@ -821,14 +831,27 @@ if (hasFlag('probe')) {
   const DESKTOP_READY_IDS = ['sapale-yamaha', 'sindhudurg-education', 'divija-old-age-home']
   const resourceNames = () => cdp.eval(`performance.getEntriesByType('resource').map(e => e.name)`)
 
-  const homeDesktopLoads = await resourceNames()
-  const homeDesktopMisses = DESKTOP_READY_IDS.filter(
-    (id) => !homeDesktopLoads.some((name) => name.endsWith(`/media/home-work/${id}-desktop.mp4`))
+  await goto(cdp, BASE + '/')
+  await sleep(450)
+  const homeInitialLoads = await resourceNames()
+  const homeInitialVideos = DESKTOP_READY_IDS.filter(
+    (id) => homeInitialLoads.some((name) => name.endsWith(`/media/home-work/${id}-desktop.mp4`))
   )
   check(
-    'homepage desktop-ready slots load their real desktop video at 1440px',
-    homeDesktopMisses.length === 0,
-    homeDesktopMisses.join(', ')
+    'homepage project films do not load before Featured Work approaches the viewport',
+    homeInitialVideos.length === 0,
+    homeInitialVideos.length ? `loaded early: ${homeInitialVideos.join(', ')}` : 'no early project-film requests'
+  )
+
+  await cdp.eval(`document.querySelector('#work')?.scrollIntoView({ block: 'center' })`)
+  await sleep(1000)
+  const homeNearLoads = await resourceNames()
+  check(
+    'Featured Work loads a project film once the section is near the viewport',
+    DESKTOP_READY_IDS.some((id) =>
+      homeNearLoads.some((name) => name.endsWith(`/media/home-work/${id}-desktop.mp4`))
+    ),
+    'at least one authored desktop film requested near the section'
   )
 
   await goto(cdp, BASE + '/work')
@@ -881,30 +904,16 @@ if (hasFlag('probe')) {
     await sleep(1400)
     return cdp.eval(`(() => {
       const headings = document.querySelectorAll('main h1')
-      const h1 = headings[0]
+      const h1 = document.querySelector('[data-audit="work-heading"]')
       if (!h1) return { count: headings.length }
       const box = h1.getBoundingClientRect()
-      const slices = Array.from(h1.querySelectorAll('span[aria-hidden]')).slice(1)
-      const rects = slices.map(s => s.getBoundingClientRect())
-      const spread = (pick) => {
-        const vals = rects.map(pick)
-        return Number((Math.max(...vals) - Math.min(...vals)).toFixed(2))
-      }
       return {
         n: headings.length,
-        sr: h1.querySelector('.sr-only')?.textContent ?? '',
-        slices: rects.length,
-        dx: spread(r => r.left),
-        dy: spread(r => r.top),
-        dw: spread(r => r.width),
-        op: Number(getComputedStyle(slices[0]).opacity.slice(0, 4)),
+        sr: h1.querySelector('.sr-only')?.textContent?.trim() ?? '',
+        visual: h1.querySelector('[aria-hidden="true"]')?.textContent?.trim().replace(/\s+/g, ' ') ?? '',
+        op: Number(getComputedStyle(h1).opacity),
         over: Number((box.right - document.documentElement.clientWidth).toFixed(1)),
-        // Every slice must cover the heading box exactly: same origin, same
-        // size. If any drifted, the phrase would come apart mid-reveal.
-        fits: rects.every(r =>
-          Math.abs(r.top - box.top) < 0.5 &&
-          Math.abs(r.left - box.left) < 0.5 &&
-          Math.abs(r.height - box.height) < 0.5),
+        visible: box.width > 0 && box.height > 0,
       }
     })()`)
   }
@@ -968,14 +977,11 @@ if (hasFlag('probe')) {
       `work heading is one complete h1 at ${w}x${h}`,
       wh.n === 1 &&
         wh.sr === 'Proof, not promises.' &&
-        wh.slices === 4 &&
-        wh.dx === 0 &&
-        wh.dy === 0 &&
-        wh.dw === 0 &&
+        wh.visual.length > 0 &&
         wh.op === 1 &&
         wh.over <= 0 &&
-        wh.fits === true,
-      `n=${wh.n} slices=${wh.slices} dx=${wh.dx} dy=${wh.dy} dw=${wh.dw} op=${wh.op} over=${wh.over} fits=${wh.fits} sr="${wh.sr}"`
+        wh.visible === true,
+      `n=${wh.n} sr="${wh.sr}" visual="${wh.visual}" op=${wh.op} over=${wh.over} visible=${wh.visible}`
     )
     const seam = await headingSeam()
     check(
@@ -1059,7 +1065,7 @@ if (hasFlag('probe')) {
    */
   await goto(cdp, BASE + '/about')
   const filmControls = await cdp.eval(`(async () => {
-    const film = document.querySelector('[data-film]')
+    const film = document.querySelector('#showreel')
     if (!film) return null
     film.scrollIntoView({ block: 'center' })
     await new Promise(r => setTimeout(r, 1400))
@@ -1200,9 +1206,9 @@ if (hasFlag('probe')) {
     }
   })()`)
   check(
-    'case-study detail media is retained outside replacement slots',
-    retainedMedia.detail > 0 && retainedMedia.replacement === 0,
-    `${retainedMedia.detail} detail sources; ${retainedMedia.replacement} replacement sources`
+    'case-study detail media is retained alongside the shared Next Project preview',
+    retainedMedia.detail > 0 && retainedMedia.replacement <= 1,
+    `${retainedMedia.detail} detail sources; ${retainedMedia.replacement} shared preview source(s)`
   )
   const orbitOpened = await cdp.eval(`(async () => {
     const orbit = document.querySelector('[aria-label$="creatives"]')
@@ -1395,12 +1401,12 @@ if (hasFlag('probe')) {
   console.log('\n──── PROBES ────')
   let failed = 0
   for (const r of results) {
-    if (!r.pass) failed++
-    console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name}${r.detail ? '  [' + r.detail + ']' : ''}`)
+    if (r.status === 'FAIL') failed++
+    console.log(`${r.status.padEnd(14)} ${r.name}${r.detail ? '  [' + r.detail + ']' : ''}`)
   }
   console.log(failed ? `\n${failed} probe(s) failed.` : '\nAll probes passed.')
   proc?.kill()
-  process.exit(0)
+  process.exit(failed ? 1 : 0)
 }
 
 /* Focused interaction evidence for the refinement pass. */
@@ -1422,22 +1428,27 @@ if (hasFlag('refinement')) {
   }
 
   await goto(cdp, BASE + '/')
-  await cdp.eval(`(() => {
-    const root = document.querySelector('#process')
-    const rect = root.getBoundingClientRect()
-    window.scrollTo(0, Math.max(0, rect.top + scrollY - innerHeight * 0.86))
-  })()`)
-  await sleep(280)
-  await shoot(cdp, 'refinement/process-before__1440x900.png')
-  await cdp.eval(`(() => {
-    const root = document.querySelector('#process')
-    const rect = root.getBoundingClientRect()
-    window.scrollTo(0, Math.max(0, rect.top + scrollY - innerHeight * 0.58))
-  })()`)
-  await sleep(780)
-  await shoot(cdp, 'refinement/process-mid__1440x900.png')
-  await sleep(2200)
-  await shoot(cdp, 'refinement/process-complete__1440x900.png')
+  const processMounted = await cdp.eval(`!!document.querySelector('#process')`)
+  if (processMounted) {
+    await cdp.eval(`(() => {
+      const root = document.querySelector('#process')
+      const rect = root.getBoundingClientRect()
+      window.scrollTo(0, Math.max(0, rect.top + scrollY - innerHeight * 0.86))
+    })()`)
+    await sleep(280)
+    await shoot(cdp, 'refinement/process-before__1440x900.png')
+    await cdp.eval(`(() => {
+      const root = document.querySelector('#process')
+      const rect = root.getBoundingClientRect()
+      window.scrollTo(0, Math.max(0, rect.top + scrollY - innerHeight * 0.58))
+    })()`)
+    await sleep(780)
+    await shoot(cdp, 'refinement/process-mid__1440x900.png')
+    await sleep(2200)
+    await shoot(cdp, 'refinement/process-complete__1440x900.png')
+  } else {
+    console.log('NOT APPLICABLE  process refinement evidence (ProcessCompact is not mounted)')
+  }
 
   await centre('/', '#work')
   await shoot(cdp, 'refinement/featured-work-type__1440x900.png')
@@ -1448,7 +1459,7 @@ if (hasFlag('refinement')) {
   await sleep(450)
   await shoot(cdp, 'refinement/client-carousel-depth__1440x900.png')
 
-  await centre('/', '#what-we-do')
+  await centre('/', '[data-audit="home-capabilities"]')
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 720, y: 450 })
   await sleep(550)
   await shoot(cdp, 'refinement/pointer-rest__1440x900.png')

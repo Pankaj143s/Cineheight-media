@@ -374,6 +374,7 @@ export default function HomeCapabilities() {
     <section
       ref={rootRef}
       id="services"
+      data-audit="home-capabilities"
       aria-label="What Cineheight does"
       className="relative z-10"
       style={{

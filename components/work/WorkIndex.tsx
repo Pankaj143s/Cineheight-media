@@ -154,6 +154,7 @@ export default function WorkIndex() {
         <KineticLabel text="THE WORK" />
         <OpticalResolve
           as="h1"
+          dataAudit="work-heading"
           text="Proof, not promises."
           delay={0.38}
           accentWords={['promises.']}

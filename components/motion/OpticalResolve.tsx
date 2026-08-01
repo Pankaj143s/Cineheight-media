@@ -22,6 +22,7 @@ export default function OpticalResolve({
   style,
   delay = 0,
   accentWords,
+  dataAudit,
 }: {
   text: string
   as?: Tag
@@ -30,6 +31,7 @@ export default function OpticalResolve({
   delay?: number
   /** Case-insensitive words to tint blue. */
   accentWords?: string[]
+  dataAudit?: string
 }) {
   const rootRef = useRef<HTMLElement>(null)
   const reduced = useReducedMotion()
@@ -84,7 +86,7 @@ export default function OpticalResolve({
   const parts = text.split(/\s+/).filter(Boolean)
 
   return (
-    <Tag ref={rootRef as React.Ref<never>} className={className} style={style}>
+    <Tag ref={rootRef as React.Ref<never>} data-audit={dataAudit} className={className} style={style}>
       <span className="sr-only">{text}</span>
       <span aria-hidden="true" className="inline">
         {parts.map((word, i) => {
