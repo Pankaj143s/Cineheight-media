@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { ScrollTrigger } from '@/lib/gsap'
 import { useReducedMotion } from '@/lib/useMediaPreferences'
 import { publishAudioEvent } from '@/lib/audio/audioBus'
-import { EASE_CONTROL, EASE_TRAVEL } from '@/lib/motionTokens'
+import { EASE_CONTROL, EASE_TRAVEL, REDUCED } from '@/lib/motionTokens'
 import { scrollToY, syncLenis } from '@/lib/scrollTo'
 
 /*
@@ -63,6 +63,7 @@ export default function RouteTransition() {
   const barRef = useRef<HTMLSpanElement>(null)
   const capRef = useRef<HTMLSpanElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
+  const reducedSignalRef = useRef<HTMLSpanElement>(null)
   const progressRef = useRef(0)
   const completingRef = useRef(false)
   const rafRef = useRef(0)
@@ -229,8 +230,33 @@ export default function RouteTransition() {
   }, [paint, phase, reduced, runLoop, stopLoop])
 
   useEffect(() => {
+    if (!reduced || phase === 'idle') return
+    const overlay = overlayRef.current
+    const signal = reducedSignalRef.current
+    const entering = phase === 'out'
+    const animations = [
+      overlay?.animate(
+        entering
+          ? [{ opacity: 0.38 }, { opacity: 1 }]
+          : [{ opacity: 1 }, { opacity: 0 }],
+        { duration: entering ? REDUCED.routeOutMs : REDUCED.routeInMs, easing: REDUCED.ease, fill: 'forwards' }
+      ),
+      signal?.animate(
+        entering
+          ? [
+              { opacity: 0.3, transform: 'scaleX(0.2)', boxShadow: '0 0 0 rgba(0,137,255,0)' },
+              { opacity: 0.95, transform: 'scaleX(1)', boxShadow: '0 0 14px rgba(0,137,255,0.65)' },
+            ]
+          : [{ opacity: 0.95 }, { opacity: 0.2 }],
+        { duration: entering ? REDUCED.routeOutMs : REDUCED.routeInMs, easing: REDUCED.ease, fill: 'forwards' }
+      ),
+    ].filter(Boolean) as Animation[]
+    return () => animations.forEach((animation) => animation.cancel())
+  }, [phase, reduced])
+
+  useEffect(() => {
     if (!pendingRef.current) return
-    const minimumVisible = reduced ? 80 : OUT_MS
+    const minimumVisible = reduced ? REDUCED.routeOutMs : OUT_MS
     const remaining = Math.max(0, minimumVisible - (performance.now() - startedAtRef.current))
 
     clearTimers()
@@ -265,7 +291,7 @@ export default function RouteTransition() {
         paint(1)
         setPhase('in')
         publishAudioEvent({ type: 'route-in' })
-        schedule(finish, reduced ? 120 : IN_MS)
+        schedule(finish, reduced ? REDUCED.routeInMs : IN_MS)
       }, reduced ? 32 : COMPLETE_MS)
     }, remaining)
   }, [pathname, reduced, clearTimers, finish, paint, schedule])
@@ -310,7 +336,7 @@ export default function RouteTransition() {
                 : `route-open ${inDuration}ms ${EASE_CONTROL} forwards`,
           }}
         />
-        {!reduced && (
+        {!reduced ? (
           <div
             className="absolute inset-x-0"
             style={{
@@ -323,6 +349,12 @@ export default function RouteTransition() {
                   ? `route-signal-down ${outDuration}ms ${EASE_TRAVEL} forwards`
                   : `route-signal-up ${inDuration}ms ${EASE_CONTROL} forwards`,
             }}
+          />
+        ) : (
+          <span
+            ref={reducedSignalRef}
+            className="absolute inset-x-[12%] top-1/2 h-px origin-center bg-[var(--blue-500)]"
+            style={{ opacity: 0.3, transform: 'scaleX(0.2)' }}
           />
         )}
         {/*
@@ -363,7 +395,7 @@ export default function RouteTransition() {
                 ref={barRef}
                 className="route-loader-progress absolute inset-0 block h-full origin-left rounded-full bg-[var(--blue-500)]"
                 style={{
-                  transform: reduced ? 'scaleX(0.9)' : 'scaleX(0)',
+                  transform: reduced ? 'scaleX(0.18)' : 'scaleX(0)',
                   boxShadow: '0 0 12px rgba(0,137,255,0.75)',
                 }}
               />

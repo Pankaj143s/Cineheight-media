@@ -136,11 +136,14 @@ export const DAMP = {
  * change rather than an animation.
  */
 export const REDUCED = {
-  durationMs: 120,
-  ease: 'linear',
+  durationMs: 160,
+  focusMs: 180,
+  sceneGap: 0.78,
+  maxTravelPx: 4,
+  ease: 'ease-out',
   /** Route loader stages, milliseconds. */
-  routeOutMs: 80,
-  routeInMs: 120,
+  routeOutMs: 160,
+  routeInMs: 180,
   routeCompleteMs: 32,
 } as const
 

@@ -1554,27 +1554,265 @@ if (hasFlag('probe')) {
   })()`)
   check('mailto/tel links are not intercepted', externalUntouched)
 
+  // ---- Batch 2: authored motion rhythm and route-aware presentation ----
+  await setViewport(cdp, 1440, 900, 2)
+  await goto(cdp, BASE + '/work')
+  await sleep(220)
+  const metricResult = await cdp.eval(`(async () => {
+    const root = document.querySelector('[data-count-up]')
+    const visual = root?.querySelector('[aria-hidden="true"]')
+    const target = Number(root?.dataset.countUp)
+    const number = () => Number((visual?.textContent || '').replace(/[^0-9.]/g, ''))
+    const initial = number()
+    root?.scrollIntoView({ block: 'center' })
+    await new Promise(r => setTimeout(r, 900))
+    const final = number()
+    window.scrollTo(0, 0)
+    await new Promise(r => setTimeout(r, 180))
+    return { initial, final, target, held: number() }
+  })()`)
+  check(
+    'work metrics start meaningful, complete once, and never rewind',
+    metricResult.initial > 0 && metricResult.initial < metricResult.target &&
+      metricResult.final === metricResult.target && metricResult.held === metricResult.target,
+    JSON.stringify(metricResult)
+  )
+
+  await goto(cdp, BASE + '/about')
+  await sleep(220)
+  const aboutHeadline = await cdp.eval(`(async () => {
+    const root = document.querySelector('[data-scroll-headline]')
+    if (!root) return null
+    const words = [...root.querySelectorAll('[data-word]')]
+    const sample = () => {
+      const styles = words.map(word => getComputedStyle(word))
+      return {
+        opacity: styles.reduce((sum, style) => sum + Number(style.opacity), 0) / styles.length,
+        blur: Math.max(...styles.map(style => Number(style.filter.match(/blur\\(([-0-9.]+)px/)?.[1] || 0))),
+      }
+    }
+    const absoluteTop = root.getBoundingClientRect().top + scrollY
+    window.scrollTo(0, absoluteTop - innerHeight * 0.78)
+    await new Promise(r => setTimeout(r, 520))
+    const intermediate = sample()
+    window.scrollTo(0, absoluteTop - innerHeight * 0.54)
+    await new Promise(r => setTimeout(r, 780))
+    return { intermediate, settled: sample() }
+  })()`)
+  check(
+    'About statements pass through a legible low-blur focus state and settle early',
+    aboutHeadline && aboutHeadline.intermediate.opacity >= 0.42 && aboutHeadline.intermediate.opacity < 0.99 &&
+      aboutHeadline.intermediate.blur > 0 && aboutHeadline.intermediate.blur <= 1.25 &&
+      aboutHeadline.settled.opacity >= 0.99 && aboutHeadline.settled.blur < 0.05,
+    JSON.stringify(aboutHeadline)
+  )
+
+  const homeShowreel = await goto(cdp, BASE + '/').then(async () => {
+    await sleep(180)
+    return cdp.eval(`(() => {
+      const section = document.querySelector('#showreel')
+      return section && {
+        context: section.dataset.showreelContext,
+        label: section.querySelector('[data-showreel-caption]')?.previousElementSibling?.textContent.trim(),
+        caption: section.querySelector('[data-showreel-caption]')?.textContent.trim(),
+        crop: getComputedStyle(section.querySelector('video')).objectPosition,
+        controls: section.querySelectorAll('[data-showreel-control]').length,
+      }
+    })()`)
+  })
+  const aboutShowreel = await goto(cdp, BASE + '/about').then(async () => {
+    await sleep(180)
+    return cdp.eval(`(() => {
+      const section = document.querySelector('#showreel')
+      return section && {
+        context: section.dataset.showreelContext,
+        label: section.querySelector('[data-showreel-caption]')?.previousElementSibling?.textContent.trim(),
+        caption: section.querySelector('[data-showreel-caption]')?.textContent.trim(),
+        crop: getComputedStyle(section.querySelector('video')).objectPosition,
+        controls: section.querySelectorAll('[data-showreel-control]').length,
+      }
+    })()`)
+  })
+  check(
+    'Home and About showreels have distinct framing with shared controls',
+    homeShowreel?.context === 'home' && aboutShowreel?.context === 'about' &&
+      homeShowreel.label === 'Showreel' && aboutShowreel.label === 'How we see it' &&
+      homeShowreel.caption !== aboutShowreel.caption && homeShowreel.crop !== aboutShowreel.crop &&
+      homeShowreel.controls > 0 && homeShowreel.controls === aboutShowreel.controls,
+    JSON.stringify({ home: homeShowreel, about: aboutShowreel })
+  )
+
+  await setViewport(cdp, 390, 844, 2)
+  await goto(cdp, BASE + '/about')
+  const mobileLabel = await cdp.eval(`(async () => {
+    const label = document.querySelector('[data-kinetic-label="THE DISCIPLINES"]')
+    if (!label) return null
+    const absoluteTop = label.getBoundingClientRect().top + scrollY
+    window.scrollTo(0, absoluteTop - innerHeight * 0.58)
+    await new Promise(r => setTimeout(r, 650))
+    const chars = [...label.querySelectorAll('[data-kinetic-char]')].map(char => getComputedStyle(char))
+    const rule = getComputedStyle(label.querySelector('[data-kinetic-rule]')).transform
+    return { minOpacity: Math.min(...chars.map(style => Number(style.opacity))), transforms: [...new Set(chars.map(style => style.transform))], rule }
+  })()`)
+  check(
+    'mobile kinetic labels complete by the shortened reveal range',
+    mobileLabel && mobileLabel.minOpacity >= 0.99 && mobileLabel.transforms.every(value => value === 'none' || value === 'matrix(1, 0, 0, 1, 0, 0)') &&
+      (mobileLabel.rule === 'none' || mobileLabel.rule === 'matrix(1, 0, 0, 1, 0, 0)'),
+    JSON.stringify(mobileLabel)
+  )
+
+  await goto(cdp, BASE + '/services')
+  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 })
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 195, y: 700 }] })
+  for (const y of [620, 530, 430, 320]) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 195, y }] })
+    await sleep(28)
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await sleep(420)
+  const touchScrollY = await cdp.eval('scrollY')
+  const mobileServices = await cdp.eval(`(async () => {
+    const target = document.querySelector('[data-service-entry="2"]')
+    target?.scrollIntoView({ block: 'center' })
+    await new Promise(r => setTimeout(r, 650))
+    const entries = [...document.querySelectorAll('[data-service-entry]')]
+    const active = entries.map((entry, index) => ({
+      index,
+      artOpacity: Number(getComputedStyle(entry.querySelector('[data-mobile-service-art]')).opacity),
+      markerGlow: getComputedStyle(entry.querySelector('[data-mobile-service-marker]')).boxShadow !== 'none',
+    })).filter(entry => entry.artOpacity > 0.99 && entry.markerGlow)
+    const activeEntry = entries[active[0]?.index]
+    const title = activeEntry?.querySelector('[data-service-title]')
+    const titleRect = title?.getBoundingClientRect()
+    const titleClip = title?.parentElement?.getBoundingClientRect()
+    const signal = getComputedStyle(document.querySelector('[data-mobile-service-signal]')).transform
+    const scale = Number(signal.match(/matrix\\([^,]+, [^,]+, [^,]+, ([^,]+)/)?.[1] || 0)
+    return {
+      active,
+      scale,
+      titleVisible: title && titleRect && titleClip
+        ? getComputedStyle(title).visibility === 'visible' && Number(getComputedStyle(title).opacity) >= 0.99 &&
+          Math.min(titleRect.bottom, titleClip.bottom) - Math.max(titleRect.top, titleClip.top) >= titleRect.height * 0.8
+        : false,
+      titleDebug: title && titleRect && titleClip ? {
+        opacity: getComputedStyle(title).opacity,
+        visibility: getComputedStyle(title).visibility,
+        transform: getComputedStyle(title).transform,
+        rect: [titleRect.top, titleRect.bottom, titleRect.height],
+        clip: [titleClip.top, titleClip.bottom, titleClip.height],
+      } : null,
+    }
+  })()`)
+  check(
+    'mobile Services hands artwork to one active chapter and advances its spine',
+    touchScrollY > 0 && mobileServices.active.length === 1 && mobileServices.active[0].index >= 1 && mobileServices.scale > 0.2 && mobileServices.titleVisible,
+    mobileServices.titleDebug
+      ? `touchY=${touchScrollY} active=${mobileServices.active[0]?.index} scale=${mobileServices.scale} visible=${mobileServices.titleVisible} transform=${mobileServices.titleDebug.transform}`
+      : JSON.stringify(mobileServices)
+  )
+
+  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: false })
+  await setViewport(cdp, 2560, 1440, 1)
+  await goto(cdp, BASE + '/services')
+  const desktopServices = await cdp.eval(`(async () => {
+    document.querySelector('[data-service-entry="2"]')?.scrollIntoView({ block: 'center' })
+    await new Promise(r => setTimeout(r, 750))
+    return [...document.querySelectorAll('[data-service-entry]')].map(entry => {
+      const style = getComputedStyle(entry)
+      const matrix = style.transform.match(/matrix\\([^,]+, [^,]+, [^,]+, [^,]+, [^,]+, ([^)]+)/)
+      return { opacity: Number(style.opacity), height: entry.getBoundingClientRect().height, travel: Math.abs(Number(matrix?.[1] || 0)) }
+    })
+  })()`)
+  check(
+    'ultrawide Services preserves active, neighbour and distant depth tiers',
+    desktopServices.some(entry => entry.opacity >= 0.99) && desktopServices.some(entry => entry.opacity >= 0.63 && entry.opacity <= 0.65) &&
+      desktopServices.some(entry => entry.opacity <= 0.39) && desktopServices.every(entry => entry.height <= 369 && entry.travel <= 6.1),
+    JSON.stringify(desktopServices)
+  )
+
   // Reduced motion keeps navigation feedback but removes continuous pointer
   // motion and loader sweeps.
   await cdp.send('Emulation.setEmulatedMedia', {
     features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
   })
+  await setViewport(cdp, 390, 844, 2)
+  await goto(cdp, BASE + '/services')
+  const reducedServiceTitles = await cdp.eval(`(async () => {
+    await new Promise(r => setTimeout(r, 220))
+    return [...document.querySelectorAll('[data-service-title]')].map(title => {
+      const rect = title.getBoundingClientRect()
+      const clip = title.parentElement.getBoundingClientRect()
+      const style = getComputedStyle(title)
+      return {
+        visible: style.visibility === 'visible' && Number(style.opacity) === 1 &&
+          Math.min(rect.bottom, clip.bottom) - Math.max(rect.top, clip.top) >= rect.height * 0.95,
+        transform: style.transform,
+        rect: [rect.top, rect.bottom, rect.height],
+        clip: [clip.top, clip.bottom, clip.height],
+      }
+    })
+  })()`)
+  check(
+    'reduced-motion mobile service titles remain fully visible after tier hydration',
+    reducedServiceTitles.every(title => title.visible),
+    reducedServiceTitles.map((title, index) => title.visible ? `${index}:ok` : `${index}:fail ${title.transform} r=${title.rect.join('/')} c=${title.clip.join('/')}`).join(' | ')
+  )
+
+  await setViewport(cdp, 1440, 900, 2)
   await goto(cdp, BASE + '/')
   const reducedRoute = await cdp.eval(`(async () => {
     await new Promise(r => setTimeout(r, 180))
     const noCanvas = !document.querySelector('[data-cursor-trail]') && !document.querySelector('[data-signal-cursor]')
     document.querySelector('a[href="/work"]')?.click()
-    await new Promise(r => setTimeout(r, 45))
+    await new Promise(r => setTimeout(r, 32))
     const loader = document.querySelector('[data-route-loader]')
-    const mark = loader?.querySelector('.route-loader-mark')
-    const staticLoader = !!loader && getComputedStyle(mark).animationName === 'none'
-    await new Promise(r => setTimeout(r, 500))
-    return { noCanvas, staticLoader, path: location.pathname }
+    const cover = loader?.firstElementChild
+    const signal = loader?.querySelector('[class*="inset-x-"]')
+    const first = loader && signal ? {
+      progress: Number(loader.dataset.routeProgress || 0),
+      opacity: Number(getComputedStyle(loader).opacity),
+      signalOpacity: Number(getComputedStyle(signal).opacity),
+      signalTop: signal.getBoundingClientRect().top,
+      clipPath: getComputedStyle(cover).clipPath,
+    } : null
+    await new Promise(r => setTimeout(r, 80))
+    const second = loader?.isConnected && signal?.isConnected ? {
+      progress: Number(loader.dataset.routeProgress || 0),
+      opacity: Number(getComputedStyle(loader).opacity),
+      signalOpacity: Number(getComputedStyle(signal).opacity),
+      signalTop: signal.getBoundingClientRect().top,
+    } : null
+    await new Promise(r => setTimeout(r, 70))
+    const completedProgress = Number(loader?.dataset.routeProgress || 0)
+    await new Promise(r => setTimeout(r, 320))
+    return {
+      noCanvas,
+      first,
+      second,
+      completedProgress,
+      sceneGap: getComputedStyle(document.documentElement).getPropertyValue('--scene-gap').trim(),
+      path: location.pathname,
+    }
   })()`)
   check(
-    'reduced motion uses native pointer and a static route loader',
-    reducedRoute.noCanvas && reducedRoute.staticLoader && reducedRoute.path === '/work',
-    JSON.stringify(reducedRoute)
+    'reduced motion uses native pointer and short non-spatial route feedback',
+    reducedRoute.noCanvas &&
+      reducedRoute.first &&
+      reducedRoute.second &&
+      reducedRoute.first.clipPath === 'inset(0px)' &&
+      reducedRoute.second.progress >= reducedRoute.first.progress &&
+      reducedRoute.completedProgress === 100 &&
+      reducedRoute.second.opacity > reducedRoute.first.opacity &&
+      reducedRoute.second.signalOpacity > reducedRoute.first.signalOpacity &&
+      Math.abs(reducedRoute.second.signalTop - reducedRoute.first.signalTop) < 1 &&
+      Number(reducedRoute.sceneGap) === 0.78 &&
+      reducedRoute.path === '/work',
+    reducedRoute.first && reducedRoute.second
+      ? `canvas=${reducedRoute.noCanvas} clip=${reducedRoute.first.clipPath} progress=${reducedRoute.first.progress}->${reducedRoute.second.progress}->${reducedRoute.completedProgress} ` +
+        `opacity=${reducedRoute.first.opacity.toFixed(2)}->${reducedRoute.second.opacity.toFixed(2)} ` +
+        `signal=${reducedRoute.first.signalOpacity.toFixed(2)}->${reducedRoute.second.signalOpacity.toFixed(2)} ` +
+        `travel=${Math.abs(reducedRoute.second.signalTop - reducedRoute.first.signalTop).toFixed(1)} gap=${reducedRoute.sceneGap} path=${reducedRoute.path}`
+      : JSON.stringify(reducedRoute)
   )
 
   console.log('\n──── PROBES ────')

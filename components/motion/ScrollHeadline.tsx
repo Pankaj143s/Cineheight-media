@@ -30,6 +30,8 @@ export default function ScrollHeadline({
   accentColor = 'var(--blue-500)',
   /** Dim level the words start from. Kept legible in case motion never runs. */
   from = 0.34,
+  blurFrom = 3,
+  yFrom = 12,
   start = 'top 88%',
   end = 'top 42%',
 }: {
@@ -40,6 +42,8 @@ export default function ScrollHeadline({
   accent?: string[]
   accentColor?: string
   from?: number
+  blurFrom?: number
+  yFrom?: number
   start?: string
   end?: string
 }) {
@@ -60,7 +64,7 @@ export default function ScrollHeadline({
       if (!spans.length) return
       gsap.fromTo(
         spans,
-        { opacity: from, filter: 'blur(3px)', yPercent: 12 },
+        { opacity: from, filter: `blur(${blurFrom}px)`, yPercent: yFrom },
         {
           opacity: 1,
           filter: 'blur(0px)',
@@ -79,7 +83,7 @@ export default function ScrollHeadline({
       )
     }, rootRef)
     return () => ctx.revert()
-  }, [reduced, from, start, end])
+  }, [reduced, from, blurFrom, yFrom, start, end])
 
   /**
    * Reduced motion: force the finished state onto the DOM directly.
@@ -121,7 +125,7 @@ export default function ScrollHeadline({
   }, [reduced])
 
   return (
-    <Tag ref={rootRef as React.Ref<never>} className={className} style={style}>
+    <Tag ref={rootRef as React.Ref<never>} data-scroll-headline={text} className={className} style={style}>
       <span className="sr-only">{text}</span>
       <span aria-hidden="true">
         {words.map((word, i) => {

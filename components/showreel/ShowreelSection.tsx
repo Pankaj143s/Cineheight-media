@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { gsap } from '@/lib/gsap'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
@@ -32,7 +33,10 @@ const POSTER = '/media/showreel/showreel-poster.webp'
  * viewport in `featured` mode drops back to `ambient` and re-mutes; returning
  * never restores sound, because only an explicit action may turn it on.
  */
-export default function ShowreelSection() {
+export default function ShowreelSection({ context }: { context?: 'home' | 'about' }) {
+  const pathname = usePathname()
+  const presentation = context ?? (pathname === '/about' ? 'about' : 'home')
+  const aboutPresentation = presentation === 'about'
   const sectionRef = useRef<HTMLElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -65,9 +69,15 @@ export default function ShowreelSection() {
       // Begins while hero statement still owns the frame — removes empty travel.
       gsap.fromTo(
         frame,
-        { scale: mobile ? 0.94 : 0.82, autoAlpha: 0.4, clipPath: 'inset(10% 0% 10% 0%)' },
+        {
+          scale: mobile ? 0.94 : aboutPresentation ? 0.9 : 0.82,
+          xPercent: aboutPresentation && !mobile ? -3 : 0,
+          autoAlpha: aboutPresentation ? 0.48 : 0.4,
+          clipPath: 'inset(10% 0% 10% 0%)',
+        },
         {
           scale: 1,
+          xPercent: 0,
           autoAlpha: 1,
           clipPath: 'inset(0% 0% 0% 0%)',
           ease: 'none',
@@ -83,7 +93,15 @@ export default function ShowreelSection() {
       }
     }, sectionRef)
     return () => ctx.revert()
-  }, [reduced, mobile])
+  }, [reduced, mobile, aboutPresentation])
+
+  useLayoutEffect(() => {
+    if (!reduced || !aboutPresentation) return
+    const frame = frameRef.current
+    const caption = sectionRef.current?.querySelector<HTMLElement>('[data-showreel-caption]')
+    frame?.animate([{ opacity: 0.72 }, { opacity: 1 }], { duration: 170, easing: 'ease-out' })
+    caption?.animate([{ opacity: 0.68 }, { opacity: 1 }], { duration: 150, delay: 30, easing: 'ease-out' })
+  }, [reduced, aboutPresentation])
 
   // ---- State derived from the element, never assumed --------------------
   useEffect(() => {
@@ -222,7 +240,8 @@ export default function ShowreelSection() {
     <section
       ref={sectionRef}
       id="showreel"
-      aria-label="Showreel"
+      aria-label={aboutPresentation ? 'Cineheight point of view film' : 'Showreel'}
+      data-showreel-context={presentation}
       className="relative flex flex-col items-center justify-center"
       /*
        * Height is derived from the frame, not a fixed vh.
@@ -252,10 +271,12 @@ export default function ShowreelSection() {
       {/* Editorial label + microcopy — aligned to the full-bleed frame edge */}
       <div className="relative z-10 mb-5 flex w-full flex-wrap items-baseline gap-x-4 gap-y-1 px-5 sm:mb-6 sm:px-8 lg:px-10">
         <span className="font-display text-[11px] font-medium uppercase" style={{ letterSpacing: '0.32em', color: 'var(--blue-400)' }}>
-          Showreel
+          {aboutPresentation ? 'How we see it' : 'Showreel'}
         </span>
-        <span className="font-body text-xs text-text-500 sm:text-sm" style={{ letterSpacing: '0.01em' }}>
-          A glimpse of how we turn strategy into stories, content and growth.
+        <span data-showreel-caption className="font-body text-xs text-text-500 sm:text-sm" style={{ letterSpacing: '0.01em' }}>
+          {aboutPresentation
+            ? 'The shared point of view behind every strategy, frame and campaign.'
+            : 'A glimpse of how we turn strategy into stories, content and growth.'}
         </span>
       </div>
 
@@ -274,7 +295,7 @@ export default function ShowreelSection() {
           <video
             ref={videoRef}
             className="absolute inset-0 h-full w-full cursor-pointer object-cover will-change-transform"
-            style={{ backgroundColor: 'var(--bg-900)' }}
+            style={{ backgroundColor: 'var(--bg-900)', objectPosition: aboutPresentation ? '52% center' : 'center' }}
             poster={POSTER}
             muted
             loop

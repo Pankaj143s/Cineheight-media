@@ -115,13 +115,17 @@ export default function AboutPage() {
         <div data-flow-anchor="edge-right" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '50%' }} aria-hidden="true" />
       </section>
 
-      <section aria-label="How we work" className="flow-gutter relative" style={{ marginTop: mobile ? '10vh' : '14vh' }}>
+      <section aria-label="How we work" className="flow-gutter relative" style={{ marginTop: `calc(${mobile ? '10vh' : '14vh'} * var(--scene-gap))` }}>
         <ScrollHeadline
           as="h2"
           text={about.journey}
           className="font-display max-w-[18ch] font-bold text-text-100"
           style={{ fontSize: 'clamp(1.8rem, 4.6vw, 4.4rem)', lineHeight: 0.98, letterSpacing: '-0.03em' }}
-          from={0.2}
+          from={0.42}
+          blurFrom={1.25}
+          yFrom={6}
+          start="top 94%"
+          end="top 62%"
         />
         <Reveal as="p" className="font-body measure-wide mt-8 text-base leading-relaxed text-text-300 sm:text-lg">
           When one team owns strategy, design, content and campaigns, nothing gets lost between agencies.
@@ -131,7 +135,7 @@ export default function AboutPage() {
         </Reveal>
       </section>
 
-      <section aria-label="Capabilities and process" className="flow-gutter relative" style={{ marginTop: mobile ? '10vh' : '14vh' }}>
+      <section aria-label="Capabilities and process" className="flow-gutter relative" style={{ marginTop: `calc(${mobile ? '10vh' : '14vh'} * var(--scene-gap))` }}>
         <KineticLabel text="THE DISCIPLINES" />
         <ol className="mt-8">
           {services.map((s) => (
@@ -186,7 +190,7 @@ export default function AboutPage() {
         aria-label="Start a project"
         data-depth-layer="front"
         className="flow-gutter relative"
-        style={{ marginTop: mobile ? '10vh' : '14vh' }}
+        style={{ marginTop: `calc(${mobile ? '10vh' : '14vh'} * var(--scene-gap))` }}
       >
         <ScrollHeadline
           as="h2"
@@ -194,8 +198,11 @@ export default function AboutPage() {
           accent={['RISE']}
           className="font-display max-w-[15ch] font-bold uppercase text-text-100"
           style={{ fontSize: 'clamp(2.2rem, 7.4vw, 7rem)', lineHeight: 0.9, letterSpacing: '-0.035em' }}
-          from={0.2}
-          end="top 38%"
+          from={0.42}
+          blurFrom={1.25}
+          yFrom={6}
+          start="top 94%"
+          end="top 58%"
         />
         <div className="mt-10 flex flex-wrap items-center gap-x-12 gap-y-6">
           <MagneticLink

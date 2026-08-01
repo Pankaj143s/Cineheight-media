@@ -800,6 +800,14 @@ html[data-modal-surface='true'][data-signal-cursor='true'] [role='button'] {
     --scene-gap: 1;
   }
 }
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --scene-gap: 0.78;
+    --motion-state-duration: 160ms;
+    --motion-focus-duration: 180ms;
+    --motion-max-travel: 4px;
+  }
+}
 
 /* Oversized editorial numerals used as chapter markers — they sit BEHIND the
    content they mark, as a spatial cue rather than a label. */
