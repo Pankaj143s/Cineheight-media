@@ -163,7 +163,8 @@ html[data-signal-cursor='true'] select {
 .static-contour-field {
   opacity: 0.24;
 }
-[data-text-layer-active='true'] {
+[data-text-layer-active='true'],
+[data-media-layer-active='true'] {
   will-change: transform;
 }
 /* Inside the hero's water surface the native cursor takes over.
@@ -278,6 +279,10 @@ html[data-modal-surface='true'][data-signal-cursor='true'] [role='button'] {
 }
 
 /* Far accent — distant cloud high in the frame, offset right of center */
+.hero-cloud-plate picture {
+  display: block;
+  width: 100%;
+}
 .hero-cloud-center {
   left: 73%;
   top: 32%;

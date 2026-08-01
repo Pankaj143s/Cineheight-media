@@ -1,20 +1,25 @@
-/**
- * Keeps transformed text crisp while it is on screen without permanently
- * reserving compositor memory for every scene on a long route.
- */
+type PromotionKind = 'text' | 'media'
+
+/** Pre-promotes transformed layers near the viewport, then releases them. */
 export function observeVisibleLayerPromotion(
   targets: Iterable<HTMLElement>,
-  rootMargin = '18% 0px'
+  rootMargin = '18% 0px',
+  kind: PromotionKind = 'text'
 ): () => void {
   const elements = Array.from(targets)
   if (!elements.length) return () => {}
+  const attribute = kind === 'media' ? 'mediaLayerActive' : 'textLayerActive'
+  const promote = (element: HTMLElement) => {
+    element.dataset[attribute] = 'true'
+  }
+  const release = (element: HTMLElement) => {
+    delete element.dataset[attribute]
+  }
 
   if (!('IntersectionObserver' in window)) {
-    elements.forEach((element) => {
-      element.dataset.textLayerActive = 'true'
-    })
+    elements.forEach(promote)
     return () => {
-      elements.forEach((element) => delete element.dataset.textLayerActive)
+      elements.forEach(release)
     }
   }
 
@@ -22,8 +27,8 @@ export function observeVisibleLayerPromotion(
     (entries) => {
       entries.forEach((entry) => {
         const element = entry.target as HTMLElement
-        if (entry.isIntersecting) element.dataset.textLayerActive = 'true'
-        else delete element.dataset.textLayerActive
+        if (entry.isIntersecting) promote(element)
+        else release(element)
       })
     },
     { rootMargin, threshold: 0 }
@@ -32,6 +37,6 @@ export function observeVisibleLayerPromotion(
 
   return () => {
     observer.disconnect()
-    elements.forEach((element) => delete element.dataset.textLayerActive)
+    elements.forEach(release)
   }
 }

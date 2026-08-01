@@ -30,21 +30,75 @@ export default function FlowDirector({ accent }: { accent?: string }) {
 
   useEffect(() => {
     let cancelled = false
-    const refresh = () => {
-      if (!cancelled) ScrollTrigger.refresh()
+    let refreshFrame = 0
+    let releaseFrame = 0
+    let refreshing = false
+    let pendingReason = ''
+    const main = document.querySelector<HTMLElement>('main.layer-content, main')
+
+    const refresh = (reason: string) => {
+      if (cancelled) return
+      pendingReason = reason
+      if (refreshFrame) return
+      refreshFrame = requestAnimationFrame(() => {
+        refreshFrame = 0
+        if (document.body.hasAttribute('aria-busy')) return
+        refreshing = true
+        ScrollTrigger.refresh()
+        if (main) {
+          const count = Number(main.dataset.flowRefreshCount ?? 0) + 1
+          main.dataset.flowRefreshCount = String(count)
+          main.dataset.flowRefreshReason = pendingReason
+        }
+        releaseFrame = requestAnimationFrame(() => {
+          refreshing = false
+        })
+      })
     }
 
     // Fonts change every measured text block; media changes section heights.
-    document.fonts?.ready.then(refresh).catch(() => {})
-    const t1 = window.setTimeout(refresh, 400)
-    const t2 = window.setTimeout(refresh, 1400)
-    window.addEventListener('load', refresh)
+    document.fonts?.ready.then(() => refresh('fonts')).catch(() => {})
+    const t1 = window.setTimeout(() => refresh('settle-400'), 400)
+    const t2 = window.setTimeout(() => refresh('settle-1400'), 1400)
+    const onLoad = () => refresh('window-load')
+    const onMediaSettled = (event: Event) => {
+      const target = event.target
+      if (target instanceof HTMLImageElement || target instanceof HTMLVideoElement) refresh('media')
+    }
+    window.addEventListener('load', onLoad)
+    main?.addEventListener('load', onMediaSettled, true)
+    main?.addEventListener('loadedmetadata', onMediaSettled, true)
+
+    let lastWidth = main?.getBoundingClientRect().width ?? 0
+    let lastHeight = main?.getBoundingClientRect().height ?? 0
+    const resizeObserver = main && 'ResizeObserver' in window
+      ? new ResizeObserver(([entry]) => {
+          if (!entry || refreshing) return
+          const { width, height } = entry.contentRect
+          if (Math.abs(width - lastWidth) < 1 && Math.abs(height - lastHeight) < 1) return
+          lastWidth = width
+          lastHeight = height
+          refresh('geometry')
+        })
+      : null
+    if (main && resizeObserver) resizeObserver.observe(main)
+
+    const busyObserver = new MutationObserver(() => {
+      if (!document.body.hasAttribute('aria-busy') && pendingReason) refresh('route-settled')
+    })
+    busyObserver.observe(document.body, { attributes: true, attributeFilter: ['aria-busy'] })
 
     return () => {
       cancelled = true
       window.clearTimeout(t1)
       window.clearTimeout(t2)
-      window.removeEventListener('load', refresh)
+      cancelAnimationFrame(refreshFrame)
+      cancelAnimationFrame(releaseFrame)
+      resizeObserver?.disconnect()
+      busyObserver.disconnect()
+      window.removeEventListener('load', onLoad)
+      main?.removeEventListener('load', onMediaSettled, true)
+      main?.removeEventListener('loadedmetadata', onMediaSettled, true)
     }
   }, [])
 

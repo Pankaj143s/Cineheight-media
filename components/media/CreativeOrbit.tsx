@@ -8,6 +8,7 @@ import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import Reveal from '@/components/ui/Reveal'
 import { clamp, damp, normalizeAngle } from '@/lib/utils'
 import { useCanRunRichEffects, useIsNarrow, useReducedMotion } from '@/lib/useMediaPreferences'
+import { observeVisibleLayerPromotion } from '@/lib/visibleLayerPromotion'
 
 /**
  * The static-creative installation — a genuine three-dimensional ring of post
@@ -473,6 +474,15 @@ export default function CreativeOrbit({
     }
   }, [N, applyVisuals, scheduleAutoplay, stopIdleTimer])
 
+  useEffect(() => {
+    if (reduced) return
+    return observeVisibleLayerPromotion(
+      cardRefs.current.filter((card): card is HTMLDivElement => card !== null),
+      '30% 0px',
+      'media'
+    )
+  }, [N, reduced])
+
   // Repaint when reduced-motion/geometry change without the loop running.
   useEffect(() => {
     applyVisuals()
@@ -768,6 +778,7 @@ export default function CreativeOrbit({
             <div
               ref={setCardRef}
               data-index={i}
+              data-orbit-card
               role="button"
               tabIndex={-1}
               aria-label={
@@ -777,7 +788,7 @@ export default function CreativeOrbit({
               }
               onPointerDown={() => onCardPointerDown(i)}
               onClick={() => onCardClick(i)}
-              className="relative h-full w-full cursor-pointer overflow-hidden rounded-[18px] will-change-transform"
+              className="relative h-full w-full cursor-pointer overflow-hidden rounded-[18px]"
               style={{
                 boxShadow: '0 26px 60px -18px rgba(0,0,0,0.85)',
                 // Hide the origin card while it lives in the lightbox morph so

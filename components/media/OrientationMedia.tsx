@@ -1,6 +1,7 @@
 'use client'
 
 import { forwardRef } from 'react'
+import Image from 'next/image'
 
 /**
  * Full-bleed media that never crops the client's composition.
@@ -57,13 +58,16 @@ const OrientationMedia = forwardRef<HTMLVideoElement, {
       {contain && (
         <>
           {/* layer 1 — blurred, darkened fill so the frame is never empty */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src={poster}
             alt=""
             aria-hidden="true"
             draggable={false}
-            className="absolute inset-0 h-full w-full object-cover"
+            fill
+            sizes="160px"
+            quality={38}
+            data-media-backdrop="orientation"
+            className="object-cover"
             style={{ transform: 'scale(1.08)', filter: 'blur(38px) brightness(0.34) saturate(1.15)' }}
           />
           {accent && (

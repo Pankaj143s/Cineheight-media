@@ -19,7 +19,7 @@
  */
 
 import { spawn } from 'node:child_process'
-import { mkdirSync, writeFileSync, existsSync, readdirSync } from 'node:fs'
+import { mkdirSync, writeFileSync, existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 
@@ -406,6 +406,36 @@ if (hasFlag('reduced')) {
   console.log('emulating prefers-reduced-motion: reduce')
 }
 
+if (hasFlag('vanta-gate')) {
+  if (!hasFlag('reduced')) throw new Error('--vanta-gate requires --reduced')
+  const chunksDir = path.resolve('.next/static/chunks')
+  const blockedChunks = existsSync(chunksDir)
+    ? readdirSync(chunksDir)
+        .filter((name) => name.endsWith('.js'))
+        .filter((name) => {
+          const source = readFileSync(path.join(chunksDir, name), 'utf8')
+          return source.includes('vanta-canvas') || source.includes('WebGLRenderer')
+        })
+    : []
+  await setViewport(cdp, 390, 844, 2)
+  await goto(cdp, BASE + '/')
+  await sleep(900)
+  const result = await cdp.eval(`(() => {
+    const resources = performance.getEntriesByType('resource').map(entry => entry.name)
+    const blocked = ${JSON.stringify(blockedChunks)}
+    return {
+      fallback: document.querySelector('[data-vanta-fallback="reduced"]') !== null,
+      host: document.querySelector('[data-vanta-tier]') !== null,
+      canvases: document.querySelectorAll('.vanta-canvas').length,
+      loadedRuntime: resources.filter(url => blocked.some(name => url.endsWith('/' + name))),
+    }
+  })()`)
+  const pass = result.fallback && !result.host && result.canvases === 0 && result.loadedRuntime.length === 0
+  console.log(`${pass ? 'PASS' : 'FAIL'} reduced motion gates Vanta/Three before import  [${JSON.stringify(result)}]`)
+  proc?.kill()
+  process.exit(pass ? 0 : 1)
+}
+
 /* ── interaction probes ───────────────────────────────────────────────── */
 if (hasFlag('probe')) {
   await setViewport(cdp, 1440, 900, 2)
@@ -419,6 +449,39 @@ if (hasFlag('probe')) {
 
   // ---- signal tip tracking, forwards and in reverse --------------------
   await goto(cdp, BASE + '/')
+  const vantaLifecycle = await cdp.eval(`(async () => {
+    await new Promise(r => setTimeout(r, 1100))
+    const host = document.querySelector('[data-vanta-tier]')
+    const canvas = host?.querySelector('.vanta-canvas')
+    if (!host || !canvas) return null
+    canvas.dataset.vantaAuditInstance = 'original'
+    const initial = { tier: host.dataset.vantaTier, state: host.dataset.vantaState, canvases: host.querySelectorAll('.vanta-canvas').length }
+    window.scrollTo(0, document.documentElement.scrollHeight)
+    await new Promise(r => setTimeout(r, 450))
+    const offscreen = host.dataset.vantaState
+    window.scrollTo(0, 0)
+    await new Promise(r => setTimeout(r, 450))
+    const resumed = host.dataset.vantaState
+    const sameCanvas = host.querySelector('[data-vanta-audit-instance="original"]') === canvas
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+    await new Promise(r => setTimeout(r, 80))
+    const hidden = host.dataset.vantaState
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+    await new Promise(r => setTimeout(r, 80))
+    return { initial, offscreen, resumed, hidden, sameCanvas, finalCanvases: host.querySelectorAll('.vanta-canvas').length }
+  })()`)
+  check(
+    'Vanta selects one quality tier and pauses/resumes one instance by visibility',
+    vantaLifecycle && ['high', 'standard', 'compact'].includes(vantaLifecycle.initial.tier) &&
+      vantaLifecycle.initial.state === 'active' && vantaLifecycle.initial.canvases === 1 &&
+      vantaLifecycle.offscreen === 'paused' && vantaLifecycle.resumed === 'active' &&
+      vantaLifecycle.hidden === 'paused' && vantaLifecycle.sameCanvas && vantaLifecycle.finalCanvases === 1,
+    JSON.stringify(vantaLifecycle)
+  )
+  await goto(cdp, BASE + '/')
+  await sleep(1600)
   const fontState = await cdp.eval(`(async () => {
     await document.fonts.ready
     const style = getComputedStyle(document.documentElement)
@@ -595,7 +658,7 @@ if (hasFlag('probe')) {
   const tips = []
   for (const frac of [0.2, 0.4, 0.6, 0.8, 0.55, 0.3, 0.1]) {
     await cdp.eval(`window.scrollTo(0, document.documentElement.scrollHeight * ${frac})`)
-    await sleep(520)
+    await sleep(900)
     const t = await signalTip(cdp)
     tips.push({ frac, ...(t ?? {}) })
   }
@@ -728,8 +791,17 @@ if (hasFlag('probe')) {
 
   // A reload gives a genuinely first-ever pointer event, which is the case
   // that used to draw a chord out of the viewport centre.
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 20, y: 20 })
   await goto(cdp, BASE + '/')
-  await sleep(500)
+  await cdp.eval(`new Promise(resolve => {
+    const started = performance.now()
+    const ready = () => {
+      const canvas = document.querySelector('[data-cursor-trail]')
+      if ((window.__cineheightCursor && canvas?.dataset.motionProfile === 'high') || performance.now() - started > 2000) return resolve(true)
+      requestAnimationFrame(ready)
+    }
+    ready()
+  })`)
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1180, y: 300 })
   await sleep(140)
   const firstEntry = await cdp.eval(`(() => {
@@ -831,6 +903,157 @@ if (hasFlag('probe')) {
   const DESKTOP_READY_IDS = ['sapale-yamaha', 'sindhudurg-education', 'divija-old-age-home']
   const resourceNames = () => cdp.eval(`performance.getEntriesByType('resource').map(e => e.name)`)
 
+  const heroCloudState = async (width, height) => {
+    await setViewport(cdp, width, height, 2)
+    await cdp.send('Network.clearBrowserCache')
+    await goto(cdp, BASE + '/')
+    await sleep(800)
+    return cdp.eval(`(() => ({
+      dpr: devicePixelRatio,
+      metrics: Object.fromEntries([...document.querySelectorAll('[data-cloud-source]')].map(img => [
+        img.dataset.cloudSource,
+        {
+          rendered: Math.round(img.getBoundingClientRect().width),
+          natural: img.naturalWidth,
+          sizes: [...img.parentElement.querySelectorAll('source')].map(source => source.sizes),
+        },
+      ])),
+      sources: Object.fromEntries([...document.querySelectorAll('[data-cloud-source]')].map(img => [
+        img.dataset.cloudSource,
+        img.currentSrc,
+      ])),
+      requests: performance.getEntriesByType('resource')
+        .map(entry => entry.name)
+        .filter(name => name.includes('/generated/hero-v5/') && /cloud-(center|left|right)/.test(name)),
+    }))()`)
+  }
+
+  const phoneClouds = await heroCloudState(390, 844)
+  check(
+    'phone hero requests only its compact center cloud',
+    phoneClouds.requests.length === 1 &&
+      phoneClouds.sources.center.endsWith('/responsive/cloud-center-640.webp') &&
+      phoneClouds.sources.left.startsWith('data:image/') &&
+      phoneClouds.sources.right.startsWith('data:image/'),
+    JSON.stringify(phoneClouds)
+  )
+
+  const tabletClouds = await heroCloudState(768, 1024)
+  check(
+    'tablet hero requests only its standard left cloud',
+    tabletClouds.requests.length === 1 &&
+      tabletClouds.sources.left.endsWith('/responsive/cloud-left-960.webp') &&
+      tabletClouds.sources.center.startsWith('data:image/') &&
+      tabletClouds.sources.right.startsWith('data:image/'),
+    JSON.stringify(tabletClouds)
+  )
+
+  const desktopClouds = await heroCloudState(1440, 900)
+  check(
+    'desktop hero selects one DPR-appropriate source per visible cloud',
+    desktopClouds.requests.length === 3 &&
+      desktopClouds.sources.center.endsWith('/responsive/cloud-center-960.webp') &&
+      desktopClouds.sources.left.endsWith('/cloud-left-clean.webp') &&
+      desktopClouds.sources.right.endsWith('/cloud-right-clean.webp'),
+    JSON.stringify(desktopClouds)
+  )
+
+  const showreelSourceState = async (width, height) => {
+    await setViewport(cdp, width, height, 2)
+    await cdp.send('Network.clearBrowserCache')
+    await goto(cdp, BASE + '/')
+    return cdp.eval(`(() => {
+      const video = document.querySelector('[data-showreel-video]')
+      return {
+        currentSrc: video?.currentSrc ?? '',
+        poster: video?.poster ?? '',
+        requests: [...new Set(performance.getEntriesByType('resource')
+          .map(entry => entry.name)
+          .filter(name => /showreel-(540|720|1080)\.mp4$/.test(name)))],
+      }
+    })()`)
+  }
+
+  for (const tier of [
+    { width: 390, height: 844, file: 'showreel-540.mp4', label: 'phone' },
+    { width: 768, height: 1024, file: 'showreel-720.mp4', label: 'tablet' },
+    { width: 1440, height: 900, file: 'showreel-1080.mp4', label: 'desktop' },
+  ]) {
+    const state = await showreelSourceState(tier.width, tier.height)
+    check(
+      `${tier.label} showreel requests only its adaptive source`,
+      state.currentSrc.endsWith('/' + tier.file) &&
+        state.requests.length === 1 && state.requests[0].endsWith('/' + tier.file) &&
+        state.poster.endsWith('/media/showreel/showreel-poster.webp'),
+      JSON.stringify(state)
+    )
+  }
+
+  await setViewport(cdp, 1440, 900, 2)
+  await goto(cdp, BASE + '/')
+  const layerState = (selector) => cdp.eval(`(() => [...document.querySelectorAll(${JSON.stringify(selector)})].map(element => ({
+    active: element.dataset.mediaLayerActive === 'true',
+    willChange: getComputedStyle(element).willChange,
+  })))()`)
+  const showreelBefore = await layerState('[data-showreel-frame], [data-showreel-video]')
+  await cdp.eval(`document.querySelector('#showreel')?.scrollIntoView({ block: 'center' })`)
+  await sleep(450)
+  const showreelActive = await layerState('[data-showreel-frame], [data-showreel-video]')
+  await cdp.eval(`document.querySelector('#work')?.scrollIntoView({ block: 'center' })`)
+  await sleep(450)
+  const showreelAfter = await layerState('[data-showreel-frame], [data-showreel-video]')
+  check(
+    'large showreel layers promote near view and release after exit',
+    showreelBefore.length === 2 && showreelBefore.every(layer => !layer.active && layer.willChange === 'auto') &&
+      showreelActive.every(layer => layer.active && layer.willChange === 'transform') &&
+      showreelAfter.every(layer => !layer.active && layer.willChange === 'auto'),
+    JSON.stringify({ before: showreelBefore, active: showreelActive, after: showreelAfter })
+  )
+
+  await goto(cdp, BASE + '/work/sapale-yamaha')
+  const installationBefore = await layerState('[data-orbit-card], [data-phone-card]')
+  await cdp.eval(`document.querySelector('[data-orbit-card]')?.scrollIntoView({ block: 'center' })`)
+  await sleep(450)
+  const orbitActive = await layerState('[data-orbit-card]')
+  await cdp.eval(`document.querySelector('[data-phone-card]')?.scrollIntoView({ block: 'center' })`)
+  await sleep(450)
+  const phoneActive = await layerState('[data-phone-card]')
+  await cdp.eval(`window.scrollTo(0, document.documentElement.scrollHeight)`)
+  await sleep(450)
+  const installationAfter = await layerState('[data-orbit-card], [data-phone-card]')
+  check(
+    'orbit and phone media promote only around their live installations',
+    installationBefore.length > 0 && installationBefore.every(layer => !layer.active && layer.willChange === 'auto') &&
+      orbitActive.length > 0 && orbitActive.every(layer => layer.active && layer.willChange === 'transform') &&
+      phoneActive.length > 0 && phoneActive.every(layer => layer.active && layer.willChange === 'transform') &&
+      installationAfter.every(layer => !layer.active && layer.willChange === 'auto'),
+    JSON.stringify({ before: installationBefore, orbit: orbitActive, phone: phoneActive, after: installationAfter })
+  )
+
+  await setViewport(cdp, 390, 844, 2)
+  await goto(cdp, BASE + '/')
+  const backdropState = await cdp.eval(`(async () => {
+    document.querySelector('#stories')?.scrollIntoView({ block: 'center' })
+    await new Promise(resolve => setTimeout(resolve, 900))
+    const backdrop = document.querySelector('[data-media-backdrop="orientation"]')
+    const foreground = backdrop?.parentElement?.parentElement?.querySelector('img:not([data-media-backdrop])')
+    const width = backdrop?.currentSrc ? Number(new URL(backdrop.currentSrc).searchParams.get('w')) : 0
+    return backdrop ? {
+      backdrop: backdrop.currentSrc,
+      foreground: foreground?.currentSrc ?? '',
+      optimizedWidth: width,
+      filter: getComputedStyle(backdrop).filter,
+    } : null
+  })()`)
+  check(
+    'contained media uses a capped blurred raster behind the sharp original',
+    backdropState && backdropState.backdrop.includes('/_next/image') &&
+      backdropState.optimizedWidth > 0 && backdropState.optimizedWidth <= 384 &&
+      !backdropState.foreground.includes('/_next/image') && backdropState.filter.includes('blur(38px)'),
+    JSON.stringify(backdropState)
+  )
+
+  await setViewport(cdp, 1440, 900, 2)
   await goto(cdp, BASE + '/')
   await sleep(450)
   const homeInitialLoads = await resourceNames()
@@ -894,22 +1117,53 @@ if (hasFlag('probe')) {
     mobileInitialProjectVideos.length === 0,
     mobileInitialProjectVideos.join(', ')
   )
-  await cdp.eval(`document.querySelector('#work')?.scrollIntoView({ block: 'center' })`)
-  await sleep(1000)
+  await cdp.eval(`document.querySelector('#work')?.scrollIntoView({ block: 'start' })`)
+  await sleep(220)
+  await cdp.eval(`document.querySelector('#work [data-scene]')?.scrollIntoView({ block: 'center' })`)
+  await cdp.eval(`new Promise(resolve => {
+    const started = performance.now()
+    const ready = () => {
+      const requested = performance.getEntriesByType('resource')
+        .some(entry => entry.name.includes('/media/home-work/'))
+      const selected = [...document.querySelectorAll('#work video')].some(video => video.currentSrc)
+      if (requested || selected || performance.now() - started > 3000) return resolve(true)
+      requestAnimationFrame(ready)
+    }
+    ready()
+  })`)
   const homeMobileLoads = await resourceNames()
+  const homeMobileState = await cdp.eval(`(() => {
+    const root = document.querySelector('#work')
+    const scenes = [...document.querySelectorAll('#work [data-scene]')]
+    const bounds = element => {
+      const rect = element?.getBoundingClientRect()
+      return rect ? [Math.round(rect.top), Math.round(rect.bottom), Math.round(rect.height)] : null
+    }
+    return {
+      mobile: matchMedia('(max-width: 767px), (pointer: coarse)').matches,
+      root: bounds(root),
+      scenes: scenes.map(bounds),
+      videos: [...document.querySelectorAll('#work video')].map(video => ({
+        currentSrc: video.currentSrc,
+        readyState: video.readyState,
+      })),
+    }
+  })()`)
   await goto(cdp, BASE + '/work')
   await sleep(700)
   const indexMobileLoads = await resourceNames()
   const mobileFilmHits = DESKTOP_READY_IDS.filter((id) =>
-    homeMobileLoads.some((name) => name.endsWith(`/media/home-work/${id}-mobile.mp4`))
+    homeMobileLoads.some((name) => name.endsWith(`/media/home-work/${id}-mobile.mp4`)) ||
+    homeMobileState.videos.some((video) => video.currentSrc.endsWith(`/media/home-work/${id}-mobile.mp4`))
   )
   const desktopFilmHits = DESKTOP_READY_IDS.filter((id) =>
-    homeMobileLoads.some((name) => name.endsWith(`/media/home-work/${id}-desktop.mp4`))
+    homeMobileLoads.some((name) => name.endsWith(`/media/home-work/${id}-desktop.mp4`)) ||
+    homeMobileState.videos.some((video) => video.currentSrc.endsWith(`/media/home-work/${id}-desktop.mp4`))
   )
   check(
     'Featured Work selects a mobile film without also downloading its desktop source',
     mobileFilmHits.length === 1 && desktopFilmHits.length === 0,
-    `mobile=${mobileFilmHits.join(',') || 'none'} desktop=${desktopFilmHits.join(',') || 'none'}`
+    `mobile=${mobileFilmHits.join(',') || 'none'} desktop=${desktopFilmHits.join(',') || 'none'} mounted=${homeMobileState.videos.map(video => video.currentSrc).join(',') || 'none'}`
   )
 
   const forbiddenIndexSuffixes = DESKTOP_READY_IDS.flatMap((id) => [
@@ -1730,6 +1984,37 @@ if (hasFlag('probe')) {
     JSON.stringify(desktopServices)
   )
 
+  await setViewport(cdp, 1440, 900, 2)
+  await goto(cdp, BASE + '/about')
+  const refreshScheduling = await cdp.eval(`(async () => {
+    await new Promise(r => setTimeout(r, 1550))
+    const main = document.querySelector('main')
+    if (!main) return null
+    const count = () => Number(main.dataset.flowRefreshCount || 0)
+    const initial = count()
+    const late = document.createElement('div')
+    late.style.height = '37px'
+    main.appendChild(late)
+    await new Promise(r => setTimeout(r, 120))
+    const afterLateGeometry = count()
+    document.body.setAttribute('aria-busy', 'true')
+    late.style.height = '73px'
+    await new Promise(r => setTimeout(r, 120))
+    const whileBusy = count()
+    document.body.removeAttribute('aria-busy')
+    await new Promise(r => setTimeout(r, 120))
+    const afterRelease = count()
+    late.remove()
+    return { initial, afterLateGeometry, whileBusy, afterRelease }
+  })()`)
+  check(
+    'late geometry refreshes ScrollTrigger and route-covered changes wait for release',
+    refreshScheduling && refreshScheduling.afterLateGeometry > refreshScheduling.initial &&
+      refreshScheduling.whileBusy === refreshScheduling.afterLateGeometry &&
+      refreshScheduling.afterRelease > refreshScheduling.whileBusy,
+    JSON.stringify(refreshScheduling)
+  )
+
   // Reduced motion keeps navigation feedback but removes continuous pointer
   // motion and loader sweeps.
   await cdp.send('Emulation.setEmulatedMedia', {
@@ -1760,6 +2045,20 @@ if (hasFlag('probe')) {
 
   await setViewport(cdp, 1440, 900, 2)
   await goto(cdp, BASE + '/')
+  const reducedShowreel = await cdp.eval(`(async () => {
+    const video = document.querySelector('[data-showreel-video]')
+    document.querySelector('#showreel')?.scrollIntoView({ block: 'center' })
+    await new Promise(resolve => setTimeout(resolve, 800))
+    return video ? { paused: video.paused, currentSrc: video.currentSrc, poster: video.poster } : null
+  })()`)
+  check(
+    'reduced motion keeps the adaptive showreel poster-first until user action',
+    reducedShowreel?.paused &&
+      reducedShowreel.currentSrc.endsWith('/showreel-1080.mp4') &&
+      reducedShowreel.poster.endsWith('/showreel-poster.webp'),
+    JSON.stringify(reducedShowreel)
+  )
+  await cdp.eval('window.scrollTo(0, 0)')
   const reducedRoute = await cdp.eval(`(async () => {
     await new Promise(r => setTimeout(r, 180))
     const noCanvas = !document.querySelector('[data-cursor-trail]') && !document.querySelector('[data-signal-cursor]')

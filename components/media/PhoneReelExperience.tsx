@@ -10,6 +10,7 @@ import { clamp, damp } from '@/lib/utils'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
 import { scrollToElementCenter } from '@/lib/scrollTo'
+import { observeVisibleLayerPromotion } from '@/lib/visibleLayerPromotion'
 
 /**
  * The phone-reel installation — the old project's `ReelsCoverflow` concept
@@ -116,6 +117,15 @@ export default function PhoneReelExperience({
   const velocity = useRef(0)
 
   const max = reels.length - 1
+
+  useEffect(() => {
+    if (reduced) return
+    return observeVisibleLayerPromotion(
+      cardRefs.current.filter((card): card is HTMLDivElement => card !== null),
+      '30% 0px',
+      'media'
+    )
+  }, [reels.length, reduced])
 
   /**
    * Phone size, derived from the stage but hard-capped.
@@ -584,7 +594,7 @@ export default function PhoneReelExperience({
             }}
             data-phone-card
             data-phone-active={i === active}
-            className="absolute left-1/2 top-1/2 will-change-transform"
+            className="absolute left-1/2 top-1/2"
             style={{
               width: 'var(--phone-w, 282px)',
               height: 'var(--phone-h, 462px)',

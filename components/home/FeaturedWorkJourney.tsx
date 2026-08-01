@@ -18,6 +18,7 @@ import { LIQUID_MEDIA_PROTO } from '@/lib/liquidMedia/config'
 import { setSignalIntensity } from '@/lib/liquidMedia/signalIntensity'
 import { SCRUB } from '@/lib/motionTokens'
 import { reportUiClick } from '@/lib/audio/reportUiClick'
+import { observeVisibleLayerPromotion } from '@/lib/visibleLayerPromotion'
 
 /**
  * Selected work — one full-viewport-width media stage the three projects pass
@@ -157,6 +158,17 @@ export default function FeaturedWorkJourney() {
     observer.observe(root)
     return () => observer.disconnect()
   }, [])
+
+  useEffect(() => {
+    if (reduced) return
+    const root = rootRef.current
+    if (!root) return
+    return observeVisibleLayerPromotion(
+      root.querySelectorAll<HTMLElement>('[data-frame]'),
+      '30% 0px',
+      'media'
+    )
+  }, [reduced, mobile])
 
   /* ------------------------------------------------- desktop choreography */
   useIsomorphicLayoutEffect(() => {
@@ -484,7 +496,7 @@ export default function FeaturedWorkJourney() {
             <div
               key={cs.id}
               data-frame
-              className="absolute inset-0 will-change-transform"
+              className="absolute inset-0"
               style={{ opacity: i === 0 ? 1 : 0 }}
             >
               <div

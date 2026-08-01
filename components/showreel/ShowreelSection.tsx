@@ -6,8 +6,13 @@ import { gsap } from '@/lib/gsap'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
 import { scrollToElementCenter } from '@/lib/scrollTo'
+import { observeVisibleLayerPromotion } from '@/lib/visibleLayerPromotion'
 
-const SRC = '/media/showreel/showreel.mp4'
+const SOURCES = {
+  compact: '/media/showreel/showreel-540.mp4',
+  standard: '/media/showreel/showreel-720.mp4',
+  large: '/media/showreel/showreel-1080.mp4',
+}
 const POSTER = '/media/showreel/showreel-poster.webp'
 
 /**
@@ -94,6 +99,13 @@ export default function ShowreelSection({ context }: { context?: 'home' | 'about
     }, sectionRef)
     return () => ctx.revert()
   }, [reduced, mobile, aboutPresentation])
+  useEffect(() => {
+    if (reduced) return
+    const targets = [frameRef.current, videoRef.current].filter(
+      (target): target is HTMLDivElement | HTMLVideoElement => target !== null
+    )
+    return observeVisibleLayerPromotion(targets, '30% 0px', 'media')
+  }, [reduced])
 
   useLayoutEffect(() => {
     if (!reduced || !aboutPresentation) return
@@ -288,13 +300,15 @@ export default function ShowreelSection({ context }: { context?: 'home' | 'about
           the viewport by the vertical-scrollbar gutter. */}
       <div
         ref={frameRef}
-        className="relative z-10 w-full will-change-transform"
+        data-showreel-frame
+        className="relative z-10 w-full"
         style={{ aspectRatio: '16 / 9', maxHeight: '100dvh' }}
       >
         <div className="relative h-full w-full">
           <video
             ref={videoRef}
-            className="absolute inset-0 h-full w-full cursor-pointer object-cover will-change-transform"
+            data-showreel-video
+            className="absolute inset-0 h-full w-full cursor-pointer object-cover"
             style={{ backgroundColor: 'var(--bg-900)', objectPosition: aboutPresentation ? '52% center' : 'center' }}
             poster={POSTER}
             muted
@@ -305,7 +319,23 @@ export default function ShowreelSection({ context }: { context?: 'home' | 'about
             tabIndex={-1}
             onClick={onVideoClick}
           >
-            <source src={SRC} type="video/mp4" />
+            <source
+              src={SOURCES.compact}
+              type="video/mp4"
+              media="(max-width: 639px)"
+              data-showreel-variant="compact"
+            />
+            <source
+              src={SOURCES.standard}
+              type="video/mp4"
+              media="(min-width: 640px) and (max-width: 1279px)"
+              data-showreel-variant="standard"
+            />
+            <source
+              src={SOURCES.large}
+              type="video/mp4"
+              data-showreel-variant="large"
+            />
           </video>
 
           {/* Subtle top/bottom feather so any letterbox space blends into black */}

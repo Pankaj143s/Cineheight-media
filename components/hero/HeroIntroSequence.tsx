@@ -7,24 +7,67 @@ import { setHeroProgress } from '@/lib/heroProgress'
 import {
   useIsMobileTier,
   useMotionCapabilityProfile,
-  useReducedMotion,
+  useReducedMotionState,
 } from '@/lib/useMediaPreferences'
+import type { HeroVantaTier } from './HeroVantaBirds'
 import { LIQUID_MEDIA_PROTO } from '@/lib/liquidMedia/config'
 import { setSignalIntensity } from '@/lib/liquidMedia/signalIntensity'
 
 const HeroVantaBirds = dynamic(() => import('./HeroVantaBirds'), { ssr: false })
 
-/** Cleaned true-alpha New-clouds plates (subtle cinematic hero). */
-const ASSETS = {
-  center: '/generated/hero-v5/cloud-center-clean.webp',
-  left: '/generated/hero-v5/cloud-left-clean.webp',
-  right: '/generated/hero-v5/cloud-right-clean.webp',
+function resolveVantaTier(mobile: boolean): HeroVantaTier {
+  const cores = navigator.hardwareConcurrency ?? 4
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4
+  const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true
+  const renderPixels = window.innerWidth * window.innerHeight * Math.min(window.devicePixelRatio, 2)
+  if (mobile || saveData || cores <= 4 || memory <= 4 || renderPixels > 5_000_000) return 'compact'
+  if (cores >= 8 && memory >= 8 && renderPixels <= 3_500_000) return 'high'
+  return 'standard'
 }
 
-function CloudPlate({ src }: { src: string }) {
+/** Cleaned true-alpha New-clouds plates (subtle cinematic hero). */
+const ASSETS = {
+  center: { src: '/generated/hero-v5/cloud-center-clean.webp', width: 1171, height: 622 },
+  left: { src: '/generated/hero-v5/cloud-left-clean.webp', width: 1322, height: 530 },
+  right: { src: '/generated/hero-v5/cloud-right-clean.webp', width: 1436, height: 436 },
+}
+
+function CloudPlate({
+  asset,
+  name,
+  sources,
+  priority = false,
+}: {
+  asset: { src: string; width: number; height: number }
+  name: 'center' | 'left' | 'right'
+  sources: Array<{ media: string; sizes: string }>
+  priority?: boolean
+}) {
+  const responsiveRoot = '/generated/hero-v5/responsive'
+  const srcSet = `${responsiveRoot}/cloud-${name}-640.webp 640w, ${responsiveRoot}/cloud-${name}-960.webp 960w, ${asset.src} ${asset.width}w`
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt="" draggable={false} decoding="async" />
+    <picture>
+      {sources.map((source) => (
+        <source
+          key={source.media}
+          media={source.media}
+          srcSet={srcSet}
+          sizes={source.sizes}
+        />
+      ))}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
+        width={asset.width}
+        height={asset.height}
+        alt=""
+        draggable={false}
+        decoding="async"
+        loading={priority ? 'eager' : 'lazy'}
+        fetchPriority={priority ? 'high' : 'auto'}
+        data-cloud-source={name}
+      />
+    </picture>
   )
 }
 
@@ -35,27 +78,14 @@ function CloudPlate({ src }: { src: string }) {
 export default function HeroIntroSequence() {
   const rootRef = useRef<HTMLElement>(null)
   const wordmarkRef = useRef<HTMLSpanElement>(null)
-  const reduced = useReducedMotion()
+  const fallbackRef = useRef<HTMLDivElement>(null)
+  const { reduced, ready: prefsReady } = useReducedMotionState()
   const mobile = useIsMobileTier()
   const profile = useMotionCapabilityProfile()
 
-  const [prefsReady, setPrefsReady] = useState(false)
   // useMotionCapabilityProfile starts as 'static' until its useEffect runs —
   // wait one effect pass so we don't treat that default as a real static tier.
   const [capabilityReady, setCapabilityReady] = useState(false)
-
-  useLayoutEffect(() => {
-    let alive = true
-    const id = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (alive) setPrefsReady(true)
-      })
-    })
-    return () => {
-      alive = false
-      cancelAnimationFrame(id)
-    }
-  }, [])
 
   useEffect(() => {
     setCapabilityReady(true)
@@ -64,7 +94,15 @@ export default function HeroIntroSequence() {
   const allowTitleScrub = !reduced && profile.level !== 'static'
   const allowCloudDrift = !reduced && profile.level !== 'static'
   // CSS also hides sides ≤767px; JS covers coarse-pointer "mobile tier" on wider screens
-  const showSideClouds = !mobile
+  const vantaTier = prefsReady && !reduced ? resolveVantaTier(mobile) : null
+
+  useLayoutEffect(() => {
+    if (!prefsReady || !reduced || !fallbackRef.current) return
+    fallbackRef.current.animate(
+      [{ opacity: 0.72, filter: 'brightness(0.82)' }, { opacity: 1, filter: 'brightness(1)' }],
+      { duration: 180, easing: 'ease-out', fill: 'forwards' }
+    )
+  }, [prefsReady, reduced])
 
   useLayoutEffect(() => {
     if (!prefsReady || !capabilityReady) return
@@ -330,7 +368,20 @@ export default function HeroIntroSequence() {
             z-12  transition light
             z-13  statement
         */}
-        <HeroVantaBirds />
+        {vantaTier ? (
+          <HeroVantaBirds tier={vantaTier} />
+        ) : (
+          <div
+            ref={fallbackRef}
+            data-vanta-fallback={prefsReady ? (reduced ? 'reduced' : 'pending') : 'preference-pending'}
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-0"
+            style={{
+              background:
+                'radial-gradient(ellipse 70% 50% at 50% 58%, rgba(0,94,170,0.18), transparent 72%), #000',
+            }}
+          />
+        )}
 
         <div
           data-layer="hero-composition"
@@ -360,30 +411,67 @@ export default function HeroIntroSequence() {
             <div data-layer="cloud-center" className="hero-cloud-plate hero-cloud-center">
               <div data-cloud-parallax="center">
                 <div data-cloud-drift="center">
-                  <CloudPlate src={ASSETS.center} />
+                  <CloudPlate
+                    asset={ASSETS.center}
+                    name="center"
+                    sources={[
+                      {
+                        media: '(max-width: 767px)',
+                        sizes: '(min-width: 715px) 468px, (max-width: 404px) 265px, 65.5vw',
+                      },
+                      {
+                        media: '(min-width: 1280px) and (max-width: 1439px)',
+                        sizes: '28.1vw',
+                      },
+                      {
+                        media: '(min-width: 1024px)',
+                        sizes: '(min-width: 1901px) 593px, (max-width: 1099px) 343px, 31.2vw',
+                      },
+                    ]}
+                    priority
+                  />
                 </div>
               </div>
             </div>
 
-            {showSideClouds && (
-              <div data-layer="cloud-left" className="hero-cloud-plate hero-cloud-left">
-                <div data-cloud-parallax="left">
-                  <div data-cloud-drift="left">
-                    <CloudPlate src={ASSETS.left} />
-                  </div>
+            <div data-layer="cloud-left" className="hero-cloud-plate hero-cloud-left">
+              <div data-cloud-parallax="left">
+                <div data-cloud-drift="left">
+                  <CloudPlate
+                    asset={ASSETS.left}
+                    name="left"
+                    sources={[
+                      {
+                        media: '(min-width: 768px) and (max-width: 1023px)',
+                        sizes: '(max-width: 937px) 390px, 41.6vw',
+                      },
+                      {
+                        media: '(min-width: 1024px)',
+                        sizes: '(min-width: 1867px) 728px, (max-width: 1199px) 468px, 39vw',
+                      },
+                    ]}
+                    priority
+                  />
                 </div>
               </div>
-            )}
+            </div>
 
-            {showSideClouds && (
-              <div data-layer="cloud-right" className="hero-cloud-plate hero-cloud-right">
-                <div data-cloud-parallax="right">
-                  <div data-cloud-drift="right">
-                    <CloudPlate src={ASSETS.right} />
+            <div data-layer="cloud-right" className="hero-cloud-plate hero-cloud-right">
+              <div data-cloud-parallax="right">
+                <div data-cloud-drift="right">
+                  <CloudPlate
+                    asset={ASSETS.right}
+                    name="right"
+                    sources={[
+                      {
+                        media: '(min-width: 1024px)',
+                        sizes: '(min-width: 1879px) 806px, (max-width: 1212px) 520px, 42.9vw',
+                      },
+                    ]}
+                  />
                   </div>
                 </div>
               </div>
-            )}
           </div>
         </div>
 
