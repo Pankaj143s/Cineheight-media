@@ -16,7 +16,7 @@ export default function Footer({ variant = 'standalone' }: { variant?: 'standalo
       className="relative z-10 pb-8"
       style={{ paddingTop: integrated ? 'clamp(3rem, 7vh, 6rem)' : '7vh' }}
     >
-      <div className={integrated ? 'flow-gutter' : 'mx-auto w-full max-w-[1800px] px-6 sm:px-10 lg:px-14'}>
+      <div className="flow-gutter">
         <div
           className="grid gap-x-10 gap-y-10 py-9 lg:grid-cols-12 lg:items-start"
           style={integrated ? undefined : { borderTop: '1px solid var(--border)' }}

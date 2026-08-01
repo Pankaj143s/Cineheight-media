@@ -64,14 +64,11 @@ function ProjectCopy({
         {String(PROJECTS.length).padStart(2, '0')}
       </p>
 
-      <h3
-        className="type-display-2 font-display mt-4 font-bold uppercase text-text-100"
-        style={{ maxWidth: '18ch' }}
-      >
+      <h3 className="type-display-2 font-display mt-4 max-w-[18ch] font-bold uppercase text-text-100 min-[1920px]:max-w-[20ch]">
         {cs.client}
       </h3>
 
-      <p className="font-body measure mt-5 text-[15px] leading-relaxed text-text-200 sm:text-base">
+      <p className="font-body measure mt-5 text-[15px] leading-relaxed text-text-200 sm:text-base min-[1920px]:text-[17px] min-[2560px]:text-lg">
         {cs.tagline}
       </p>
 
@@ -542,7 +539,7 @@ export default function FeaturedWorkJourney() {
             key={cs.id}
             data-copy
             aria-hidden={active !== i}
-            className="pointer-events-none absolute bottom-[9svh] left-0 z-30 flow-gutter w-full max-w-[46rem]"
+            className="pointer-events-none absolute bottom-[9svh] left-0 z-30 flow-gutter w-full max-w-[46rem] min-[1920px]:max-w-[52rem] min-[2560px]:max-w-[56rem]"
             style={{ opacity: 0 }}
           >
             <div className="pointer-events-auto">

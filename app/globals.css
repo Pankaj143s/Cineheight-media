@@ -716,13 +716,26 @@ html[data-modal-surface='true'][data-signal-cursor='true'] [role='button'] {
    the content column (a media panel pinned to its right edge, for instance)
    use exactly the same value.
 
-   Beyond ~104rem the gutter absorbs the extra width instead of letting the
-   column stretch: on a 5K display a 2000px line of body copy is unreadable,
-   and a media panel pinned to the far edge opens a dead gap in the middle of
-   the row. Full-bleed media does not use this class and still runs edge to
-   edge. Safe-area insets are respected for landscape phones. */
+   Beyond --content-max the gutter absorbs surplus width instead of letting
+   the column stretch forever (unreadable body lines / dead mid-row gaps on
+   5K). The rail steps up at 1920 and 2560 so 2K / Studio displays keep
+   readable side margins without the ~448px voids of a fixed 104rem cap.
+   Full-bleed media does not use this class and still runs edge to edge.
+   Safe-area insets are respected for landscape phones. */
 :root {
-  --gutter: max(clamp(1.25rem, 4vw, 7rem), calc((100vw - 104rem) / 2));
+  --content-max: 104rem; /* ~1664 — FHD / laptop baseline */
+  --gutter: max(clamp(1.25rem, 4vw, 7rem), calc((100vw - var(--content-max)) / 2));
+}
+/* Step above FHD so 1920×1080 keeps the familiar ~128px gutters. */
+@media (min-width: 2048px) {
+  :root {
+    --content-max: 120rem; /* ~1920 */
+  }
+}
+@media (min-width: 2560px) {
+  :root {
+    --content-max: 135rem; /* ~2160 */
+  }
 }
 .flow-gutter {
   padding-left: max(var(--gutter), env(safe-area-inset-left));
@@ -823,6 +836,16 @@ html[data-modal-surface='true'][data-signal-cursor='true'] [role='button'] {
   font-size: calc(clamp(1.9rem, 4.8vw, 4.6rem) * var(--display-scale));
   line-height: 0.98;
   letter-spacing: -0.028em;
+}
+@media (min-width: 1920px) {
+  .type-display-2 {
+    font-size: calc(clamp(2.05rem, 4.2vw, 5.1rem) * var(--display-scale));
+  }
+}
+@media (min-width: 2560px) {
+  .type-display-2 {
+    font-size: calc(clamp(2.25rem, 3.5vw, 5.6rem) * var(--display-scale));
+  }
 }
 .type-display-3 {
   font-size: calc(clamp(1.35rem, 2.6vw, 2.5rem) * var(--display-scale));

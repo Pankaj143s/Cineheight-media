@@ -164,7 +164,7 @@ export default function Navbar() {
       }}
       aria-hidden={!visible}
     >
-      <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-5 sm:px-8 lg:h-[72px] lg:px-10">
+      <div className="flow-gutter flex h-16 w-full items-center justify-between lg:h-[72px]">
         <Link href="/" className="flex flex-col leading-none" aria-label="Cineheight Media — home" onClick={reportUiClick}>
           <span
             className="font-display text-[15px] font-700 text-text-100"

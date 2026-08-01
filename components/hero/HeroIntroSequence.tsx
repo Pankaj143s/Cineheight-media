@@ -411,7 +411,7 @@ export default function HeroIntroSequence() {
             className="absolute inset-0 z-[13] flex items-center"
             style={{ opacity: 0, visibility: 'hidden' }}
           >
-            <div className="mx-auto w-full max-w-[1500px] px-6 sm:px-10 lg:px-14">
+            <div className="flow-gutter">
               <h2
                 className="font-display m-0 font-bold text-text-100"
                 style={{
@@ -445,7 +445,7 @@ export default function HeroIntroSequence() {
 
       {reduced && (
         <div className="relative flex min-h-[70vh] items-center">
-          <div className="mx-auto w-full max-w-[1500px] px-6 sm:px-10 lg:px-14">
+          <div className="flow-gutter">
             <h2
               className="font-display m-0 font-bold text-text-100"
               style={{
