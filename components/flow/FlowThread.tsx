@@ -5,6 +5,7 @@ import { clamp } from '@/lib/utils'
 import { useIsNarrow, useReducedMotion } from '@/lib/useMediaPreferences'
 import { readScrollSignal, subscribeScrollSignal } from '@/lib/scrollSignal'
 import { subscribeSignalIntensity } from '@/lib/liquidMedia/signalIntensity'
+import { getHeroProgress } from '@/lib/heroProgress'
 
 /**
  * The continuous #0089FF signal thread.
@@ -28,10 +29,60 @@ import { subscribeSignalIntensity } from '@/lib/liquidMedia/signalIntensity'
  * self-crossings, rather than hand-tuning a path by eye.
  *
  * Drawing: `strokeDashoffset` is a pure function of the scroll position, with
- * the leading tip sitting ~62 % down the viewport. It therefore grows on the
- * way down and retracts on the way up for free, and starts completely
- * undrawn because the first anchor sits below the opening viewport.
+ * the leading tip sitting ~62 % down the viewport. On the homepage the stroke
+ * stays fully undrawn until hero scrub reaches {@link HERO_THREAD_REVEAL}, then
+ * the tip grows from the visible top-left corner through screen center and on
+ * through the rest of the page route. Path geometry is always document-space
+ * (hero-top origin); sticky stacking uses a portal + translateY, not a moving lead.
  */
+
+/** Homepage hero scrub progress (0–1) before the thread may draw. */
+const HERO_THREAD_REVEAL = 0.6
+
+/**
+ * True while the sticky hero stage is still pinned.
+ * Sticky releases at scrollY ≈ heroBottom − vh; using 0.98·vh as a 1–2px buffer.
+ */
+function isHeroStickyActive(scrollY: number, heroBottom: number, vh = window.innerHeight) {
+  return scrollY < heroBottom - vh * 0.98
+}
+
+/**
+ * Keep the thread in the hero slot while the section still covers the viewport.
+ * Sticky ends mid-statement (at H−vh); unportaling then buries the stroke under
+ * the opaque hero inside .layer-content. Stay portaled until the stage has
+ * mostly scrolled away, with a post-sticky transform that keeps document coords aligned.
+ */
+function shouldParkInHeroSlot(
+  scrollY: number,
+  heroBottom: number,
+  heroProgress: number,
+  vh = window.innerHeight
+) {
+  if (heroProgress < HERO_THREAD_REVEAL) return false
+  // Hero section bottom still below ~20% of the viewport → still "on" the hero beat.
+  return scrollY < heroBottom - vh * 0.2
+}
+
+/** Document Y of the hero section bottom, or a fallback from the start marker. */
+function heroSectionBottom(heroStartEl: Element, heroY: number, vh: number) {
+  const heroSection = heroStartEl.closest('section') as HTMLElement | null
+  return heroSection
+    ? heroSection.offsetTop + heroSection.offsetHeight
+    : heroY + vh * 1.72
+}
+
+/**
+ * Map document-space SVG into the hero slot.
+ * While sticky: cancel scrollY. After sticky release the stage's top is
+ * (heroBottom − vh − scrollY); a constant −(heroBottom − vh) keeps alignment.
+ */
+function heroSlotTransform(scrollY: number, heroBottom: number, vh: number) {
+  if (isHeroStickyActive(scrollY, heroBottom, vh)) {
+    return `translate3d(0, ${(-scrollY).toFixed(1)}px, 0)`
+  }
+  return `translate3d(0, ${(-(heroBottom - vh)).toFixed(1)}px, 0)`
+}
 
 type Side = 'edge-left' | 'left' | 'center' | 'right' | 'edge-right'
 
@@ -69,7 +120,7 @@ interface Sample {
  * offsets are capped relative to the segment's height and vertical controls are
  * clamped inside the segment, so the curve can never double back on itself.
  */
-function buildPath(pts: Pt[]): string {
+function buildPath(pts: Pt[], maxDxRatio = 0.6): string {
   if (pts.length < 2) return ''
   let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`
 
@@ -80,9 +131,9 @@ function buildPath(pts: Pt[]): string {
     const p3 = pts[i + 2] ?? pts[i + 1]
 
     const dy = Math.max(1, p2.y - p1.y)
-    // A control point may lean sideways by at most 60 % of the segment height;
+    // A control point may lean sideways by at most maxDxRatio of the segment height;
     // beyond that the curve starts to read as a hook.
-    const maxDx = dy * 0.6
+    const maxDx = dy * maxDxRatio
 
     const c1x = p1.x + clamp((p2.x - p0.x) / 6, -maxDx, maxDx)
     const c2x = p2.x - clamp((p3.x - p1.x) / 6, -maxDx, maxDx)
@@ -98,7 +149,26 @@ function buildPath(pts: Pt[]): string {
   return d
 }
 
+/** Smooth J-curve from top-left corner to screen center (arrives heading down). */
+function leadCornerToCenter(a: Pt, b: Pt): string {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  // Drop near the left edge, then sweep into center with a downward finish
+  // so the handoff into the rest of the route stays smooth.
+  const c1x = a.x + dx * 0.02
+  const c1y = a.y + dy * 0.55
+  const c2x = b.x - dx * 0.08
+  const c2y = b.y - dy * 0.22
+  return (
+    `M ${a.x.toFixed(1)} ${a.y.toFixed(1)}` +
+    ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)},` +
+    ` ${c2x.toFixed(1)} ${c2y.toFixed(1)},` +
+    ` ${b.x.toFixed(1)} ${b.y.toFixed(1)}`
+  )
+}
+
 export default function FlowThread() {
+  const hostRef = useRef<HTMLDivElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const pathRef = useRef<SVGPathElement>(null)
@@ -110,13 +180,13 @@ export default function FlowThread() {
   // Restrained continuum cue — multiplies stroke opacity; never a progress bar.
   useEffect(() => {
     if (reduced) return
-    const base = 0.34
+    const base = 0.48
     return subscribeSignalIntensity((v) => {
       const path = pathRef.current
       if (!path) return
       const next = base + v * 0.28
-      path.style.opacity = String(Math.min(0.62, next))
-      path.style.strokeWidth = String(narrow ? 1.75 + v * 0.35 : 2.25 + v * 0.55)
+      path.style.opacity = String(Math.min(0.72, next))
+      path.style.strokeWidth = String(narrow ? 2 + v * 0.4 : 2.75 + v * 0.55)
     })
   }, [reduced, narrow])
 
@@ -143,44 +213,101 @@ export default function FlowThread() {
     )
     const scrollY = window.scrollY
     const table = narrow ? SIDE_X_NARROW : SIDE_X
+    const heroStartEl = document.querySelector<HTMLElement>('[data-hero-flow-start]')
+
+    const mapAnchor = (el: HTMLElement) => {
+      const rect = el.getBoundingClientRect()
+      const lead = Number(el.dataset.flowLead ?? '0.5')
+      const side = (el.dataset.flowAnchor || 'center') as Side
+      return {
+        x: (table[side] ?? 0.5) * vw,
+        y: rect.top + scrollY + rect.height * clamp(lead, 0, 1),
+      }
+    }
 
     const anchors = Array.from(
       document.querySelectorAll<HTMLElement>('[data-flow-anchor]')
     )
-      .map((el) => {
-        const rect = el.getBoundingClientRect()
-        const lead = Number(el.dataset.flowLead ?? '0.5')
-        const side = (el.dataset.flowAnchor || 'center') as Side
-        return {
-          x: (table[side] ?? 0.5) * vw,
-          y: rect.top + scrollY + rect.height * clamp(lead, 0, 1),
-        }
-      })
+      .filter((el) => el !== heroStartEl)
+      .map(mapAnchor)
       .sort((a, b) => a.y - b.y)
 
-    if (anchors.length < 2) {
-      path.setAttribute('d', '')
-      geo.current = { length: 0, startY: 0, endY: 0, docH, samples: [] }
-      return
-    }
+    // Homepage: one document-space path — top-left → center → page anchors.
+    // Sticky visibility uses portal + translateY(-scrollY); lead never tracks scrollY
+    // or the path rebuilds every frame and kinks at sticky release.
+    let pts: Pt[]
+    if (heroStartEl) {
+      const rect = heroStartEl.getBoundingClientRect()
+      const heroY = Math.max(0, rect.top + scrollY)
+      if (anchors.length < 1) {
+        path.setAttribute('d', '')
+        geo.current = { length: 0, startY: 0, endY: 0, docH, samples: [] }
+        return
+      }
+      const first = anchors[0]
+      const last = anchors[anchors.length - 1]
+      const vh = window.innerHeight
+      const leadY = heroY
+      const origin: Pt = { x: 2, y: leadY }
+      const center: Pt = { x: vw * 0.5, y: leadY + vh * 0.5 }
+      // Continue straight down from center so the join has no hard corner.
+      const exit: Pt = {
+        x: vw * 0.5,
+        y: Math.min(leadY + vh * 0.92, Math.max(center.y + 120, first.y - 200)),
+      }
+      // Lead is a dedicated smooth cubic; rest of the route is Catmull-Rom.
+      const restPts = [center, exit, ...anchors, { x: last.x + vw * 0.2, y: last.y + 220 }]
+      const lead = leadCornerToCenter(origin, center)
+      const rest = buildPath(restPts, 0.5).replace(/^M[^C]+/, '')
+      pts = [origin, center, exit, ...anchors, { x: last.x + vw * 0.2, y: last.y + 220 }]
 
-    // Lead-in above the first anchor and run-out past the last, both leaving
-    // the frame so the thread enters and exits rather than starting mid-air.
-    const first = anchors[0]
-    const last = anchors[anchors.length - 1]
-    const pts: Pt[] = [
-      { x: first.x - vw * 0.22, y: first.y - 180 },
-      ...anchors,
-      { x: last.x + vw * 0.2, y: last.y + 220 },
-    ]
+      svg.setAttribute('width', String(vw))
+      svg.setAttribute('height', String(docH))
+      wrap.style.height = `${docH}px`
+
+      path.setAttribute('d', `${lead} ${rest}`)
+
+      const length = path.getTotalLength()
+      path.style.strokeDasharray = `${length}`
+      // Safe default; paint() reapplies the tip on the same turn after schedule/exit.
+      path.style.strokeDashoffset = `${length}`
+
+      const SAMPLE_COUNT = 360
+      const samples: Sample[] = new Array(SAMPLE_COUNT + 1)
+      for (let i = 0; i <= SAMPLE_COUNT; i++) {
+        const len = (length * i) / SAMPLE_COUNT
+        const pt = path.getPointAtLength(len)
+        samples[i] = { len, x: pt.x, y: pt.y }
+      }
+
+      geo.current = { length, startY: pts[0].y, endY: pts[pts.length - 1].y, docH, samples }
+      return
+    } else {
+      if (anchors.length < 2) {
+        path.setAttribute('d', '')
+        geo.current = { length: 0, startY: 0, endY: 0, docH, samples: [] }
+        return
+      }
+      const first = anchors[0]
+      const last = anchors[anchors.length - 1]
+      pts = [
+        { x: first.x - vw * 0.22, y: first.y - 180 },
+        ...anchors,
+        { x: last.x + vw * 0.2, y: last.y + 220 },
+      ]
+    }
 
     svg.setAttribute('width', String(vw))
     svg.setAttribute('height', String(docH))
     wrap.style.height = `${docH}px`
-    path.setAttribute('d', buildPath(pts))
+
+    // Other routes: default Catmull-Rom through anchors.
+    const d = buildPath(pts)
+    path.setAttribute('d', d)
 
     const length = path.getTotalLength()
     path.style.strokeDasharray = `${length}`
+    path.style.strokeDashoffset = `${length}`
 
     /**
      * Sample the path into a lookup table of {len, x, y}.
@@ -215,11 +342,37 @@ export default function FlowThread() {
     let targetTipY = readScrollSignal().y + window.innerHeight * 0.62
     let currentTipY = targetTipY
     let lastFrame = performance.now()
+
+    /** Natural tip; while parked in the hero slot after reveal, grow corner → center. */
+    const resolveTipY = () => {
+      const scrollTop = readScrollSignal().y
+      const vh = window.innerHeight
+      const natural = scrollTop + vh * 0.62
+      const heroStart = document.querySelector('[data-hero-flow-start]')
+      if (!heroStart) return natural
+
+      const rect = heroStart.getBoundingClientRect()
+      const heroY = Math.max(0, rect.top + scrollTop)
+      const heroBottom = heroSectionBottom(heroStart, heroY, vh)
+      const p = getHeroProgress()
+      // Remap only while the stroke is still living in the hero slot.
+      if (!shouldParkInHeroSlot(scrollTop, heroBottom, p, vh)) return natural
+
+      const screenTop = scrollTop + 4
+      const screenCenter = scrollTop + vh * 0.5
+      if (p < HERO_THREAD_REVEAL) return screenTop
+      if (p < 1) {
+        const t = (p - HERO_THREAD_REVEAL) / (1 - HERO_THREAD_REVEAL)
+        return screenTop + (screenCenter - screenTop) * t
+      }
+      return natural
+    }
+
     const schedule = () => {
       cancelAnimationFrame(measureRaf)
       measureRaf = requestAnimationFrame(() => {
         measure()
-        targetTipY = readScrollSignal().y + window.innerHeight * 0.62
+        targetTipY = resolveTipY()
         currentTipY = targetTipY
         paint(currentTipY)
       })
@@ -267,6 +420,53 @@ export default function FlowThread() {
         return
       }
 
+      const wrap = wrapRef.current
+      const heroStart = document.querySelector('[data-hero-flow-start]')
+      const heroProgress = getHeroProgress()
+
+      // Homepage only: stay fully undrawn until hero scrub reaches the reveal gate.
+      if (heroStart && heroProgress < HERO_THREAD_REVEAL) {
+        path.style.strokeDashoffset = `${length}`
+        path.style.visibility = 'hidden'
+        const dot = dotRef.current
+        if (dot) dot.style.opacity = '0'
+        if (wrap) {
+          wrap.style.zIndex = 'var(--z-thread)'
+          wrap.style.transform = ''
+        }
+        return
+      }
+
+      path.style.visibility = 'visible'
+
+      // Hero beat (post-reveal): park in [data-hero-thread-slot] under statement,
+      // including after sticky release until the section has mostly left.
+      // Then --z-thread under .layer-content so video/copy stay on top.
+      if (wrap) {
+        if (heroStart) {
+          const scrollY = window.scrollY
+          const vh = window.innerHeight
+          const rect = heroStart.getBoundingClientRect()
+          const heroY = Math.max(0, rect.top + scrollY)
+          const heroBottom = heroSectionBottom(heroStart, heroY, vh)
+          const slot = document.querySelector<HTMLElement>('[data-hero-thread-slot]')
+          const inSlot = !!(
+            slot &&
+            shouldParkInHeroSlot(scrollY, heroBottom, heroProgress, vh)
+          )
+          if (inSlot) {
+            wrap.style.zIndex = 'auto'
+            wrap.style.transform = heroSlotTransform(scrollY, heroBottom, vh)
+          } else {
+            wrap.style.zIndex = 'var(--z-thread)'
+            wrap.style.transform = ''
+          }
+        } else {
+          wrap.style.zIndex = 'var(--z-thread)'
+          wrap.style.transform = ''
+        }
+      }
+
       const hit = lengthAtY(tipY)
       if (!hit) return
 
@@ -275,9 +475,10 @@ export default function FlowThread() {
       const dot = dotRef.current
       if (dot) {
         const drawn = hit.len / length
-        if (drawn <= 0.002 || drawn >= 0.998) {
+        if (drawn >= 0.998) {
           dot.style.opacity = '0'
         } else {
+          // Include the near-zero draw at reveal so the tip sits at top-left.
           dot.style.transform = `translate3d(${hit.x.toFixed(1)}px, ${hit.y.toFixed(1)}px, 0) translate(-50%, -50%)`
           dot.style.opacity = '1'
         }
@@ -287,9 +488,8 @@ export default function FlowThread() {
     const frame = (now: number) => {
       const dt = Math.min(50, now - lastFrame || 16.7)
       lastFrame = now
-      // Keep the original ~62% viewport position during fast reversals while
-      // still damping individual wheel/trackpad spikes.
-      currentTipY += (targetTipY - currentTipY) * (1 - Math.exp(-dt / 72))
+      // Softer follow (~120ms) so the tip tracks Lenis without jitter.
+      currentTipY += (targetTipY - currentTipY) * (1 - Math.exp(-dt / 120))
       paint(currentTipY)
       if (Math.abs(targetTipY - currentTipY) > 0.08 && !document.hidden) {
         motionRaf = requestAnimationFrame(frame)
@@ -300,12 +500,65 @@ export default function FlowThread() {
       }
     }
 
+    let wasPortaled = false
+
+    /** Move the same DOM node into the hero slot (no React remount / style reset). */
+    const syncHeroPortal = () => {
+      const wrap = wrapRef.current
+      const host = hostRef.current
+      const heroStart = document.querySelector('[data-hero-flow-start]')
+      const slot = document.querySelector<HTMLElement>('[data-hero-thread-slot]')
+      if (!wrap || !host) return { stickyActive: false, portaled: false, exited: false }
+      if (!heroStart || !slot) {
+        if (wrap.parentElement !== host) host.appendChild(wrap)
+        const exited = wasPortaled
+        wasPortaled = false
+        return { stickyActive: false, portaled: false, exited }
+      }
+      const scrollY = window.scrollY
+      const vh = window.innerHeight
+      const rect = heroStart.getBoundingClientRect()
+      const heroY = Math.max(0, rect.top + scrollY)
+      const heroBottom = heroSectionBottom(heroStart, heroY, vh)
+      const stickyActive = isHeroStickyActive(scrollY, heroBottom, vh)
+      const shouldPortal = shouldParkInHeroSlot(
+        scrollY,
+        heroBottom,
+        getHeroProgress(),
+        vh
+      )
+      const target = shouldPortal ? slot : host
+      if (wrap.parentElement !== target) target.appendChild(wrap)
+      const exited = wasPortaled && !shouldPortal
+      wasPortaled = shouldPortal
+      return { stickyActive, portaled: shouldPortal, exited }
+    }
+
     const wake = () => {
-      targetTipY = readScrollSignal().y + window.innerHeight * 0.62
-      if (reduced) {
+      const { exited } = syncHeroPortal()
+      // Path is document-stable — only remeasure on exit (safety) or schedule/reflow.
+      if (exited) measure()
+
+      targetTipY = resolveTipY()
+      if (exited) {
+        // Snap tip across portal exit; path `d` is unchanged.
+        const wrap = wrapRef.current
+        if (wrap) {
+          wrap.style.zIndex = 'var(--z-thread)'
+          wrap.style.transform = ''
+        }
+        currentTipY = targetTipY
         paint(targetTipY)
+        if (reduced) return
+        if (running || document.hidden) return
+        running = true
+        lastFrame = performance.now()
+        motionRaf = requestAnimationFrame(frame)
         return
       }
+
+      paint(reduced ? targetTipY : currentTipY)
+      if (reduced) return
       if (running || document.hidden) return
       running = true
       lastFrame = performance.now()
@@ -313,6 +566,7 @@ export default function FlowThread() {
     }
 
     measure()
+    syncHeroPortal()
     paint(currentTipY)
 
     // Fonts and late-loading media change the document height; ResizeObserver
@@ -356,21 +610,47 @@ export default function FlowThread() {
       unsubscribe()
       window.removeEventListener('resize', schedule)
       document.removeEventListener('visibilitychange', onVis)
+      // Return the thread to the React host before unmount.
+      const wrap = wrapRef.current
+      const host = hostRef.current
+      if (wrap && host && wrap.parentElement !== host) host.appendChild(wrap)
     }
   }, [measure, reduced])
 
+  return (
+    <div ref={hostRef} aria-hidden="true">
+      <ThreadChrome
+        wrapRef={wrapRef}
+        svgRef={svgRef}
+        pathRef={pathRef}
+        dotRef={dotRef}
+        narrow={narrow}
+        reduced={reduced}
+      />
+    </div>
+  )
+}
+
+function ThreadChrome({
+  wrapRef,
+  svgRef,
+  pathRef,
+  dotRef,
+  narrow,
+  reduced,
+}: {
+  wrapRef: React.RefObject<HTMLDivElement | null>
+  svgRef: React.RefObject<SVGSVGElement | null>
+  pathRef: React.RefObject<SVGPathElement | null>
+  dotRef: React.RefObject<HTMLDivElement | null>
+  narrow: boolean
+  reduced: boolean
+}) {
   return (
     <div
       ref={wrapRef}
       aria-hidden="true"
       className="pointer-events-none absolute left-0 top-0 w-full"
-      // clip on X only: the route's off-screen excursions are meant to be cut
-      // at the viewport edge (that is how the thread "leaves and re-enters"),
-      // while the leading dot must never be clipped vertically.
-      // The thread is decorative background: it sits at --z-thread, below every
-      // route's `.layer-content` wrapper (--z-content). That wrapper isolates
-      // its own stacking context, so no section can ever drop behind the line
-      // and no local z-index can lift the line above content.
       style={{ zIndex: 'var(--z-thread)', overflowX: 'clip' }}
     >
       <svg
@@ -384,30 +664,27 @@ export default function FlowThread() {
           data-flow-thread-path
           d=""
           stroke="#0089FF"
-          strokeWidth={narrow ? 1.75 : 2.25}
+          strokeWidth={narrow ? 2.25 : 3}
           strokeLinecap="round"
           fill="none"
           style={{
-            opacity: reduced ? 0.16 : 0.34,
-            filter: 'drop-shadow(0 0 4px rgba(0,137,255,0.5))',
-            // Undrawn until the effect measures — never a full-path flash.
+            opacity: reduced ? 0.2 : 0.55,
+            filter: 'drop-shadow(0 0 6px rgba(0,137,255,0.65))',
             strokeDasharray: 4000,
             strokeDashoffset: 4000,
-            // Continuum cue multiplies base opacity (restrained; never a loader).
             ['--signal-cue' as string]: '0',
           }}
           data-signal-path
         />
       </svg>
 
-      {/* Leading light — a real round element in pixel space, never distorted */}
       {!reduced && (
         <div
           ref={dotRef}
           className="absolute left-0 top-0 will-change-transform"
           style={{
-            width: narrow ? 2.5 : 3.2,
-            height: narrow ? 2.5 : 3.2,
+            width: narrow ? 3.5 : 4.5,
+            height: narrow ? 3.5 : 4.5,
             borderRadius: '9999px',
             background: '#DCEEFF',
             boxShadow: '0 0 6px 2px rgba(0,137,255,0.85), 0 0 18px 7px rgba(0,137,255,0.4)',

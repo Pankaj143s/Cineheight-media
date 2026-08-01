@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { contact, services } from '@/content/siteContent'
+import { reportUiClick } from '@/lib/audio/reportUiClick'
 
 type FormVariant = 'compact' | 'full'
 type FieldErrors = Record<string, string>
@@ -25,6 +26,7 @@ export default function ProjectContactForm({ variant }: { variant: FormVariant }
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    reportUiClick()
     const form = event.currentTarget
     const data = new FormData(form)
     const payload = {

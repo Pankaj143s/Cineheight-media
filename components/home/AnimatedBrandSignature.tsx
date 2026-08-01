@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { useReducedMotion } from '@/lib/useMediaPreferences'
+import { SCRUB } from '@/lib/motionTokens'
 
 /**
  * The closing wordmark.
@@ -28,7 +29,13 @@ export default function AnimatedBrandSignature() {
     const fill = root.querySelector('[data-signature-fill]')
     const media = root.querySelector('[data-signature-media]')
     const timeline = gsap.timeline({
-      scrollTrigger: { trigger: root, start: 'top 82%', once: true },
+      defaults: { ease: 'none' },
+      scrollTrigger: {
+        trigger: root,
+        start: 'top 82%',
+        end: 'top 40%',
+        scrub: SCRUB.signal,
+      },
     })
     // The blue rule that used to draw across the wordmark is gone. Its 0.15s
     // slot went with it and the fill now begins at 0.12 instead of 0.3, so the
@@ -39,12 +46,13 @@ export default function AnimatedBrandSignature() {
       .fromTo(
         fill,
         { clipPath: 'inset(0 100% 0 0)', letterSpacing: '0.075em' },
-        { clipPath: 'inset(0 0% 0 0)', letterSpacing: '0.012em', duration: 1.05, ease: 'power3.inOut' },
+        { clipPath: 'inset(0 0% 0 0)', letterSpacing: '0.012em', duration: 1.05 },
         0.12
       )
       .fromTo(media, { opacity: 0, x: -8 }, { opacity: 1, x: 0, duration: 0.42 }, '-=0.28')
     return () => {
-      timeline.revert()
+      timeline.scrollTrigger?.kill()
+      timeline.kill()
     }
   }, [reduced])
 

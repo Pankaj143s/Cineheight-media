@@ -177,7 +177,7 @@ export const about = {
 // ------------------------------------------------------- trusted clients
 export interface TrustedClient {
   name: string
-  /** Trimmed copy — see scripts/trim-logos.mjs. Originals stay in /logos. */
+  /** Trimmed transparent copy — see scripts/process-brand-logos-v2.mjs. */
   logo: string
   /** Intrinsic size of the TRIMMED artwork (measured, not guessed). */
   w: number
@@ -188,30 +188,24 @@ export interface TrustedClient {
    * a thin wordmark reads lighter than a solid roundel of the same area.
    */
   scale?: number
-  /** Dark/colour-on-transparent marks need a faint light plate to read */
-  needsLightPlate?: boolean
 }
 
 /**
- * Logos point at the TRIMMED copies. The four `trusted/*` marks were 67–81%
- * transparent padding, so at a shared max-height they rendered roughly a third
- * the size of everything else. See `logoBox` below for how they are sized.
+ * Logos point at black→alpha trimmed copies in /logos/optimized.
+ * See `logoBox` for ink-area sizing across wide wordmarks and roundels.
  */
 export const trustedClients: TrustedClient[] = [
-  { name: 'Sapale Yamaha', logo: '/logos/optimized/yamaha-logo.png', w: 1096, h: 299 },
-  { name: 'Sindhudurg Education Society', logo: '/logos/optimized/ses-white-text-logo.png', w: 874, h: 233 },
-  { name: 'Divija Old Age Home', logo: '/logos/optimized/divija-logo.png', w: 384, h: 500, needsLightPlate: true, scale: 0.92 },
-  { name: 'ONGC', logo: '/logos/optimized/ongc-logo.png', w: 850, h: 906, needsLightPlate: true, scale: 0.92 },
-  { name: 'WetNJoy', logo: '/logos/optimized/wetnjoy-logo-footer.png', w: 400, h: 154 },
-  { name: 'Walkswagon', logo: '/logos/optimized/walkswagon-logo.png', w: 572, h: 572, needsLightPlate: true, scale: 0.9 },
-  // Already the widest mark; the height floor gives it enough presence.
-  { name: 'Askara', logo: '/logos/optimized/askara-logo.png', w: 300, h: 66 },
-  { name: 'DJI', logo: '/logos/optimized/dji-blue-logo.png', w: 835, h: 481, needsLightPlate: true, scale: 0.95 },
-  { name: 'Sapale', logo: '/logos/optimized/sapale-logo.png', w: 701, h: 198 },
-  { name: 'Dave and Busters', logo: '/logos/optimized/trusted-dave-and-busters.png', w: 78, h: 78, scale: 0.95 },
-  { name: 'Election Commission of India', logo: '/logos/optimized/trusted-election-commission.png', w: 93, h: 88, scale: 0.95 },
-  { name: 'Imagica', logo: '/logos/optimized/trusted-imagica.png', w: 159, h: 66 },
-  { name: 'NHAI', logo: '/logos/optimized/trusted-nhai.png', w: 106, h: 70 },
+  { name: 'Yamaha', logo: '/logos/optimized/yamaha-logo.png', w: 599, h: 129 },
+  { name: 'Sindhudurg Education Society', logo: '/logos/optimized/ses-logo.png', w: 858, h: 227 },
+  { name: 'Divija Old Age Home', logo: '/logos/optimized/divija-logo.png', w: 397, h: 520, scale: 0.92 },
+  { name: 'WetNJoy', logo: '/logos/optimized/wet-n-joy-logo.png', w: 600, h: 226 },
+  { name: 'Askara Group', logo: '/logos/optimized/askara-group-logo.png', w: 620, h: 161 },
+  { name: 'DJI', logo: '/logos/optimized/dji-logo.png', w: 500, h: 289, scale: 0.95 },
+  { name: 'Dave and Busters', logo: '/logos/optimized/dave-and-busters-logo.png', w: 460, h: 460, scale: 0.95 },
+  { name: 'Election Commission of India', logo: '/logos/optimized/election-commission-india-logo.png', w: 392, h: 391, scale: 0.95 },
+  { name: 'Imagicaa', logo: '/logos/optimized/imagicaa-logo.png', w: 600, h: 252 },
+  { name: 'NHAI', logo: '/logos/optimized/nhai-logo.png', w: 540, h: 357 },
+  { name: 'Volkswagen', logo: '/logos/optimized/volkswagen-logo.png', w: 420, h: 420, scale: 0.95 },
 ]
 
 /**
@@ -231,12 +225,11 @@ export function logoBox(
   /** Multiplier for the tier (mobile rows are smaller than desktop). */
   tier = 1
 ): { width: number; height: number } {
-  const MAX_W = 175
-  const MIN_W = 110
-  const MAX_H = 68
-  const MIN_H = 38
-  /** Target ink area in px² — tuned so the mid-ratio marks land mid-box. */
-  const TARGET_AREA = 4300
+  const MAX_W = 168
+  const MAX_H = 64
+  const MIN_H = 40
+  /** Target ink area in px² — tuned for the standardized 2026 mark set. */
+  const TARGET_AREA = 4600
 
   const ratio = client.w / client.h
   // area = w * h and w = ratio * h  ⇒  h = sqrt(area / ratio)
@@ -248,12 +241,8 @@ export function logoBox(
   if (h > MAX_H) { h = MAX_H; w = h * ratio }
   if (h < MIN_H) { h = MIN_H; w = h * ratio }
   if (w > MAX_W) { w = MAX_W; h = w / ratio }
-  // MIN_W is a floor for the *slot*, not a stretch — a tall mark may be narrower.
   return { width: Math.round(w), height: Math.round(h) }
 }
-
-/** Consistent slot width so the rows read as an even rhythm. */
-export const LOGO_SLOT_MIN_W = 110
 
 // -------------------------------------------------------------- showreel
 export const showreel = {

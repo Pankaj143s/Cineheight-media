@@ -1,23 +1,22 @@
 'use client'
 
-import { useMemo } from 'react'
-import { useInViewOnce } from './useInViewOnce'
+import { useMemo, useRef } from 'react'
+import { useScrollScrub } from './useScrollScrub'
+import { STAGGER_S, TRIGGER } from '@/lib/motionTokens'
 
 /**
  * The small transition line ("SELECTED WORK", "CLIENT STORIES"). Characters
- * arrive on a tight stagger and a hairline draws out beside them, so the label
- * reads as part of the signal rather than as a section eyebrow sitting above a
- * block.
+ * and the hairline rule scrub with scroll — down reveals, up rewinds.
  *
  * Accessibility: the label text is exposed once via `sr-only`; the per-character
- * spans are `aria-hidden` (a screen reader must never spell out "S E L E C T E D").
+ * spans are `aria-hidden`.
  */
 export default function KineticLabel({
   text,
   className = '',
   style,
   delay = 0,
-  amount = 0.4,
+  amount: _amount = 0.4,
   /** Draw a short rule before the text — the thread arriving at the label. */
   rule = true,
   color = 'var(--blue-400)',
@@ -30,17 +29,8 @@ export default function KineticLabel({
   rule?: boolean
   color?: string
 }) {
-  const { ref, shown, reduced } = useInViewOnce<HTMLDivElement>(amount)
+  const rootRef = useRef<HTMLDivElement>(null)
 
-  /**
-   * Split into WORDS first, then characters inside each word.
-   *
-   * Every character is an inline-block and the browser may break a line between
-   * any two inline-blocks — which is exactly what produced fragments like
-   * "CAMP / AIGN SYSTE / MS" and "SHOR / T-FORM". Wrapping each word in a
-   * `nowrap` span makes words atomic again, so a label can only break at a real
-   * space. A running index keeps the stagger continuous across word boundaries.
-   */
   const words = useMemo(() => {
     let index = 0
     return text.split(' ').map((word, w) => ({
@@ -49,17 +39,46 @@ export default function KineticLabel({
     }))
   }, [text])
 
+  useScrollScrub(
+    rootRef,
+    (tl, trigger) => {
+      const ruleEl = trigger.querySelector<HTMLElement>('[data-kinetic-rule]')
+      const chars = trigger.querySelectorAll<HTMLElement>('[data-kinetic-char]')
+      if (ruleEl) {
+        tl.fromTo(ruleEl, { scaleX: 0 }, { scaleX: 1, duration: 0.35 }, delay)
+      }
+      if (chars.length) {
+        tl.fromTo(
+          chars,
+          { autoAlpha: 0, y: '0.5em' },
+          { autoAlpha: 1, y: 0, duration: 0.45, stagger: STAGGER_S.char },
+          delay + 0.12
+        )
+      }
+    },
+    (trigger) => {
+      const ruleEl = trigger.querySelector<HTMLElement>('[data-kinetic-rule]')
+      const chars = trigger.querySelectorAll<HTMLElement>('[data-kinetic-char]')
+      if (ruleEl) ruleEl.style.transform = 'scaleX(1)'
+      chars.forEach((el) => {
+        el.style.opacity = '1'
+        el.style.transform = 'none'
+      })
+    },
+    { start: TRIGGER.headlineStart, end: 'top 48%', deps: [text, delay, rule] }
+  )
+
   return (
-    <div ref={ref} className={`flex items-center gap-3 ${className}`} style={style}>
+    <div ref={rootRef} className={`flex items-center gap-3 ${className}`} style={style}>
       {rule && (
         <span
+          data-kinetic-rule
           aria-hidden="true"
           className="h-px shrink-0 origin-left"
           style={{
             width: 34,
             background: color,
-            transform: shown ? 'scaleX(1)' : 'scaleX(0)',
-            transition: reduced ? 'none' : `transform 0.9s cubic-bezier(0.16,1,0.3,1) ${delay}s`,
+            transform: 'scaleX(0)',
           }}
         />
       )}
@@ -74,15 +93,9 @@ export default function KineticLabel({
             {word.chars.map(({ ch, i }) => (
               <span
                 key={i}
+                data-kinetic-char
                 className="inline-block"
-                style={{
-                  opacity: shown ? 1 : 0,
-                  transform: shown ? 'translate3d(0,0,0)' : 'translate3d(0,0.5em,0)',
-                  transition: reduced
-                    ? 'none'
-                    : `opacity 0.5s linear ${delay + 0.18 + i * 0.022}s,` +
-                      ` transform 0.7s cubic-bezier(0.16,1,0.3,1) ${delay + 0.18 + i * 0.022}s`,
-                }}
+                style={{ opacity: 0, transform: 'translate3d(0,0.5em,0)' }}
               >
                 {ch}
               </span>

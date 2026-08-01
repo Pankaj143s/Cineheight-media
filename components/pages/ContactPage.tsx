@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { contact, closing } from '@/content/siteContent'
 import KineticLabel from '@/components/motion/KineticLabel'
 import OpticalResolve from '@/components/motion/OpticalResolve'
+import Reveal from '@/components/ui/Reveal'
 import ProjectContactForm from '@/components/contact/ProjectContactForm'
 import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
@@ -191,9 +192,9 @@ export default function ContactPage() {
           style={{ fontSize: 'clamp(2.4rem, 9vw, 7.5rem)', lineHeight: 0.88, letterSpacing: '-0.04em' }}
         />
         <p className="sr-only">{closing.question}</p>
-        <p className="font-body measure mt-8 text-base leading-relaxed text-text-300 sm:text-lg">
+        <Reveal variant="fade-up" delay={0.08} className="font-body measure mt-8 text-base leading-relaxed text-text-300 sm:text-lg">
           Share the brief. A real person replies — and helps you find the right next step.
-        </p>
+        </Reveal>
       </header>
 
       <section aria-label="Contact channels and project form" className="flow-gutter relative z-10" style={{ marginTop: mobile ? '7vh' : '10vh' }}>
@@ -208,29 +209,31 @@ export default function ContactPage() {
                 className="list-none"
                 style={{ marginTop: mobile ? 0 : `${[0, 2.5, 1, 3.5][i] ?? 0}rem` }}
               >
-                <a
-                  href={ch.href}
-                  {...(ch.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-                  className="group block max-w-[24ch]"
-                  onFocus={() => setFocused(i)}
-                  onBlur={() => setFocused(null)}
-                >
-                  <p className="font-display text-[10px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.3em' }}>
-                    {ch.label}
-                  </p>
-                  <p
-                    className="font-display mt-3 flex min-h-[44px] items-center whitespace-nowrap font-bold text-text-100 transition-colors duration-300 group-hover:text-[var(--blue-200)] group-focus-visible:text-[var(--blue-200)]"
-                    style={{ fontSize: 'clamp(1.2rem, 2.4vw, 2rem)', lineHeight: 1.04, letterSpacing: '-0.02em' }}
+                <Reveal variant="fade-up" delay={0.04 * i} as="div">
+                  <a
+                    href={ch.href}
+                    {...(ch.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                    className="group block max-w-[24ch]"
+                    onFocus={() => setFocused(i)}
+                    onBlur={() => setFocused(null)}
                   >
-                    {ch.value}
-                  </p>
-                  <span
-                    aria-hidden="true"
-                    className="mt-3 block h-px transition-all duration-500 group-hover:w-24 group-focus-visible:w-24"
-                    style={{ width: focused === i ? 96 : 40, background: 'var(--blue-500)' }}
-                  />
-                  <p className="font-body mt-4 text-sm leading-relaxed text-text-500">{ch.hint}</p>
-                </a>
+                    <p className="font-display text-[10px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.3em' }}>
+                      {ch.label}
+                    </p>
+                    <p
+                      className="font-display mt-3 flex min-h-[44px] items-center whitespace-nowrap font-bold text-text-100 transition-colors duration-300 group-hover:text-[var(--blue-200)] group-focus-visible:text-[var(--blue-200)]"
+                      style={{ fontSize: 'clamp(1.2rem, 2.4vw, 2rem)', lineHeight: 1.04, letterSpacing: '-0.02em' }}
+                    >
+                      {ch.value}
+                    </p>
+                    <span
+                      aria-hidden="true"
+                      className="mt-3 block h-px transition-all duration-500 group-hover:w-24 group-focus-visible:w-24"
+                      style={{ width: focused === i ? 96 : 40, background: 'var(--blue-500)' }}
+                    />
+                    <p className="font-body mt-4 text-sm leading-relaxed text-text-500">{ch.hint}</p>
+                  </a>
+                </Reveal>
               </li>
             ))}
           </ul>
@@ -259,18 +262,20 @@ export default function ContactPage() {
       </section>
 
       <section aria-label="Studio" className="flow-gutter relative z-10" style={{ marginTop: mobile ? '8vh' : '12vh' }}>
-        <p className="font-display text-[10px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.3em' }}>
-          Studio
-        </p>
-        <p
-          className="font-display mt-4 font-bold text-text-100"
-          style={{ fontSize: 'clamp(1.6rem, 4.4vw, 3.6rem)', lineHeight: 1, letterSpacing: '-0.025em' }}
-        >
-          {contact.location}
-        </p>
-        <p className="font-body measure mt-5 text-sm leading-relaxed text-text-500">
-          Rooted in Konkan, working with brands anywhere.
-        </p>
+        <Reveal variant="fade-up" as="div">
+          <p className="font-display text-[10px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.3em' }}>
+            Studio
+          </p>
+          <p
+            className="font-display mt-4 font-bold text-text-100"
+            style={{ fontSize: 'clamp(1.6rem, 4.4vw, 3.6rem)', lineHeight: 1, letterSpacing: '-0.025em' }}
+          >
+            {contact.location}
+          </p>
+          <p className="font-body measure mt-5 text-sm leading-relaxed text-text-500">
+            Rooted in Konkan, working with brands anywhere.
+          </p>
+        </Reveal>
         <div data-flow-anchor="edge-left" className="pointer-events-none h-px" aria-hidden="true" />
       </section>
     </main>

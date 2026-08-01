@@ -8,6 +8,7 @@ import type { CasePresentation } from '@/content/caseStudyPresentation'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { SCRUB } from '@/lib/motionTokens'
 
 /**
  * Act 3 — what Cineheight changed, as three strategic moves.
@@ -45,10 +46,9 @@ export default function CaseStrategy({
           {
             autoAlpha: 1,
             y: 0,
-            duration: 0.75,
             stagger: 0.09,
-            ease: 'power3.out',
-            scrollTrigger: { trigger: move, start: 'top 82%' },
+            ease: 'none',
+            scrollTrigger: { trigger: move, start: 'top 82%', end: 'top 48%', scrub: SCRUB.text },
           }
         )
         const rule = move.querySelector('[data-move-rule]')
@@ -58,10 +58,8 @@ export default function CaseStrategy({
             { scaleX: 0 },
             {
               scaleX: 1,
-              duration: 0.9,
-              ease: 'power2.out',
-              delay: 0.1,
-              scrollTrigger: { trigger: move, start: 'top 82%' },
+              ease: 'none',
+              scrollTrigger: { trigger: move, start: 'top 82%', end: 'top 48%', scrub: SCRUB.text },
             }
           )
         }

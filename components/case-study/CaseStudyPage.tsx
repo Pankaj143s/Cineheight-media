@@ -12,8 +12,8 @@ import CaseStrategy from './CaseStrategy'
 import CaseMetrics from './CaseMetrics'
 import NextProject from './NextProject'
 import KineticLabel from '@/components/motion/KineticLabel'
-import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import StrokeFillHeadline from '@/components/motion/StrokeFillHeadline'
+import Reveal from '@/components/ui/Reveal'
 import type { PhoneReelItem } from '@/components/media/PhoneReelShell'
 import type { OrbitItem } from '@/components/media/CreativeOrbit'
 
@@ -118,9 +118,14 @@ export default function CaseStudyPage({ slug }: { slug: string }) {
             accent={cs.accentColor}
             className="type-display-2 font-display mt-6 max-w-[20ch] font-bold uppercase text-text-100"
           />
-          <p className="font-body mt-6 text-[15px] leading-relaxed text-text-300 sm:text-base" style={{ maxWidth: '52ch' }}>
+          <Reveal
+            variant="fade-up"
+            delay={0.06}
+            className="font-body mt-6 text-[15px] leading-relaxed text-text-300 sm:text-base"
+            style={{ maxWidth: '52ch' }}
+          >
             {bridge.supporting}
-          </p>
+          </Reveal>
         </div>
       </section>
 
@@ -148,12 +153,14 @@ export default function CaseStudyPage({ slug }: { slug: string }) {
         </div>
       ) : (
         <section aria-label="Static creatives" className="flow-gutter relative z-10" style={{ marginTop: '12vh' }}>
-          <p className="font-display text-[11px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.3em' }}>
-            Creatives
-          </p>
-          <p className="font-body mt-5 text-sm leading-relaxed text-text-500" style={{ maxWidth: '46ch' }}>
-            The post creatives from this campaign have not been supplied yet.
-          </p>
+          <Reveal variant="fade-up" as="div">
+            <p className="font-display text-[11px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.3em' }}>
+              Creatives
+            </p>
+            <p className="font-body mt-5 text-sm leading-relaxed text-text-500" style={{ maxWidth: '46ch' }}>
+              The post creatives from this campaign have not been supplied yet.
+            </p>
+          </Reveal>
         </section>
       )}
 

@@ -1,123 +1,49 @@
 'use client'
 
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { gsap, ScrollTrigger } from '@/lib/gsap'
+import { gsap, ScrollTrigger, SplitText } from '@/lib/gsap'
 import { setHeroProgress } from '@/lib/heroProgress'
-import { useIsMobileTier, useMotionCapabilityProfile, useReducedMotion } from '@/lib/useMediaPreferences'
-import { useRippleTier } from '@/lib/useRippleTier'
+import {
+  useIsMobileTier,
+  useMotionCapabilityProfile,
+  useReducedMotion,
+} from '@/lib/useMediaPreferences'
 import { LIQUID_MEDIA_PROTO } from '@/lib/liquidMedia/config'
 import { setSignalIntensity } from '@/lib/liquidMedia/signalIntensity'
-import HeroWordmarkRefraction from './HeroWordmarkRefraction'
 
-// Client-only, matching the FlowDirector dynamic-import pattern used
-// elsewhere so a reduced-motion visitor never downloads the chunk at all.
-const HeroRippleBackground = dynamic(() => import('./HeroRippleBackground'), { ssr: false })
+const HeroVantaBirds = dynamic(() => import('./HeroVantaBirds'), { ssr: false })
 
-// hero-v4 — natural rounded clouds with true baked alpha (no screen-blend,
-// no radial masks). v3 wisps (smoke-like, one with empty alpha) are retired.
+/** Cleaned true-alpha New-clouds plates (subtle cinematic hero). */
 const ASSETS = {
-  back: '/generated/hero-v4/cloud-back-soft.webp',
-  frontLeft: '/generated/hero-v4/cloud-front-left.webp',
-  frontRight: '/generated/hero-v4/cloud-front-right.webp',
-  traveller: '/generated/hero-v4/cloud-traveller.webp',
-  // Two stock clouds (checker-alpha recovered, see scripts/process-hero-clouds.mjs),
-  // added as extra depth layers in the SAME hero-v4 system — desktop only, same
-  // rule as front-right (mobile stays limited to one front cloud + traveller).
-  hazeBand: '/generated/hero-v4/cloud-haze-band.webp',
-  puffAccent: '/generated/hero-v4/cloud-puff-accent.webp',
+  center: '/generated/hero-v5/cloud-center-clean.webp',
+  left: '/generated/hero-v5/cloud-left-clean.webp',
+  right: '/generated/hero-v5/cloud-right-clean.webp',
 }
 
-/**
- * A seamless two-copy marquee. Track width == `periodVw`, copy-2 sits exactly
- * one period away, so animating the track `xPercent` by ±100 (= one period)
- * lands copy-2 where copy-1 was — continuous drift, NO reversal, NO snap.
- * `reverse` drifts rightward. Scroll parallax animates the OUTER wrapper; this
- * inner track only animates xPercent, so transforms never collide.
- *
- * Set `cloudWidthVw` GREATER than `periodVw` for a layer whose asset feathers to
- * alpha 0 at its own edges (the two hazes). Tiled at exactly one period the two
- * copies sit edge-to-edge, so the pair of transparent edges reads as a thinning
- * band sweeping through the layer; the excess width makes them cross-fade
- * instead. Two copies still cover the track at every offset — the overlap means
- * a gap can never open (a third copy would only add a wasted decode).
- *
- * A cloud NARROWER than the period is the opposite case, and intentional: the
- * gap is the empty sky a single cloud drifts across.
- */
-function Marquee({
-  src,
-  periodVw,
-  cloudWidthVw,
-  dur,
-  phase,
-  reverse = false,
-}: {
-  src: string
-  periodVw: number
-  cloudWidthVw: number
-  dur: number
-  phase: number
-  reverse?: boolean
-}) {
+function CloudPlate({ src }: { src: string }) {
   return (
-    <div
-      data-marquee
-      data-dur={dur}
-      data-phase={phase}
-      data-reverse={reverse ? 1 : 0}
-      className="absolute top-0 h-full will-change-transform"
-      style={{ left: 0, width: `${periodVw}vw` }}
-    >
-      {[0, 1].map((i) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={i}
-          src={src}
-          alt=""
-          draggable={false}
-          className="absolute top-0"
-          // NATURAL aspect (width-driven, height auto) — never stretched.
-          style={{ left: `${(reverse ? -i : i) * periodVw}vw`, width: `${cloudWidthVw}vw`, height: 'auto' }}
-        />
-      ))}
-    </div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt="" draggable={false} decoding="async" />
   )
 }
 
 /**
- * Unified pinned intro (spec Part A). Cloud system: a faint wide background
- * haze behind the word + two ASYMMETRIC natural front clouds crossing the lower
- * C-I-N / G-H-T + one small travelling cloud — all true-alpha WebPs composited
- * normally over #020306.
- *
- * The CINEHEIGHT → brand-statement handoff is one MASTER GSAP timeline driven by
- * named labels (opening / depthStart / heroExit / statementApproach /
- * statementReveal / navbarReveal / introSettled). Every element is tied to the
- * same labels — no independently-guessed per-element timing. All primary
- * transforms use `ease: 'none'` so scroll position maps predictably to visual
- * state; scrub ~1.15. The navbar subscribes to the same progress and reveals at
- * the `navbarReveal` fraction (0.68).
+ * Experiment: Vanta Birds behind hero-v5 clouds + CINEHEIGHT.
+ * Scroll scrub drives title + statement; clouds keep parallax / idle drift.
  */
 export default function HeroIntroSequence() {
   const rootRef = useRef<HTMLElement>(null)
   const wordmarkRef = useRef<HTMLSpanElement>(null)
-  const driftTweens = useRef<gsap.core.Tween[]>([])
   const reduced = useReducedMotion()
   const mobile = useIsMobileTier()
-  const rippleTier = useRippleTier()
   const profile = useMotionCapabilityProfile()
 
-  const [waveProgress, setWaveProgress] = useState(0)
-  const [waveAmount, setWaveAmount] = useState(0)
-  const [overlayOpacity, setOverlayOpacity] = useState(0)
-  /** HTML wordmark stays readable by default — canvas is enhancement only. */
-  const [htmlWordmarkOpacity, setHtmlWordmarkOpacity] = useState(1)
   const [prefsReady, setPrefsReady] = useState(false)
-  const resolveOnceRef = useRef(false)
-  const failOpenTimerRef = useRef(0)
+  // useMotionCapabilityProfile starts as 'static' until its useEffect runs —
+  // wait one effect pass so we don't treat that default as a real static tier.
+  const [capabilityReady, setCapabilityReady] = useState(false)
 
-  // Wait until after media-preference effects have applied (leave SSR/'static' defaults).
   useLayoutEffect(() => {
     let alive = true
     const id = requestAnimationFrame(() => {
@@ -131,152 +57,69 @@ export default function HeroIntroSequence() {
     }
   }, [])
 
-  const signatureDesktop =
-    LIQUID_MEDIA_PROTO.enabled && prefsReady && !reduced && !mobile && profile.level !== 'static'
+  useEffect(() => {
+    setCapabilityReady(true)
+  }, [])
 
-  const revealHtmlWordmark = () => {
-    setHtmlWordmarkOpacity(1)
-    setOverlayOpacity(0)
-    setWaveAmount(0)
-    setWaveProgress(1)
-  }
+  const allowTitleScrub = !reduced && profile.level !== 'static'
+  const allowCloudDrift = !reduced && profile.level !== 'static'
+  // CSS also hides sides ≤767px; JS covers coarse-pointer "mobile tier" on wider screens
+  const showSideClouds = !mobile
 
-  // Title-sequence resolve. HTML is source of truth; never leave both layers invisible.
   useLayoutEffect(() => {
-    if (!prefsReady) return
+    if (!prefsReady || !capabilityReady) return
 
-    if (reduced || !LIQUID_MEDIA_PROTO.enabled) {
-      revealHtmlWordmark()
+    const el = wordmarkRef.current
+    if (!el) return
+
+    if (reduced || profile.level === 'static') {
+      gsap.set(el, { autoAlpha: 1 })
       return
     }
 
-    if (mobile || profile.level === 'static') {
-      const el = wordmarkRef.current
-      revealHtmlWordmark()
-      if (!el) return
-      const tween = gsap.fromTo(
-        el,
-        { clipPath: 'inset(0 72% 0 0)', filter: 'blur(4px)' },
-        { clipPath: 'inset(0 0% 0 0)', filter: 'blur(0px)', duration: 0.85, ease: 'power2.out', delay: 0.12 }
-      )
-      return () => {
-        tween.kill()
-        revealHtmlWordmark()
-        gsap.set(el, { clearProps: 'clipPath,filter' })
-      }
-    }
+    let cancelled = false
+    let split: SplitText | null = null
+    let tween: gsap.core.Tween | null = null
 
-    // Strict-mode remount after a finished resolve: stay sharp.
-    if (resolveOnceRef.current) {
-      revealHtmlWordmark()
-      return
-    }
+    const run = () => {
+      if (cancelled || !wordmarkRef.current) return
 
-    setWaveProgress(0)
-    setWaveAmount(1)
-    setOverlayOpacity(1)
-    // Keep HTML faintly present until handoff (fail-open if canvas stalls).
-    // Stay low enough that the refraction overlay owns the read during the sweep.
-    setHtmlWordmarkOpacity(0.28)
-
-    const state = { progress: 0, amount: 1, overlay: 1, html: 0.28 }
-    let finished = false
-
-    const finishSharp = () => {
-      if (finished) return
-      finished = true
-      resolveOnceRef.current = true
-      // Always land on a sharp HTML wordmark — never wave:1 / overlay:0.
-      revealHtmlWordmark()
-      window.clearTimeout(failOpenTimerRef.current)
-    }
-
-    failOpenTimerRef.current = window.setTimeout(finishSharp, 2800)
-
-    const tl = gsap.timeline({
-      delay: 0.18,
-      onUpdate: () => {
-        setWaveProgress(state.progress)
-        setWaveAmount(state.amount)
-        setOverlayOpacity(state.overlay)
-        setHtmlWordmarkOpacity(Math.max(0.25, state.html))
-      },
-      onComplete: finishSharp,
-    })
-
-    // Sweep across the wordmark first; only then resolve amount + HTML together,
-    // and keep the overlay alive until amount is nearly gone (avoids empty frame).
-    tl.to(state, { progress: 1, duration: 1.28, ease: 'power2.inOut' }, 0)
-      .to(state, { amount: 0, html: 1, duration: 0.62, ease: 'power2.out' }, 1.05)
-      .to(state, { overlay: 0, duration: 0.32, ease: 'power1.out' }, 1.55)
-
-    return () => {
-      tl.kill()
-      window.clearTimeout(failOpenTimerRef.current)
-      if (!finished) revealHtmlWordmark()
-    }
-  }, [prefsReady, reduced, mobile, profile.level])
-
-  // Tab restore: if both layers are weak, force sharp HTML.
-  useLayoutEffect(() => {
-    const onVis = () => {
-      if (document.hidden) return
-      if (htmlWordmarkOpacity < 0.5 && overlayOpacity < 0.15) revealHtmlWordmark()
-    }
-    document.addEventListener('visibilitychange', onVis)
-    window.addEventListener('pageshow', onVis)
-    return () => {
-      document.removeEventListener('visibilitychange', onVis)
-      window.removeEventListener('pageshow', onVis)
-    }
-  }, [htmlWordmarkOpacity, overlayOpacity])
-
-  // Pause drift when the hero is offscreen or the tab is hidden.
-  useLayoutEffect(() => {
-    const root = rootRef.current
-    if (!root) return
-    const setActive = (active: boolean) =>
-      driftTweens.current.forEach((t) => (active ? t.play() : t.pause()))
-    const io = new IntersectionObserver(([e]) => setActive(e.isIntersecting && !document.hidden), { threshold: 0.02 })
-    io.observe(root)
-    const onVis = () => setActive(!document.hidden && root.getBoundingClientRect().bottom > 0)
-    document.addEventListener('visibilitychange', onVis)
-    return () => {
-      io.disconnect()
-      document.removeEventListener('visibilitychange', onVis)
-    }
-  }, [reduced, mobile])
-
-  // Continuous idle drift (marquees + one offscreen traversal).
-  useLayoutEffect(() => {
-    if (reduced) return
-    const ctx = gsap.context((self) => {
-      const q = self.selector!
-      const tweens: gsap.core.Tween[] = []
-      ;(q('[data-marquee]') as HTMLElement[]).forEach((el) => {
-        const dur = Number(el.dataset.dur) || 90
-        const rev = el.dataset.reverse === '1'
-        const t = gsap.fromTo(el, { xPercent: 0 }, { xPercent: rev ? 100 : -100, duration: dur, ease: 'none', repeat: -1 })
-        t.progress(Number(el.dataset.phase) || 0)
-        tweens.push(t)
+      split = SplitText.create(wordmarkRef.current, {
+        type: 'chars',
+        tag: 'span',
+        charsClass: 'hero-title-char',
+        smartWrap: true,
+        aria: 'none',
       })
-      ;(q('[data-traverse]') as HTMLElement[]).forEach((el) => {
-        const dur = Number(el.dataset.dur) || 72
-        const vw = window.innerWidth
-        gsap.set(el, { x: -0.32 * vw })
-        const t = gsap.to(el, { x: 1.32 * vw, duration: dur, ease: 'none', repeat: -1 })
-        t.progress(Number(el.dataset.phase) || 0)
-        tweens.push(t)
-      })
-      driftTweens.current = tweens
-    }, rootRef)
-    return () => {
-      driftTweens.current = []
-      ctx.revert()
-    }
-  }, [reduced, mobile])
 
-  // MASTER intro timeline — named labels, one shared progress.
+      gsap.set(wordmarkRef.current, { autoAlpha: 1 })
+
+      tween = gsap.from(split.chars, {
+        rotationZ: -90,
+        transformOrigin: 'bottom left',
+        opacity: 0,
+        stagger: mobile ? 0.058 : 0.078,
+        duration: 0.65,
+        ease: 'power3.out',
+        delay: 0.12,
+      })
+    }
+
+    const fontsReady =
+      typeof document !== 'undefined' && document.fonts?.ready
+        ? document.fonts.ready
+        : Promise.resolve()
+
+    fontsReady.then(run).catch(run)
+
+    return () => {
+      cancelled = true
+      tween?.kill()
+      split?.revert()
+      gsap.set(el, { autoAlpha: 1, clearProps: 'transform' })
+    }
+  }, [prefsReady, capabilityReady, reduced, mobile, profile.level])
+
   useLayoutEffect(() => {
     if (reduced) {
       const st = ScrollTrigger.create({
@@ -291,39 +134,89 @@ export default function HeroIntroSequence() {
     const ctx = gsap.context((self) => {
       const q = self.selector!
       const title = q('[data-layer="title"]')
-      const back = q('[data-layer="back"]')
-      const fl = q('[data-layer="front-left"]')
-      const fr = q('[data-layer="front-right"]')
-      const trav = q('[data-layer="traveller"]')
-      const hazeBand = q('[data-layer="haze-band"]')
-      const puffAccent = q('[data-layer="puff-accent"]')
       const blue = q('[data-layer="transition-light"]')
       const statement = q('[data-layer="statement"]')
       const stLines = q('[data-line-inner]')
       const stCopy = q('[data-layer="statement-copy"]')
+      const center = q('[data-cloud-parallax="center"]')
+      const left = q('[data-cloud-parallax="left"]')
+      const right = q('[data-cloud-parallax="right"]')
+      const centerPlate = q('[data-layer="cloud-center"]')
+      const leftPlate = q('[data-layer="cloud-left"]')
+      const rightPlate = q('[data-layer="cloud-right"]')
+      const driftNodes = q('[data-cloud-drift]')
 
       const vh = (n: number) => () => (window.innerHeight * n) / 100
+      const has = (els: ArrayLike<Element> | null | undefined) => (els?.length ?? 0) > 0
+      const spanDur = (from: number, to: number) => ({ duration: to - from })
 
-      // ONE smooth, continuous, parallax-differentiated pass. Every position
-      // tween runs `ease:'none'` over a LONG, OVERLAPPING window so the whole
-      // hero reads as a single scroll-linked camera rise through the cloud
-      // layer into the statement — no short "snap" tweens, no staged jumps.
-      // Timeline duration is normalised to 1.0 → a position value is the scroll
-      // fraction it fires at. Depth (parallax) = per-layer travel distance:
-      // traveller (closest) moves most, then front clouds, then title, then the
-      // background haze (slowest). Opacity crossfades gently, always AFTER the
-      // layer has begun moving.
+      let cloudDriftCleanup: (() => void) | undefined
+
+      if (allowCloudDrift && has(driftNodes)) {
+        // Seamless one-way wind: exit one edge → wrap in from the opposite side
+        const specs = [
+          { name: 'center', pxPerSec: 14, phase: 0.42 },
+          { name: 'left', pxPerSec: 20, phase: 0.12 },
+          { name: 'right', pxPerSec: 22, phase: 0.68 },
+        ] as const
+
+        const driftTweens: gsap.core.Tween[] = []
+
+        const buildDrifts = () => {
+          for (const tw of driftTweens) tw.kill()
+          driftTweens.length = 0
+
+          for (const spec of specs) {
+            const nodes = q(`[data-cloud-drift="${spec.name}"]`)
+            if (!has(nodes)) continue
+            const el = nodes[0] as HTMLElement
+            const plate = (el.closest('.hero-cloud-plate') as HTMLElement | null) ?? el
+
+            gsap.set(el, { x: 0, y: 0, force3D: true, willChange: 'transform' })
+
+            const cloudW = plate.offsetWidth || 400
+            const homeLeft = plate.getBoundingClientRect().left
+            const minX = -homeLeft - cloudW
+            const span = Math.max(window.innerWidth + cloudW, window.innerWidth - homeLeft - minX)
+            const wrapX = gsap.utils.wrap(minX, minX + span)
+            const startX = minX + span * spec.phase
+            const duration = span / spec.pxPerSec
+
+            gsap.set(el, { x: startX })
+            driftTweens.push(
+              gsap.to(el, {
+                x: `+=${span}`,
+                duration,
+                ease: 'none',
+                repeat: -1,
+                force3D: true,
+                modifiers: {
+                  x: gsap.utils.unitize((x) => wrapX(parseFloat(x))),
+                },
+              })
+            )
+          }
+        }
+
+        buildDrifts()
+        const onRefresh = () => buildDrifts()
+        ScrollTrigger.addEventListener('refresh', onRefresh)
+        cloudDriftCleanup = () => {
+          ScrollTrigger.removeEventListener('refresh', onRefresh)
+          for (const tw of driftTweens) tw.kill()
+        }
+      }
+
       const tl = gsap.timeline({
         defaults: { ease: 'none' },
         scrollTrigger: {
           trigger: rootRef.current,
           start: 'top top',
           end: 'bottom bottom',
-          scrub: 1.05,
+          scrub: mobile ? 1.6 : 2,
           invalidateOnRefresh: true,
           onUpdate: (st) => {
             setHeroProgress(st.progress)
-            // Continuum signal: brief intensify near statement settle, then cool for showreel.
             if (LIQUID_MEDIA_PROTO.enabled) {
               const p = st.progress
               let cue = 0
@@ -334,43 +227,47 @@ export default function HeroIntroSequence() {
         },
       })
 
-      // Helper: a tween placed at position `from` that lasts until `to`
-      // (positions/durations are scroll fractions of the 0→1 timeline).
-      const spanDur = (from: number, to: number) => ({ duration: to - from })
-
-      // Desktop-only layers (haze-band, front-right, puff-accent) are absent on
-      // mobile — skip empty query results so GSAP never warns "target not found".
-      const has = (els: ArrayLike<Element> | null | undefined) => (els?.length ?? 0) > 0
-
-      // ---- Parallax rise (all start together at 0.12, different distances) ----
       const rise = 0.12
-      if (has(trav)) tl.fromTo(trav, { y: 0 }, { y: vh(-48), ...spanDur(rise, 0.85) }, rise) // fastest
-      if (has(fl)) tl.fromTo(fl, { y: 0 }, { y: vh(-40), ...spanDur(rise, 0.9) }, rise)
-      if (has(fr)) tl.fromTo(fr, { y: 0 }, { y: vh(-42), ...spanDur(rise, 0.9) }, rise)
-      if (has(puffAccent)) tl.fromTo(puffAccent, { y: 0 }, { y: vh(-41), ...spanDur(rise, 0.9) }, rise)
-      if (has(title)) tl.fromTo(title, { y: 0, scale: 1 }, { y: vh(-30), scale: 1.06, ...spanDur(rise, 0.9) }, rise)
-      if (has(back)) tl.fromTo(back, { y: 0 }, { y: vh(-8), ...spanDur(rise, 0.96) }, rise)
-      if (has(hazeBand)) tl.fromTo(hazeBand, { y: 0 }, { y: vh(-7), ...spanDur(rise, 0.96) }, rise)
-
-      // ---- Opacity crossfades (gentle, gradual — no abrupt fades) ----
-      if (has(trav)) tl.to(trav, { autoAlpha: 0, ...spanDur(0.34, 0.56) }, 0.34)
-      if (has(title)) tl.to(title, { autoAlpha: 0, ...spanDur(0.44, 0.76) }, 0.44)
-      const frontRemnants = [...fl, ...fr, ...puffAccent]
-      if (frontRemnants.length) tl.to(frontRemnants, { autoAlpha: 0.08, ...spanDur(0.6, 0.84) }, 0.6)
-      const backRemnants = [...back, ...hazeBand]
-      if (backRemnants.length) tl.to(backRemnants, { autoAlpha: 0.4, ...spanDur(0.7, 0.92) }, 0.7)
-
-      // ---- #0089FF transition illumination (≤0.10) bridging the two states.
-      if (has(blue)) {
-        tl.fromTo(blue, { autoAlpha: 0 }, { autoAlpha: 0.1, ...spanDur(0.5, 0.7) }, 0.5)
-          .to(blue, { autoAlpha: 0.05, ...spanDur(0.84, 1.0) }, 0.84)
+      if (allowTitleScrub) {
+        if (has(center)) tl.fromTo(center, { y: 0 }, { y: vh(mobile ? -5 : -7), ...spanDur(rise, 0.94) }, rise)
+        if (has(left)) tl.fromTo(left, { y: 0 }, { y: vh(mobile ? -12 : -18), ...spanDur(rise, 0.88) }, rise)
+        if (has(right)) tl.fromTo(right, { y: 0 }, { y: vh(mobile ? -12 : -18), ...spanDur(rise, 0.88) }, rise)
+        if (has(title)) {
+          // Rise + grow toward camera; scrub lag keeps it smooth.
+          tl.fromTo(
+            title,
+            { y: 0, scale: 1, transformOrigin: '50% 50%' },
+            {
+              y: vh(mobile ? -32 : -48),
+              scale: mobile ? 1.28 : 1.42,
+              transformOrigin: '50% 50%',
+              force3D: true,
+              ...spanDur(rise, 0.88),
+            },
+            rise
+          )
+          tl.to(title, { autoAlpha: 0, ...spanDur(0.44, 0.76) }, 0.44)
+        }
+      } else if (has(title)) {
+        tl.fromTo(title, { y: 0, autoAlpha: 1 }, { y: vh(-18), autoAlpha: 0, ...spanDur(0.35, 0.72) }, 0.35)
       }
 
-      // ---- Statement rises through liquid-field language (clip + clear), not a plain fade.
+      if (has(leftPlate)) tl.to(leftPlate, { autoAlpha: 0.04, ...spanDur(0.5, 0.8) }, 0.5)
+      if (has(rightPlate)) tl.to(rightPlate, { autoAlpha: 0.04, ...spanDur(0.5, 0.8) }, 0.5)
+      if (has(centerPlate)) tl.to(centerPlate, { autoAlpha: 0.1, ...spanDur(0.6, 0.9) }, 0.6)
+
+      if (has(blue)) {
+        tl.fromTo(blue, { autoAlpha: 0 }, { autoAlpha: 0.1, ...spanDur(0.5, 0.7) }, 0.5).to(
+          blue,
+          { autoAlpha: 0.05, ...spanDur(0.84, 1.0) },
+          0.84
+        )
+      }
+
       if (has(statement)) {
         tl.fromTo(
           statement,
-          { y: vh(28), autoAlpha: 0, filter: 'blur(10px)' },
+          { y: vh(28), autoAlpha: 0, filter: 'blur(8px)' },
           { y: 0, autoAlpha: 1, filter: 'blur(0px)', ...spanDur(0.44, 0.86) },
           0.44
         )
@@ -390,210 +287,117 @@ export default function HeroIntroSequence() {
             0.6
           )
         }
-        if (has(stCopy)) tl.fromTo(stCopy, { autoAlpha: 0, y: vh(2.4) }, { autoAlpha: 1, y: 0, ...spanDur(0.7, 0.86) }, 0.7)
-        // Short composed hold into showreel — keep statement ownership, no dead trail.
+        if (has(stCopy)) {
+          tl.fromTo(stCopy, { autoAlpha: 0, y: vh(2.4) }, { autoAlpha: 1, y: 0, ...spanDur(0.7, 0.86) }, 0.7)
+        }
         tl.to(statement, { y: vh(-1.2), ...spanDur(0.9, 1.0) }, 0.9)
       }
 
       return () => {
+        cloudDriftCleanup?.()
         tl.scrollTrigger?.kill()
         if (LIQUID_MEDIA_PROTO.enabled) setSignalIntensity(0)
       }
     }, rootRef)
 
     return () => ctx.revert()
-  }, [reduced, mobile])
+  }, [reduced, mobile, allowTitleScrub, allowCloudDrift])
 
-  /*
-   * The scroll distance the sticky stage is held for.
-   *
-   * Reduced from 230vh/185vh. The timeline's positions are fractions of this
-   * height, so every beat rescales with it — the sequence reads identically,
-   * it simply asks for less scroll. The trailing slack was the larger half of
-   * Trailing inactive range: statement visually settles by ~0.90. Desktop
-   * height kept tight so the remaining scrub (~0.10) is a short hold into
-   * showreel anticipation — not a dark empty trek.
-   */
   const sectionHeight = reduced ? 'auto' : mobile ? '148vh' : '172vh'
 
   return (
     <section ref={rootRef} aria-label="Cineheight Media introduction" style={{ height: sectionHeight }} className="relative">
-      {/* Transparent stage (body bg is the same #020306) so the fixed
-          background signal route shows through the hero's dark negative space. */}
-      <div className={reduced ? 'relative h-screen overflow-hidden' : 'sticky top-0 h-screen overflow-hidden'}>
-        {/* L1 — base atmosphere: faint navy depth + near-invisible blue title-base light */}
+      {/* FlowThread origin — visible top-left of hero (not off-screen edge-left) */}
+      <div
+        data-flow-anchor="left"
+        data-flow-lead="0"
+        data-hero-flow-start=""
+        className="pointer-events-none absolute left-0 top-0 h-px w-px"
+        aria-hidden="true"
+      />
+      <div
+        className={
+          reduced
+            ? 'hero-cloud-stage relative h-[100svh] min-h-[100svh] overflow-hidden'
+            : 'hero-cloud-stage sticky top-0 h-[100svh] min-h-[100svh] overflow-hidden'
+        }
+      >
+        {/*
+          Stack:
+            z-0   Vanta Birds
+            z-1   composition (title + clouds), shifted 12%
+            z-11  thread (post-reveal only; under statement)
+            z-12  transition light
+            z-13  statement
+        */}
+        <HeroVantaBirds />
+
         <div
-          aria-hidden="true"
-          className="absolute inset-0"
-          style={{ background: 'radial-gradient(ellipse 85% 50% at 50% 54%, rgba(9,12,20,0.9), transparent 74%)' }}
-        />
-        <div
-          aria-hidden="true"
-          className="absolute inset-0"
-          style={{ background: 'radial-gradient(ellipse 42% 13% at 50% 57%, rgba(0,137,255,0.5), transparent 72%)', opacity: 0.07 }}
-        />
-
-        {/* L1.5 — the hero background surface: the WebGL water ripple.
-            Sitting here in DOM order with z-index:auto is what puts it above
-            the two ambient gradients above and below everything that carries a
-            z-index — no z-index changes anywhere else, regardless of which
-            surface is mounted.
-
-            The local stack, bottom to top (sealed by .layer-content's
-            `isolation: isolate`, so none of it escapes the hero):
-              z-1  title (the h1)
-              z-2  back haze + haze band   ── EVERY cloud paints above the word
-              z-3  transition illumination
-              z-4  front-left / front-right / puff-accent
-              z-5  traveller
-              z-6  brand statement
-            The two hazes used to sit at z-0, under the title. They are above it
-            now so the whole cloud system reads as being in front of the word,
-            which costs nothing in legibility: at 0.12 opacity a near-white haze
-            over the #f5f7fa→#b8bfc9 letter gradient is imperceptible, while over
-            the #020306 stage it still reads as atmosphere. */}
-        {rippleTier && <HeroRippleBackground tier={rippleTier} />}
-
-        {/* L2 — soft background haze, now IN FRONT of the word (barely noticeable).
-            Cloud wider than the period so the two copies cross-fade — see Marquee.
-            `dur` is scaled with the period to hold the previous drift speed. */}
-        <div aria-hidden="true" className="absolute z-[2]" style={{ left: '18%', width: '64%', top: '52%', height: '12vh', opacity: mobile ? 0.1 : 0.12 }}>
-          <div data-layer="back" className="absolute inset-0 h-full w-full will-change-transform">
-            <Marquee src={ASSETS.back} periodVw={mobile ? 84 : 54} cloudWidthVw={mobile ? 96 : 64} dur={93} phase={0.3} />
-          </div>
-        </div>
-
-        {/* L2 — second back-tier haze band (stock cloud, hero-v4 addendum), a
-            different height/drift from `back` so the atmosphere reads with more
-            depth. Desktop only, same rule as front-right below.
-
-            THIS is the layer that put a drifting rectangle in the hero: its asset
-            was cropped by `trim()` straight through the wisp, leaving alpha ~132
-            on the right column and ~81 on the bottom row. The repair feathers
-            those edges over 340px / 210px, which is also why the 14vw copy
-            overlap below matters — the right edge is now a long fade that needs a
-            partner to fade into. See scripts/repair-hero-clouds.mjs. */}
-        {!mobile && (
-          <div aria-hidden="true" className="absolute z-[2]" style={{ left: '8%', width: '76%', top: '42%', height: '10vh', opacity: 0.12 }}>
-            <div data-layer="haze-band" className="absolute inset-0 h-full w-full will-change-transform">
-              <Marquee src={ASSETS.hazeBand} periodVw={62} cloudWidthVw={76} dur={106} phase={0.62} reverse />
-            </div>
-          </div>
-        )}
-
-        {/* L3 — CINEHEIGHT (live HTML, the page's only h1) */}
-        <div
-          data-layer="title"
-          className="absolute inset-0 z-[1] flex items-center justify-center will-change-transform"
-          style={{ transform: 'translateY(-1vh)' }}
+          data-layer="hero-composition"
+          className="pointer-events-none absolute inset-0 z-[1]"
+          style={{ transform: 'translate3d(0, 12%, 0)' }}
         >
-          <h1 className="m-0 text-center">
-            <span
-              ref={wordmarkRef}
-              aria-hidden="true"
-              className="hero-title block"
-              style={{
-                fontSize: 'clamp(64px, 18.6vw, 21.5rem)',
-                opacity: htmlWordmarkOpacity,
-              }}
-            >
-              CINEHEIGHT
-            </span>
-            <span className="sr-only">Cineheight Media — Branding and Digital Growth Agency</span>
-          </h1>
-          {signatureDesktop && (
-            <HeroWordmarkRefraction
-              sourceRef={wordmarkRef}
-              active={signatureDesktop}
-              progress={waveProgress}
-              amount={waveAmount}
-              overlayOpacity={overlayOpacity}
-            />
-          )}
-        </div>
-
-        {/* L4 — front-left natural cloud IN FRONT of the title (z-4), over C-I-N.
-            Opacity is a flat 1: the asset's own baked alpha decides what shows.
-            Anything below 1 leaks the bright letter through the cloud's OPAQUE
-            core, which is what previously read as the text "blending with" the
-            cloud rather than being hidden by it. The repair pass also narrowed
-            each asset's mid-alpha shoulder (solid coverage 12-24% -> 37-42%), so
-            the body now occludes and only the wispy rim lets the letter through.
-            The drop-shadow stays: over a clean alpha silhouette it reinforces
-            the occlusion read. See scripts/repair-hero-clouds.mjs. */}
-        <div
-          data-layer="front-left"
-          aria-hidden="true"
-          className="absolute z-[4] will-change-transform"
-          style={{
-            left: mobile ? '-10vw' : '-14vw',
-            width: mobile ? '90vw' : '52vw',
-            top: mobile ? '56%' : '53%',
-            opacity: 1,
-            filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.3))',
-          }}
-        >
-          <Marquee src={ASSETS.frontLeft} periodVw={mobile ? 90 : 52} cloudWidthVw={mobile ? 44 : 20} dur={78} phase={0.18} />
-        </div>
-
-        {/* L4 — front-right natural cloud (z-4), over G-H-T. Different form/height
-            (distinct G4 cloud), drifts the OPPOSITE way. Desktop only. */}
-        {!mobile && (
           <div
-            data-layer="front-right"
-            aria-hidden="true"
-            className="absolute z-[4] will-change-transform"
-            style={{ left: '62vw', width: '52vw', top: '54.5%', opacity: 1, filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.3))' }}
+            data-layer="title"
+            className="absolute inset-0 flex items-center justify-center"
           >
-            <Marquee src={ASSETS.frontRight} periodVw={52} cloudWidthVw={22} dur={90} phase={0.5} reverse />
+            <h1 className="m-0 text-center">
+              <span
+                ref={wordmarkRef}
+                aria-hidden="true"
+                className="hero-title block"
+                style={{
+                  fontSize: 'clamp(64px, 18.6vw, 21.5rem)',
+                }}
+              >
+                CINEHEIGHT
+              </span>
+              <span className="sr-only">Cineheight Media — Branding and Digital Growth Agency</span>
+            </h1>
           </div>
-        )}
 
-        {/* L4 — puff-accent cloud (stock cloud, hero-v4 addendum), a third
-            distinct front-tier silhouette (z-4). Drifts via its own offscreen
-            traversal (like the traveller below) rather than a marquee, for
-            variety against the two marquee-driven front clouds — different
-            top band and timing so it doesn't read as a duplicate. Desktop only.
-            Its asset was flat white (255,255,255) while the G4 clouds paint at
-            166,171,185 — harmless at the old 0.55 opacity, a white blob at 1, so
-            the repair pass retones it to match the front tier. */}
-        {!mobile && (
-          <div
-            data-layer="puff-accent"
-            aria-hidden="true"
-            className="absolute z-[4] will-change-transform"
-            style={{ top: '49%', left: 0, width: '100%', opacity: 1, filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.3))' }}
-          >
-            <div data-traverse data-dur={85} data-phase={0.7} className="absolute top-0 will-change-transform" style={{ width: '17vw' }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={ASSETS.puffAccent} alt="" draggable={false} className="w-full" style={{ height: 'auto' }} />
+          <div data-layer="cloud-layer-back" aria-hidden="true" className="absolute inset-0 z-10">
+            <div data-layer="cloud-center" className="hero-cloud-plate hero-cloud-center">
+              <div data-cloud-parallax="center">
+                <div data-cloud-drift="center">
+                  <CloudPlate src={ASSETS.center} />
+                </div>
+              </div>
             </div>
-          </div>
-        )}
 
-        {/* L5 — small travelling cloud (z-5), crosses selected middle letters.
-            Raised from 0.34/0.4: at that opacity it was the worst offender for
-            letters reading through a cloud. Held just under 1 because this one
-            crosses the MIDDLE of the word rather than the baseline, so a fully
-            opaque pass would blank whole letters instead of grazing them. */}
-        <div
-          data-layer="traveller"
-          aria-hidden="true"
-          className="absolute z-[5] will-change-transform"
-          style={{ top: mobile ? '55%' : '54%', left: 0, width: '100%', opacity: mobile ? 0.85 : 0.9 }}
-        >
-          <div data-traverse data-dur={mobile ? 64 : 72} data-phase={0.42} className="absolute top-0 will-change-transform" style={{ width: mobile ? '24vw' : '12vw' }}>
-            {/* natural aspect, no stretch */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={ASSETS.traveller} alt="" draggable={false} className="w-full" style={{ height: 'auto' }} />
+            {showSideClouds && (
+              <div data-layer="cloud-left" className="hero-cloud-plate hero-cloud-left">
+                <div data-cloud-parallax="left">
+                  <div data-cloud-drift="left">
+                    <CloudPlate src={ASSETS.left} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showSideClouds && (
+              <div data-layer="cloud-right" className="hero-cloud-plate hero-cloud-right">
+                <div data-cloud-parallax="right">
+                  <div data-cloud-drift="right">
+                    <CloudPlate src={ASSETS.right} />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Transition illumination — #0089FF, ≤0.10, scroll-controlled */}
+        {/* Post-reveal only (FlowThread portals in after ~60%): under statement, over faded title. */}
+        <div
+          data-hero-thread-slot=""
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-[11] overflow-x-clip"
+        />
+
         <div
           data-layer="transition-light"
           aria-hidden="true"
-          className="absolute inset-0 z-[3]"
+          className="pointer-events-none absolute inset-0 z-[12]"
           style={{
             background: 'radial-gradient(ellipse 55% 34% at 50% 64%, rgba(0,137,255,0.5), transparent 74%)',
             opacity: 0,
@@ -601,17 +405,20 @@ export default function HeroIntroSequence() {
           }}
         />
 
-        {/* Brand statement — same stage, same master timeline. */}
         {!reduced && (
           <div
             data-layer="statement"
-            className="absolute inset-0 z-[6] flex items-center will-change-transform"
+            className="absolute inset-0 z-[13] flex items-center"
             style={{ opacity: 0, visibility: 'hidden' }}
           >
             <div className="mx-auto w-full max-w-[1500px] px-6 sm:px-10 lg:px-14">
               <h2
                 className="font-display m-0 font-bold text-text-100"
-                style={{ fontSize: 'calc(clamp(2.1rem, 6vw, 6.4rem) * var(--display-scale))', lineHeight: 1.03, letterSpacing: '-0.015em' }}
+                style={{
+                  fontSize: 'calc(clamp(2.1rem, 6vw, 6.4rem) * var(--display-scale))',
+                  lineHeight: 1.03,
+                  letterSpacing: '-0.015em',
+                }}
               >
                 <span className="block overflow-hidden">
                   <span data-line-inner className="block">
@@ -636,13 +443,16 @@ export default function HeroIntroSequence() {
         )}
       </div>
 
-      {/* Reduced motion: statement rendered statically below the hero frame */}
       {reduced && (
         <div className="relative flex min-h-[70vh] items-center">
           <div className="mx-auto w-full max-w-[1500px] px-6 sm:px-10 lg:px-14">
             <h2
               className="font-display m-0 font-bold text-text-100"
-              style={{ fontSize: 'calc(clamp(2.1rem, 6vw, 6.4rem) * var(--display-scale))', lineHeight: 1.03, letterSpacing: '-0.015em' }}
+              style={{
+                fontSize: 'calc(clamp(2.1rem, 6vw, 6.4rem) * var(--display-scale))',
+                lineHeight: 1.03,
+                letterSpacing: '-0.015em',
+              }}
             >
               WE TURN BUSINESSES
               <br />

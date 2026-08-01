@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects } from '@/lib/useMediaPreferences'
+import { reportUiClick } from '@/lib/audio/reportUiClick'
 
 /**
  * A call-to-action that responds to pointer proximity with light rather than
@@ -25,6 +26,7 @@ export default function MagneticLink({
   className = '',
   style,
   external = false,
+  onClick,
   ...rest
 }: {
   href: string
@@ -91,6 +93,11 @@ export default function MagneticLink({
     }
   }, [enabled])
 
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    reportUiClick()
+    onClick?.(e)
+  }
+
   const body = <span className="inline-flex items-center gap-4">{children}</span>
 
   return (
@@ -100,11 +107,11 @@ export default function MagneticLink({
       style={{ ['--proximity' as string]: 0 }}
     >
       {external ? (
-        <a href={href} target="_blank" rel="noopener noreferrer" className={className} style={style} {...rest}>
+        <a href={href} target="_blank" rel="noopener noreferrer" className={className} style={style} onClick={handleClick} {...rest}>
           {body}
         </a>
       ) : (
-        <Link href={href} className={className} style={style} {...rest}>
+        <Link href={href} className={className} style={style} onClick={handleClick} {...rest}>
           {body}
         </Link>
       )}

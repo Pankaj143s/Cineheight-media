@@ -52,10 +52,10 @@ function LogoMark({
 
   return (
     <li
-      className="group flex h-[82px] w-[190px] shrink-0 list-none items-center justify-center px-5"
+      className="group flex h-[88px] shrink-0 list-none items-center justify-center px-2"
       title={client.name}
     >
-      <span className="flex h-[72px] w-full items-center justify-center px-4 transition-transform duration-500 ease-out group-hover:-translate-y-1">
+      <span className="flex h-[72px] items-center justify-center transition-transform duration-500 ease-out group-hover:-translate-y-1">
         <Image
           src={client.logo}
           alt={client.name}
@@ -67,8 +67,8 @@ function LogoMark({
           style={{
             width: box.width,
             height: box.height,
-            maxWidth: 156,
-            maxHeight: 58,
+            maxWidth: 168,
+            maxHeight: 64,
           }}
         />
       </span>
@@ -318,7 +318,7 @@ export default function ClientMarquee() {
       >
         {reduced ? (
           // No loop, no clones — every mark readable in one static wrapped row.
-          <ul className="flow-gutter flex flex-wrap items-center justify-center gap-y-2">
+          <ul className="flow-gutter flex flex-wrap items-center justify-center gap-x-10 gap-y-3 md:gap-x-12">
             {trustedClients.map((client) => (
               <LogoMark key={client.name} client={client} tier={tier} />
             ))}
@@ -348,7 +348,7 @@ export default function ClientMarquee() {
                   key={copy}
                   ref={copy === 0 ? groupRef : undefined}
                   aria-hidden={copy === 0 ? undefined : true}
-                  className="flex shrink-0 items-center"
+                  className="flex shrink-0 items-center gap-x-10 md:gap-x-12"
                 >
                   {trustedClients.map((client) => (
                     <LogoMark key={`${copy}-${client.name}`} client={client} tier={tier} />

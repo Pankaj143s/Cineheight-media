@@ -1,23 +1,12 @@
 'use client'
 
-import { useInViewOnce } from './useInViewOnce'
-import { DURATION_MS, EASE_SIGNAL } from '@/lib/motionTokens'
+import { useRef } from 'react'
+import { useScrollScrub } from './useScrollScrub'
+import { TRIGGER } from '@/lib/motionTokens'
 
 /**
  * A headline that starts as an outline and is filled by a signal sweep.
- *
- * Two stacked copies of the same words: a restrained stroked base, and a solid
- * overlay revealed left-to-right behind a narrow bright edge. The sweep is the
- * point — it reads as the brand signal writing the statement rather than as
- * text fading in.
- *
- * Reserved for ONE major statement per route. An outline is harder to read than
- * solid type, so the finished state is always solid white and the outline only
- * ever exists mid-animation. Reduced motion and the observer failsafe both land
- * straight on the finished state.
- *
- * Only the base copy carries the real text for assistive technology; the
- * overlay is `aria-hidden`, so a screen reader gets one clean string.
+ * Outline → solid and the bright edge scrub with scroll.
  */
 export default function StrokeFillHeadline({
   text,
@@ -27,7 +16,7 @@ export default function StrokeFillHeadline({
   /** Colour of the sweeping edge. Case studies pass the client accent. */
   accent = 'var(--blue-500)',
   delay = 0,
-  amount = 0.3,
+  amount: _amount = 0.3,
 }: {
   text: string
   as?: 'h1' | 'h2' | 'h3' | 'p'
@@ -37,44 +26,71 @@ export default function StrokeFillHeadline({
   delay?: number
   amount?: number
 }) {
-  const { ref, shown, reduced } = useInViewOnce<HTMLDivElement>(amount)
-  const duration = reduced ? 0 : DURATION_MS.revealLong
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useScrollScrub(
+    rootRef,
+    (tl, trigger) => {
+      const base = trigger.querySelector<HTMLElement>('[data-stroke-base]')
+      const overlay = trigger.querySelector<HTMLElement>('[data-stroke-overlay]')
+      if (base) {
+        tl.fromTo(
+          base,
+          { color: 'transparent', webkitTextStroke: '1px rgba(220,238,255,0.5)' },
+          { color: 'var(--text-100)', webkitTextStroke: '0px transparent', duration: 1 },
+          delay
+        )
+      }
+      if (overlay) {
+        tl.fromTo(
+          overlay,
+          { clipPath: 'inset(0 100% 0 0)' },
+          { clipPath: 'inset(0 0 0 100%)', duration: 1 },
+          delay
+        )
+      }
+    },
+    (trigger) => {
+      const base = trigger.querySelector<HTMLElement>('[data-stroke-base]')
+      const overlay = trigger.querySelector<HTMLElement>('[data-stroke-overlay]')
+      if (base) {
+        base.style.color = 'var(--text-100)'
+        base.style.webkitTextStroke = '0px transparent'
+      }
+      if (overlay) overlay.style.clipPath = 'inset(0 0 0 100%)'
+    },
+    { start: TRIGGER.headlineStart, end: 'top 42%', deps: [text, delay, accent] }
+  )
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={rootRef} className="relative">
       <Tag className={className} style={style}>
-        {/* Base: the accessible copy. Outlined until the fill arrives. */}
         <span
+          data-stroke-base
           style={{
             display: 'block',
-            color: shown ? 'var(--text-100)' : 'transparent',
-            WebkitTextStroke: shown ? '0px transparent' : '1px rgba(220,238,255,0.5)',
-            transition: reduced
-              ? 'none'
-              : `color ${duration}ms ${EASE_SIGNAL} ${delay}ms, -webkit-text-stroke ${duration}ms ${EASE_SIGNAL} ${delay}ms`,
+            color: 'transparent',
+            WebkitTextStroke: '1px rgba(220,238,255,0.5)',
           }}
         >
           {text}
         </span>
       </Tag>
 
-      {/* Overlay: the travelling bright edge. Purely decorative. */}
       <Tag
         aria-hidden="true"
         className={className}
         style={{ ...style, position: 'absolute', inset: 0, pointerEvents: 'none' }}
       >
         <span
+          data-stroke-overlay
           style={{
             display: 'block',
             backgroundImage: `linear-gradient(90deg, ${accent} 0%, #DCEEFF 45%, ${accent} 100%)`,
             WebkitBackgroundClip: 'text',
             backgroundClip: 'text',
             color: 'transparent',
-            // A narrow band travels across, then clears — the words are left
-            // solid rather than permanently tinted.
-            clipPath: shown ? 'inset(0 0 0 100%)' : 'inset(0 100% 0 0)',
-            transition: reduced ? 'none' : `clip-path ${duration}ms ${EASE_SIGNAL} ${delay}ms`,
+            clipPath: 'inset(0 100% 0 0)',
           }}
         >
           {text}

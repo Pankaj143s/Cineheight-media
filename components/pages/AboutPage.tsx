@@ -10,7 +10,9 @@ import OpticalResolve from '@/components/motion/OpticalResolve'
 import EditorialMatteReveal from '@/components/motion/EditorialMatteReveal'
 import ScrollHeadline from '@/components/motion/ScrollHeadline'
 import MagneticLink from '@/components/ui/MagneticLink'
+import Reveal from '@/components/ui/Reveal'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { SCRUB } from '@/lib/motionTokens'
 
 /**
  * Creative manifesto — one belief, short proof, media-led pacing.
@@ -46,10 +48,9 @@ export default function AboutPage() {
           {
             autoAlpha: 1,
             y: 0,
-            duration: 0.75,
             stagger: 0.05,
-            ease: 'power3.out',
-            scrollTrigger: { trigger: rows[0], start: 'top 80%' },
+            ease: 'none',
+            scrollTrigger: { trigger: rows[0], start: 'top 80%', end: 'top 45%', scrub: SCRUB.text },
           }
         )
       }
@@ -70,7 +71,9 @@ export default function AboutPage() {
           style={{ fontSize: 'clamp(2.6rem, 9vw, 7.5rem)', lineHeight: 0.9, letterSpacing: '-0.04em' }}
         />
         <p className="sr-only">{about.headline}</p>
-        <p className="font-body measure mt-8 text-lg leading-relaxed text-text-300 sm:text-xl">{about.supporting}</p>
+        <Reveal as="p" className="font-body measure mt-8 text-lg leading-relaxed text-text-300 sm:text-xl" delay={0.12}>
+          {about.supporting}
+        </Reveal>
       </header>
 
       <EditorialMatteReveal form="film-gate" start="top 92%" className="relative mx-auto w-[96vw] max-w-[1820px]">
@@ -120,12 +123,12 @@ export default function AboutPage() {
           style={{ fontSize: 'clamp(1.8rem, 4.6vw, 4.4rem)', lineHeight: 0.98, letterSpacing: '-0.03em' }}
           from={0.2}
         />
-        <p className="font-body measure-wide mt-8 text-base leading-relaxed text-text-300 sm:text-lg">
+        <Reveal as="p" className="font-body measure-wide mt-8 text-base leading-relaxed text-text-300 sm:text-lg">
           When one team owns strategy, design, content and campaigns, nothing gets lost between agencies.
-        </p>
-        <p className="font-body measure-wide mt-4 text-sm leading-relaxed text-text-500">
+        </Reveal>
+        <Reveal as="p" className="font-body measure-wide mt-4 text-sm leading-relaxed text-text-500" delay={0.08}>
           We work out of {contact.location}, with brands anywhere.
-        </p>
+        </Reveal>
       </section>
 
       <section aria-label="Capabilities and process" className="flow-gutter relative" style={{ marginTop: mobile ? '10vh' : '14vh' }}>

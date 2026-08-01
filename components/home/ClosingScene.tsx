@@ -9,6 +9,7 @@ import ProjectContactForm from '@/components/contact/ProjectContactForm'
 import AnimatedBrandSignature from '@/components/home/AnimatedBrandSignature'
 import Footer from '@/components/Footer'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { SCRUB } from '@/lib/motionTokens'
 
 /**
  * The journey's destination. A typographic takeover of the closing question,
@@ -32,7 +33,12 @@ export default function ClosingScene() {
         gsap.fromTo(
           cta,
           { autoAlpha: 0, y: 40 },
-          { autoAlpha: 1, y: 0, duration: 0.9, ease: 'power3.out', scrollTrigger: { trigger: cta, start: 'top 86%' } }
+          {
+            autoAlpha: 1,
+            y: 0,
+            ease: 'none',
+            scrollTrigger: { trigger: cta, start: 'top 86%', end: 'top 48%', scrub: SCRUB.text },
+          }
         )
       }
       if (channels.length) {
@@ -42,10 +48,9 @@ export default function ClosingScene() {
           {
             autoAlpha: 1,
             y: 0,
-            duration: 0.8,
             stagger: 0.08,
-            ease: 'power2.out',
-            scrollTrigger: { trigger: channels[0], start: 'top 90%' },
+            ease: 'none',
+            scrollTrigger: { trigger: channels[0], start: 'top 90%', end: 'top 50%', scrub: SCRUB.text },
           }
         )
       }

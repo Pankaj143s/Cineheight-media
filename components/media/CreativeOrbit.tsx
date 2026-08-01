@@ -5,6 +5,7 @@ import Image from 'next/image'
 import MediaLightbox, { type LightboxItem } from './MediaLightbox'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
+import Reveal from '@/components/ui/Reveal'
 import { clamp, damp, normalizeAngle } from '@/lib/utils'
 import { useCanRunRichEffects, useIsNarrow, useReducedMotion } from '@/lib/useMediaPreferences'
 
@@ -36,7 +37,8 @@ const MAX_BLUR = 2.4
 const TILT_X = -8 // slight top-down view so the ring reads as a circle
 const WOBBLE_FACTOR = 9
 const MAX_WOBBLE = 2.6
-const DRAG_THRESHOLD = 6
+const DRAG_THRESHOLD = 12
+const TAP_MS = 450
 const DEG2RAD = Math.PI / 180
 
 type Mode = 'idle' | 'drag' | 'inertia' | 'snap' | 'autoplay'
@@ -88,6 +90,8 @@ export default function CreativeOrbit({
   const [expanded, setExpanded] = useState<number | null>(null)
   /** Rect of the card that opened the lightbox, so it can grow out of it. */
   const [sourceRect, setSourceRect] = useState<DOMRect | null>(null)
+  const expandedRef = useRef<number | null>(null)
+  expandedRef.current = expanded
 
   /** Open the lightbox, remembering where on screen the work was. */
   const openAt = useCallback((i: number) => {
@@ -107,6 +111,11 @@ export default function CreativeOrbit({
 
   const dragging = useRef(false)
   const dragged = useRef(false)
+  /** Card index under the pointer when the press began — used to resolve taps. */
+  const pressIndexRef = useRef<number | null>(null)
+  const pressStartT = useRef(0)
+  /** Prevents onClick from double-firing after endDrag already handled a tap. */
+  const handledTapRef = useRef(false)
   const startX = useRef(0)
   const startY = useRef(0)
   const startRot = useRef(0)
@@ -299,12 +308,30 @@ export default function CreativeOrbit({
     // An arc has ends; idling would drift the active card off into empty
     // space. Only a closed ring can rotate indefinitely.
     if (reducedRef.current || geom.current.N <= 1 || geom.current.layout !== 'orbit') return
+    // Hold the ring still while the lightbox owns the front card.
+    if (expandedRef.current !== null) return
     idleTimer.current = setTimeout(() => {
-      if (!hovered.current && !focused.current && !dragging.current && mode.current === 'idle') {
+      if (
+        !hovered.current &&
+        !focused.current &&
+        !dragging.current &&
+        expandedRef.current === null &&
+        mode.current === 'idle'
+      ) {
         mode.current = 'autoplay'
       }
     }, IDLE_MS)
   }, [stopIdleTimer])
+
+  // Pause orbit drift while expanded; resume after close.
+  useEffect(() => {
+    if (expanded !== null) {
+      stopIdleTimer()
+      if (mode.current === 'autoplay') mode.current = 'idle'
+      return
+    }
+    scheduleAutoplay()
+  }, [expanded, stopIdleTimer, scheduleAutoplay])
 
   /** Rotation limits. A closed ring is unbounded; an arc stops at its ends. */
   const rotationBounds = () => {
@@ -365,7 +392,11 @@ export default function CreativeOrbit({
     const m = mode.current
 
     if (m === 'autoplay') {
-      rotation.current += AUTO_DEG_PER_MS * dt
+      if (expandedRef.current !== null) {
+        mode.current = 'idle'
+      } else {
+        rotation.current += AUTO_DEG_PER_MS * dt
+      }
     } else if (m === 'inertia') {
       rotation.current += velocity.current * dt
       velocity.current *= Math.pow(FRICTION, dt / 16.67)
@@ -458,6 +489,7 @@ export default function CreativeOrbit({
     mode.current = 'drag'
     dragging.current = true
     dragged.current = false
+    handledTapRef.current = false
     startX.current = e.clientX
     startY.current = e.clientY
     startRot.current = rotation.current
@@ -496,6 +528,28 @@ export default function CreativeOrbit({
     if (!dragging.current) return
     dragging.current = false
     ;(e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId)
+
+    const pressIndex = pressIndexRef.current
+    const elapsed = performance.now() - pressStartT.current
+    const wasTap = !dragged.current && elapsed <= TAP_MS && pressIndex !== null
+    pressIndexRef.current = null
+    dragged.current = false
+
+    if (wasTap) {
+      // Tap: open or bring-to-front. Don't hand off to inertia.
+      handledTapRef.current = true
+      mode.current = 'idle'
+      velocity.current = 0
+      if (pressIndex === activeRef.current) openAt(pressIndex)
+      else rotateToIndex(pressIndex)
+      scheduleAutoplay()
+      // Clear if no trailing click arrives (pointer-capture can swallow it).
+      window.setTimeout(() => {
+        handledTapRef.current = false
+      }, 0)
+      return
+    }
+
     if (reduced) {
       startSnap()
     } else {
@@ -506,7 +560,17 @@ export default function CreativeOrbit({
     scheduleAutoplay()
   }
 
+  const onCardPointerDown = (i: number) => {
+    pressIndexRef.current = i
+    pressStartT.current = performance.now()
+  }
+
   const onCardClick = (i: number) => {
+    // Pointer taps are resolved in endDrag; ignore the trailing click.
+    if (handledTapRef.current) {
+      handledTapRef.current = false
+      return
+    }
     if (dragged.current) {
       dragged.current = false
       return
@@ -711,9 +775,15 @@ export default function CreativeOrbit({
                   ? `${post.client} — ${post.title}. Press to expand.`
                   : `Bring ${post.client} — ${post.title} to the front`
               }
+              onPointerDown={() => onCardPointerDown(i)}
               onClick={() => onCardClick(i)}
               className="relative h-full w-full cursor-pointer overflow-hidden rounded-[18px] will-change-transform"
-              style={{ boxShadow: '0 26px 60px -18px rgba(0,0,0,0.85)' }}
+              style={{
+                boxShadow: '0 26px 60px -18px rgba(0,0,0,0.85)',
+                // Hide the origin card while it lives in the lightbox morph so
+                // the visitor never sees two copies of the same creative.
+                visibility: expanded === i ? 'hidden' : 'visible',
+              }}
             >
               <Image
                 src={post.src}
@@ -777,7 +847,14 @@ export default function CreativeOrbit({
     <section aria-label={label} className="relative">
       {narrow ? (
         <>
-          <div className="flow-gutter relative z-10 mb-6">{headingBlock}</div>
+          <div className="flow-gutter relative z-10 mb-6">
+            {headingBlock}
+            {explanation && (
+              <Reveal as="p" className="font-body measure mt-5 text-sm leading-relaxed text-text-300">
+                {explanation}
+              </Reveal>
+            )}
+          </div>
           {stageBlock}
           <div className="flow-gutter relative z-10 mt-7 flex flex-wrap items-center justify-between gap-x-8 gap-y-5">
             {infoBlock}
@@ -795,9 +872,9 @@ export default function CreativeOrbit({
           <div className="relative z-10 col-span-4">
             {headingBlock}
             {explanation && (
-              <p className="font-body measure mt-6 text-sm leading-relaxed text-text-300">
+              <Reveal as="p" className="font-body measure mt-6 text-sm leading-relaxed text-text-300">
                 {explanation}
-              </p>
+              </Reveal>
             )}
             <div className="mt-10">{infoBlock}</div>
             <div className="mt-6">{controlsBlock}</div>
@@ -815,7 +892,11 @@ export default function CreativeOrbit({
         index={expanded}
         accent={accent}
         sourceRect={sourceRect}
-        onClose={() => setExpanded(null)}
+        onClose={() => {
+          setExpanded(null)
+          // Keep sourceRect until the exit morph finishes measuring against it.
+          window.setTimeout(() => setSourceRect(null), 700)
+        }}
         onIndex={(i) => {
           setExpanded(i)
           rotateToIndex(i)

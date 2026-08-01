@@ -7,7 +7,9 @@ import type { CaseStudy } from '@/content/caseStudies'
 import type { CaseMetric, CasePresentation } from '@/content/caseStudyPresentation'
 import CountUp from '@/components/ui/CountUp'
 import KineticLabel from '@/components/motion/KineticLabel'
+import Reveal from '@/components/ui/Reveal'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { SCRUB } from '@/lib/motionTokens'
 
 /**
  * Act 4 — results, once.
@@ -130,9 +132,8 @@ export default function CaseMetrics({
           { scaleX: 0 },
           {
             scaleX: 1,
-            duration: 1.1,
-            ease: 'power3.out',
-            scrollTrigger: { trigger: bar, start: 'top 90%' },
+            ease: 'none',
+            scrollTrigger: { trigger: bar, start: 'top 90%', end: 'top 55%', scrub: SCRUB.text },
           }
         )
       })
@@ -144,10 +145,9 @@ export default function CaseMetrics({
           {
             autoAlpha: 1,
             y: 0,
-            duration: 0.8,
             stagger: 0.09,
-            ease: 'power3.out',
-            scrollTrigger: { trigger: supporting[0], start: 'top 86%' },
+            ease: 'none',
+            scrollTrigger: { trigger: supporting[0], start: 'top 86%', end: 'top 48%', scrub: SCRUB.text },
           }
         )
       }
@@ -188,12 +188,14 @@ export default function CaseMetrics({
             <MetricBlock metric={presentation.primaryMetric} accent={cs.accentColor} size="dominant" />
           </div>
         </div>
-        <p
+        <Reveal
+          variant="fade-up"
+          delay={0.06}
           className="font-body text-base leading-relaxed text-text-200 lg:col-span-5 lg:col-start-8 sm:text-lg"
           style={{ maxWidth: '46ch' }}
         >
           {presentation.resultLead}
-        </p>
+        </Reveal>
       </div>
 
       {/* Supporting metrics on a regular grid — a clear relationship, not
@@ -208,14 +210,14 @@ export default function CaseMetrics({
       </div>
 
       {presentation.secondaryProof && (
-        <p className="flow-gutter font-body mt-10 text-sm text-text-500">
+        <Reveal variant="fade-up" className="flow-gutter font-body mt-10 text-sm text-text-500">
           <span className="font-display font-bold text-text-300">
             {presentation.secondaryProof.prefix}
             {presentation.secondaryProof.value}
             {presentation.secondaryProof.suffix}
           </span>{' '}
           {presentation.secondaryProof.label.toLowerCase()} across the campaign.
-        </p>
+        </Reveal>
       )}
 
       {/* The verified summary and full stat list stay available in full. */}

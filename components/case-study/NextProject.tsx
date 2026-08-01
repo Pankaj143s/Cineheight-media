@@ -6,6 +6,9 @@ import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import type { CaseStudy } from '@/content/caseStudies'
 import { workIndexSlots } from '@/content/mediaSlots'
+import KineticLabel from '@/components/motion/KineticLabel'
+import OpticalResolve from '@/components/motion/OpticalResolve'
+import Reveal from '@/components/ui/Reveal'
 import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
@@ -160,12 +163,13 @@ export default function NextProject({ next }: { next: CaseStudy }) {
         </div>
 
         <div data-depth-layer="front" className="flow-gutter absolute inset-x-0 bottom-0 pb-[7vh]">
-          <p className="font-display text-[11px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.3em' }}>
-            Next project
-          </p>
+          <KineticLabel text="NEXT PROJECT" color="var(--text-500)" />
           {/* Bounded so a long client name wraps inside the darkened column
               instead of running across the artwork to the right edge. */}
-          <h2
+          <OpticalResolve
+            as="h2"
+            text={next.client}
+            delay={0.08}
             className="font-display mt-4 font-bold uppercase text-text-100 transition-colors duration-500 group-hover:text-[var(--blue-200)]"
             style={{
               fontSize: 'clamp(2.2rem, 6.4vw, 6.5rem)',
@@ -173,11 +177,11 @@ export default function NextProject({ next }: { next: CaseStudy }) {
               letterSpacing: '-0.035em',
               maxWidth: '13ch',
             }}
-          >
-            {next.client}
-          </h2>
+          />
           <div className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-3">
-            <p className="font-body measure text-sm leading-relaxed text-text-300">{next.hook}</p>
+            <Reveal variant="fade-up" delay={0.06} className="font-body measure text-sm leading-relaxed text-text-300">
+              {next.hook}
+            </Reveal>
             <span
               aria-hidden="true"
               className="h-px transition-all duration-500 group-hover:w-28"

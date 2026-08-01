@@ -1,12 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { gsap } from '@/lib/gsap'
+import { GSAP_EASE } from '@/lib/motionTokens'
 import { useReducedMotion } from '@/lib/useMediaPreferences'
 import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
-
-const EASE = [0.22, 1, 0.36, 1] as const
 
 export interface LightboxItem {
   kind: 'image' | 'video'
@@ -17,20 +16,46 @@ export interface LightboxItem {
   client: string
 }
 
+type MorphOrigin = {
+  x: number
+  y: number
+  scaleX: number
+  scaleY: number
+  borderRadius: number
+}
+
+const CARD_RADIUS = 18
+const SHADOW_CARD = '0 22px 48px -12px rgba(0,0,0,0.55)'
+const SHADOW_STUDIO = '0 40px 90px -20px rgba(0,0,0,0.78), 0 0 80px -30px rgba(0,137,255,0.18)'
+
+/** FLIP origin from the clicked card to the expected full-size media box. */
+function originFromRect(rect: DOMRect): MorphOrigin {
+  const maxH = Math.min(window.innerHeight * 0.78, window.innerHeight * 0.92 - 128)
+  const maxW = window.innerWidth * 0.96
+  const aspect = rect.width / Math.max(1, rect.height)
+  let finalH = maxH
+  let finalW = finalH * aspect
+  if (finalW > maxW) {
+    finalW = maxW
+    finalH = finalW / aspect
+  }
+  const finalCx = window.innerWidth / 2
+  const finalCy = window.innerHeight / 2 + 28
+  return {
+    x: rect.left + rect.width / 2 - finalCx,
+    y: rect.top + rect.height / 2 - finalCy,
+    scaleX: Math.max(0.08, rect.width / finalW),
+    scaleY: Math.max(0.08, rect.height / finalH),
+    borderRadius: CARD_RADIUS,
+  }
+}
+
 /**
  * The one accessible lightbox, for both images and video.
  *
- * Everything a modal has to get right lives here once — focus trap, Escape,
- * focus restoration, body-scroll lock, arrow keys, swipe, backdrop click — so
- * the post orbit and the phone reels cannot drift apart in behaviour.
- *
- * Media is always `object-contain` inside ~96vw × 92svh: the whole reel and the
- * whole creative stay visible, and an image is never scaled beyond its own
- * resolution.
- *
- * Body-scroll lock is done by fixing <body> at its current offset rather than
- * with `overflow: hidden`, because iOS Safari ignores the latter and scrolls
- * the page behind the modal anyway.
+ * When `sourceRect` is supplied the media blooms out of that rectangle —
+ * shared-element FLIP plus a focus-pull blur, shadow lift, overshoot settle,
+ * and staged chrome. Close reverses the bloom back into the card.
  */
 export default function MediaLightbox({
   items,
@@ -41,92 +66,217 @@ export default function MediaLightbox({
   sourceRect,
 }: {
   items: LightboxItem[]
-  /** null closes the lightbox. */
   index: number | null
   accent?: string
   onClose: () => void
   onIndex: (i: number) => void
-  /**
-   * Viewport rect of the element that was clicked to open this.
-   *
-   * When supplied the panel grows out of that rectangle instead of fading in
-   * from nowhere, so a phone or a creative card visibly becomes the full-size
-   * view. Omit it (or under reduced motion) and the plain fade is used.
-   */
   sourceRect?: DOMRect | null
 }) {
   const reduced = useReducedMotion()
   const panelRef = useRef<HTMLDivElement>(null)
+  const backdropRef = useRef<HTMLDivElement>(null)
+  const mediaShellRef = useRef<HTMLDivElement>(null)
+  const chromeHeaderRef = useRef<HTMLDivElement>(null)
+  const chromeControlsRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const restoreRef = useRef<HTMLElement | null>(null)
   const touchX = useRef<number | null>(null)
+  const morphOriginRef = useRef<MorphOrigin | null>(null)
+  const bloomTlRef = useRef<gsap.core.Timeline | null>(null)
+  /** Prevents re-blooming when the user flips to the next slide. */
+  const bloomedOpenRef = useRef(false)
+  /** True while the exit morph is playing — keeps the dialog mounted. */
+  const [exiting, setExiting] = useState(false)
 
   const [playing, setPlaying] = useState(true)
   const [muted, setMuted] = useState(true)
-  // Duck the ambient soundscape whenever this video is audible.
   useReportVideoAudible(!muted, 'lightbox')
 
-  const open = index !== null
-
-  /**
-   * The dialog is portalled to <body>.
-   *
-   * Route content sits in `.layer-content`, which sets `isolation: isolate` so
-   * the decorative flow thread can never surface through a section. That same
-   * isolation would trap this dialog's z-index inside the content layer and let
-   * the navbar paint over it, so the modal has to live outside the wrapper.
-   */
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null)
+
+  const open = index !== null || exiting
+  const lastItemRef = useRef<LightboxItem | null>(null)
+  if (index !== null && items[index]) lastItemRef.current = items[index]
+  const displayItem = index !== null ? items[index] : lastItemRef.current
+
+  if (index !== null && sourceRect && !reduced && !exiting) {
+    morphOriginRef.current = originFromRect(sourceRect)
+  }
+
   useEffect(() => {
     setPortalHost(document.body)
   }, [])
 
-  /**
-   * A FLIP-style approximation of "this card became the dialog".
-   *
-   * The panel's final size is not known until it has laid out, so rather than
-   * measuring twice we derive the opening transform from the source rect
-   * against the viewport: where its centre was relative to the screen centre,
-   * and roughly how much smaller it was. It reads as the card travelling and
-   * growing, without a second layout pass or a flash at the wrong size.
-   */
-  const fromSource = useMemo(() => {
-    if (!sourceRect || typeof window === 'undefined') {
-      return {
-        initial: { opacity: 0, scale: 0.94, x: 0, y: 18 },
-        exit: { opacity: 0, scale: 0.95, x: 0, y: 12 },
+  // Hand the pointer back to the native cursor while the dialog covers the
+  // signal-cursor layer (see `data-modal-surface` in globals.css).
+  useEffect(() => {
+    if (!open) return
+    document.documentElement.dataset.modalSurface = 'true'
+    return () => {
+      delete document.documentElement.dataset.modalSurface
+    }
+  }, [open])
+
+  // Cinematic bloom open: lift → focus pull → overshoot settle → chrome.
+  // Runs once per open; slide changes keep the settled shell.
+  useLayoutEffect(() => {
+    if (index === null) {
+      bloomedOpenRef.current = false
+      return
+    }
+    if (exiting || bloomedOpenRef.current) return
+
+    let cancelled = false
+    bloomedOpenRef.current = true
+
+    const run = () => {
+      if (cancelled) return
+      const shell = mediaShellRef.current
+      const backdrop = backdropRef.current
+      const header = chromeHeaderRef.current
+      const controls = chromeControlsRef.current
+      if (!shell || !backdrop) {
+        requestAnimationFrame(run)
+        return
       }
+
+      bloomTlRef.current?.kill()
+
+      if (reduced || !morphOriginRef.current) {
+        gsap.set(shell, { clearProps: 'transform,borderRadius,filter,boxShadow', opacity: 1 })
+        gsap.set(backdrop, { opacity: 1 })
+        if (header) gsap.set(header, { opacity: 1, y: 0 })
+        if (controls) gsap.set(controls, { opacity: 1, y: 0 })
+        return
+      }
+
+      const from = morphOriginRef.current
+      const tl = gsap.timeline({
+        defaults: { overwrite: 'auto' },
+        onComplete: () => {
+          gsap.set(shell, { clearProps: 'filter' })
+        },
+      })
+      bloomTlRef.current = tl
+
+      gsap.set(shell, {
+        x: from.x,
+        y: from.y,
+        scaleX: from.scaleX,
+        scaleY: from.scaleY,
+        borderRadius: from.borderRadius,
+        opacity: 1,
+        filter: 'blur(14px)',
+        boxShadow: SHADOW_CARD,
+        transformOrigin: '50% 50%',
+      })
+      gsap.set(backdrop, { opacity: 0 })
+      if (header) gsap.set(header, { opacity: 0, y: -10 })
+      if (controls) gsap.set(controls, { opacity: 0, y: 12 })
+
+      // Card leads — morph with slight overshoot.
+      tl.to(
+        shell,
+        {
+          x: 0,
+          y: 0,
+          scaleX: 1.035,
+          scaleY: 1.035,
+          borderRadius: 4,
+          duration: 0.72,
+          ease: GSAP_EASE.signal,
+        },
+        0
+      )
+      // Focus pull.
+      tl.to(shell, { filter: 'blur(0px)', duration: 0.45, ease: 'power2.out' }, 0)
+      // Shadow blooms into a studio pool.
+      tl.to(shell, { boxShadow: SHADOW_STUDIO, duration: 0.55, ease: 'power2.out' }, 0.04)
+      // Backdrop follows slightly behind the card.
+      tl.to(backdrop, { opacity: 1, duration: 0.5, ease: 'power2.out' }, 0.06)
+      // Settle the overshoot.
+      tl.to(shell, { scaleX: 1, scaleY: 1, duration: 0.28, ease: 'power2.out' }, 0.62)
+      // Chrome arrives late.
+      if (header) tl.to(header, { opacity: 1, y: 0, duration: 0.36, ease: GSAP_EASE.signal }, 0.45)
+      if (controls) tl.to(controls, { opacity: 1, y: 0, duration: 0.36, ease: GSAP_EASE.signal }, 0.5)
     }
-    const x = sourceRect.left + sourceRect.width / 2 - window.innerWidth / 2
-    const y = sourceRect.top + sourceRect.height / 2 - window.innerHeight / 2
-    const scale = Math.max(0.2, Math.min(0.9, sourceRect.height / (window.innerHeight * 0.86)))
-    return {
-      initial: { opacity: 0, scale, x, y },
-      // Closing reverses toward the same place, so the work goes back where the
-      // visitor took it from.
-      exit: { opacity: 0, scale, x, y },
+
+    run()
+    return () => {
+      cancelled = true
     }
-  }, [sourceRect])
-  const item = index === null ? null : items[index]
+  }, [index, reduced, exiting, sourceRect])
+
+  useEffect(() => {
+    return () => {
+      bloomTlRef.current?.kill()
+    }
+  }, [])
+
+  const requestClose = useCallback(() => {
+    const shell = mediaShellRef.current
+    const backdrop = backdropRef.current
+    const header = chromeHeaderRef.current
+    const controls = chromeControlsRef.current
+    const from = morphOriginRef.current
+
+    if (reduced || !shell || !from || !backdrop) {
+      bloomTlRef.current?.kill()
+      morphOriginRef.current = null
+      setExiting(false)
+      onClose()
+      return
+    }
+
+    setExiting(true)
+    bloomTlRef.current?.kill()
+
+    const tl = gsap.timeline({
+      defaults: { overwrite: 'auto' },
+      onComplete: () => {
+        morphOriginRef.current = null
+        setExiting(false)
+        onClose()
+      },
+    })
+    bloomTlRef.current = tl
+
+    if (header) tl.to(header, { opacity: 0, y: -6, duration: 0.16, ease: 'power2.in' }, 0)
+    if (controls) tl.to(controls, { opacity: 0, y: 8, duration: 0.16, ease: 'power2.in' }, 0)
+    tl.to(shell, { filter: 'blur(8px)', duration: 0.32, ease: 'power2.in' }, 0.04)
+    tl.to(
+      shell,
+      {
+        x: from.x,
+        y: from.y,
+        scaleX: from.scaleX,
+        scaleY: from.scaleY,
+        borderRadius: from.borderRadius,
+        boxShadow: SHADOW_CARD,
+        duration: 0.52,
+        ease: GSAP_EASE.travel,
+      },
+      0.08
+    )
+    tl.to(backdrop, { opacity: 0, duration: 0.38, ease: 'power2.in' }, 0.22)
+  }, [onClose, reduced])
 
   const move = useCallback(
     (dir: 1 | -1) => {
-      if (index === null || items.length < 2) return
+      if (index === null || items.length < 2 || exiting) return
       onIndex((index + dir + items.length) % items.length)
     },
-    [index, items.length, onIndex]
+    [index, items.length, onIndex, exiting]
   )
 
-  // Remember what had focus, and give it back on close.
   useEffect(() => {
-    if (open) restoreRef.current = document.activeElement as HTMLElement
-    else restoreRef.current?.focus?.()
-  }, [open])
+    if (index !== null) restoreRef.current = document.activeElement as HTMLElement
+    else if (!exiting) restoreRef.current?.focus?.()
+  }, [index, exiting])
 
-  // Body-scroll lock that also works on iOS Safari.
   useEffect(() => {
-    if (!open) return
+    if (index === null && !exiting) return
     const y = window.scrollY
     const body = document.body
     const prev = {
@@ -146,16 +296,15 @@ export default function MediaLightbox({
       body.style.overflow = prev.overflow
       window.scrollTo(0, y)
     }
-  }, [open])
+  }, [index, exiting])
 
-  // Keyboard: Escape, arrows, and a Tab loop confined to the dialog.
   useEffect(() => {
-    if (!open) return
+    if (index === null && !exiting) return
     closeRef.current?.focus()
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        onClose()
+        requestClose()
       } else if (e.key === 'ArrowRight') {
         e.preventDefault()
         move(1)
@@ -180,93 +329,97 @@ export default function MediaLightbox({
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [open, onClose, move])
+  }, [index, exiting, requestClose, move])
 
-  // Playback: starts muted, always. Audio is strictly opt-in.
   useEffect(() => {
     const v = videoRef.current
-    if (!v || !item || item.kind !== 'video') return
+    if (!v || !displayItem || displayItem.kind !== 'video') return
     v.muted = muted
     if (playing) v.play().catch(() => {})
     else v.pause()
-  }, [item, playing, muted])
+  }, [displayItem, playing, muted])
 
   useEffect(() => {
-    if (!open) {
+    if (index === null && !exiting) {
       setPlaying(true)
       setMuted(true)
     }
-  }, [open])
+  }, [index, exiting])
 
   if (!portalHost) return null
 
-  return createPortal(
-    <AnimatePresence>
-      {item && (
-        <motion.div
-          className="fixed inset-0 flex flex-col items-center justify-center p-4 sm:p-6"
-          style={{ background: 'rgba(1,2,4,0.97)', zIndex: 'var(--z-modal)' }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${item.title} — ${item.client}`}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) onClose()
-          }}
-          onTouchStart={(e) => { touchX.current = e.touches[0]?.clientX ?? null }}
-          onTouchEnd={(e) => {
-            if (touchX.current === null) return
-            const dx = (e.changedTouches[0]?.clientX ?? 0) - touchX.current
-            touchX.current = null
-            if (Math.abs(dx) > 60) move(dx < 0 ? 1 : -1)
-          }}
-        >
-          <motion.div
-            ref={panelRef}
-            className="relative flex w-full max-w-[96vw] flex-col items-center"
-            initial={reduced ? { opacity: 0 } : fromSource.initial}
-            animate={reduced ? { opacity: 1 } : { opacity: 1, scale: 1, x: 0, y: 0 }}
-            exit={reduced ? { opacity: 0 } : fromSource.exit}
-            transition={{ duration: reduced ? 0.15 : sourceRect ? 0.44 : 0.36, ease: EASE }}
-          >
-            {/* header */}
-            <div className="mb-3 flex w-full items-center justify-between gap-4">
-              <div className="min-w-0">
-                <p className="font-display text-[11px] font-medium uppercase" style={{ letterSpacing: '0.26em', color: accent }}>
-                  {item.client}
-                </p>
-                <p className="font-body mt-1 truncate text-sm text-text-200">{item.title}</p>
-              </div>
-              <button
-                ref={closeRef}
-                type="button"
-                onClick={onClose}
-                aria-label="Close"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-text-100 transition-colors hover:border-[var(--blue-400)]"
-                style={{ borderColor: 'var(--border-strong)' }}
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                  <path d="M1 1l12 12M13 1 1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
+  const show = Boolean(displayItem) && open
 
-            {/* the media — always complete, never cropped, never upscaled past
-                its own resolution */}
-            <div
-              className="relative flex w-full items-center justify-center"
-              style={{ height: 'min(92svh - 8rem, 78vh)' }}
+  return createPortal(
+    show && displayItem ? (
+      <div
+        ref={backdropRef}
+        className="fixed inset-0 flex flex-col items-center justify-center p-4 sm:p-6"
+        style={{
+          background: 'rgba(1,2,4,0.97)',
+          zIndex: 'var(--z-modal)',
+          cursor: 'auto',
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${displayItem.title} — ${displayItem.client}`}
+        onClick={(e) => {
+          if (e.target === e.currentTarget && !exiting) requestClose()
+        }}
+        onTouchStart={(e) => {
+          touchX.current = e.touches[0]?.clientX ?? null
+        }}
+        onTouchEnd={(e) => {
+          if (touchX.current === null || exiting) return
+          const dx = (e.changedTouches[0]?.clientX ?? 0) - touchX.current
+          touchX.current = null
+          if (Math.abs(dx) > 60) move(dx < 0 ? 1 : -1)
+        }}
+      >
+        <div ref={panelRef} className="relative flex w-full max-w-[96vw] flex-col items-center">
+          <div
+            ref={chromeHeaderRef}
+            className="mb-3 flex w-full items-center justify-between gap-4"
+          >
+            <div className="min-w-0">
+              <p
+                className="font-display text-[11px] font-medium uppercase"
+                style={{ letterSpacing: '0.26em', color: accent }}
+              >
+                {displayItem.client}
+              </p>
+              <p className="font-body mt-1 truncate text-sm text-text-200">{displayItem.title}</p>
+            </div>
+            <button
+              ref={closeRef}
+              type="button"
+              onClick={() => !exiting && requestClose()}
+              aria-label="Close"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-text-100 transition-colors hover:border-[var(--blue-400)]"
+              style={{ borderColor: 'var(--border-strong)' }}
             >
-              {item.kind === 'video' ? (
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M1 1l12 12M13 1 1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+
+          <div
+            className="relative flex w-full items-center justify-center"
+            style={{ height: 'min(92svh - 8rem, 78vh)' }}
+          >
+            <div
+              ref={mediaShellRef}
+              className="relative inline-flex max-h-full max-w-full origin-center overflow-hidden will-change-transform"
+              style={{ borderRadius: 4 }}
+            >
+              {displayItem.kind === 'video' ? (
                 <video
                   ref={videoRef}
-                  key={item.src}
-                  src={item.src}
-                  poster={item.poster}
-                  className="max-h-full max-w-full object-contain"
+                  key={displayItem.src}
+                  src={displayItem.src}
+                  poster={displayItem.poster}
+                  className="max-h-[min(92svh-8rem,78vh)] max-w-[96vw] object-contain"
                   loop
                   playsInline
                   muted={muted}
@@ -276,81 +429,99 @@ export default function MediaLightbox({
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={item.src}
-                  alt={item.alt}
-                  className="max-h-full max-w-full object-contain"
+                  src={displayItem.src}
+                  alt={displayItem.alt}
+                  className="max-h-[min(92svh-8rem,78vh)] max-w-[96vw] object-contain"
                   style={{ imageRendering: 'auto' }}
                 />
               )}
             </div>
+          </div>
 
-            {/* controls */}
-            <div className="mt-4 flex w-full flex-wrap items-center justify-center gap-3">
-              {items.length > 1 && (
+          <div
+            ref={chromeControlsRef}
+            className="mt-4 flex w-full flex-wrap items-center justify-center gap-3"
+          >
+            {items.length > 1 && (
+              <button
+                type="button"
+                onClick={() => move(-1)}
+                aria-label="Previous"
+                className="flex h-11 w-11 items-center justify-center rounded-full border text-text-100 transition-colors hover:border-[var(--blue-400)]"
+                style={{ borderColor: 'var(--border-strong)' }}
+              >
+                <svg width="16" height="10" viewBox="0 0 26 10" fill="none" aria-hidden="true">
+                  <path d="M26 5H2M6 1 2 5l4 4" stroke="currentColor" strokeWidth="1.3" />
+                </svg>
+              </button>
+            )}
+
+            {displayItem.kind === 'video' && (
+              <>
                 <button
                   type="button"
-                  onClick={() => move(-1)}
-                  aria-label="Previous"
+                  onClick={() => setPlaying((p) => !p)}
+                  aria-label={playing ? 'Pause' : 'Play'}
                   className="flex h-11 w-11 items-center justify-center rounded-full border text-text-100 transition-colors hover:border-[var(--blue-400)]"
                   style={{ borderColor: 'var(--border-strong)' }}
                 >
-                  <svg width="16" height="10" viewBox="0 0 26 10" fill="none" aria-hidden="true"><path d="M26 5H2M6 1 2 5l4 4" stroke="currentColor" strokeWidth="1.3" /></svg>
+                  {playing ? (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M6 5h4v14H6zM14 5h4v14h-4z" />
+                    </svg>
+                  ) : (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  )}
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={() => setMuted((m) => !m)}
+                  aria-label={muted ? 'Unmute' : 'Mute'}
+                  aria-pressed={!muted}
+                  className="flex h-11 w-11 items-center justify-center rounded-full border text-text-100 transition-colors hover:border-[var(--blue-400)]"
+                  style={{ borderColor: muted ? 'var(--border-strong)' : 'var(--blue-500)' }}
+                >
+                  {muted ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path
+                        d="M4 9v6h4l5 5V4L8 9H4zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"
+                        opacity="0.4"
+                      />
+                      <path d="m3 3 18 18-1.4 1.4L2 4.4z" />
+                    </svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M4 9v6h4l5 5V4L8 9H4zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z" />
+                    </svg>
+                  )}
+                </button>
+              </>
+            )}
 
-              {item.kind === 'video' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setPlaying((p) => !p)}
-                    aria-label={playing ? 'Pause' : 'Play'}
-                    className="flex h-11 w-11 items-center justify-center rounded-full border text-text-100 transition-colors hover:border-[var(--blue-400)]"
-                    style={{ borderColor: 'var(--border-strong)' }}
-                  >
-                    {playing ? (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z" /></svg>
-                    ) : (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMuted((m) => !m)}
-                    aria-label={muted ? 'Unmute' : 'Mute'}
-                    aria-pressed={!muted}
-                    className="flex h-11 w-11 items-center justify-center rounded-full border text-text-100 transition-colors hover:border-[var(--blue-400)]"
-                    style={{ borderColor: muted ? 'var(--border-strong)' : 'var(--blue-500)' }}
-                  >
-                    {muted ? (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 9v6h4l5 5V4L8 9H4zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z" opacity="0.4" /><path d="m3 3 18 18-1.4 1.4L2 4.4z" /></svg>
-                    ) : (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 9v6h4l5 5V4L8 9H4zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z" /></svg>
-                    )}
-                  </button>
-                </>
-              )}
-
-              {items.length > 1 && (
-                <>
-                  <span className="font-body px-1 text-xs tabular-nums text-text-500">
-                    {index! + 1} / {items.length}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => move(1)}
-                    aria-label="Next"
-                    className="flex h-11 w-11 items-center justify-center rounded-full border text-text-100 transition-colors hover:border-[var(--blue-400)]"
-                    style={{ borderColor: 'var(--border-strong)' }}
-                  >
-                    <svg width="16" height="10" viewBox="0 0 26 10" fill="none" aria-hidden="true"><path d="M0 5h24M20 1l4 4-4 4" stroke="currentColor" strokeWidth="1.3" /></svg>
-                  </button>
-                </>
-              )}
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>,
-    portalHost,
+            {items.length > 1 && (
+              <>
+                <span className="font-body px-1 text-xs tabular-nums text-text-500">
+                  {(index ?? 0) + 1} / {items.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => move(1)}
+                  aria-label="Next"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border text-text-100 transition-colors hover:border-[var(--blue-400)]"
+                  style={{ borderColor: 'var(--border-strong)' }}
+                >
+                  <svg width="16" height="10" viewBox="0 0 26 10" fill="none" aria-hidden="true">
+                    <path d="M0 5h24M20 1l4 4-4 4" stroke="currentColor" strokeWidth="1.3" />
+                  </svg>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    ) : null,
+    portalHost
   )
 }

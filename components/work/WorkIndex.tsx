@@ -9,14 +9,16 @@ import { workIndexSlots } from '@/content/mediaSlots'
 import KineticLabel from '@/components/motion/KineticLabel'
 import OpticalResolve from '@/components/motion/OpticalResolve'
 import EditorialMatteReveal from '@/components/motion/EditorialMatteReveal'
+import Reveal from '@/components/ui/Reveal'
 import MediaSpecPlaceholder from '@/components/media/MediaSpecPlaceholder'
 import CountUp from '@/components/ui/CountUp'
 import { clamp, damp } from '@/lib/utils'
 import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import { observeVisibleLayerPromotion } from '@/lib/visibleLayerPromotion'
-import { LIQUID_BEAT, LIQUID_EASE, LIQUID_STAGGER } from '@/lib/liquidMedia/tokens'
+import { LIQUID_STAGGER } from '@/lib/liquidMedia/tokens'
 import { applyMotionFinalState } from '@/lib/liquidMedia/finalState'
+import { SCRUB } from '@/lib/motionTokens'
 
 /**
  * Cinematic portfolio index — full-bleed project worlds, not a card grid.
@@ -47,10 +49,14 @@ export default function WorkIndex() {
               {
                 autoAlpha: 1,
                 y: 0,
-                duration: LIQUID_BEAT.resolve,
                 stagger: LIQUID_STAGGER.word,
-                ease: LIQUID_EASE.reveal,
-                scrollTrigger: { trigger: copyBlock, start: 'top 92%', toggleActions: 'play none none none' },
+                ease: 'none',
+                scrollTrigger: {
+                  trigger: copyBlock,
+                  start: 'top 92%',
+                  end: 'top 48%',
+                  scrub: SCRUB.text,
+                },
               }
             )
           }
@@ -154,9 +160,9 @@ export default function WorkIndex() {
           className="font-display mt-6 font-bold uppercase text-text-100"
           style={{ fontSize: 'clamp(2.6rem, 10vw, 9rem)', lineHeight: 0.88, letterSpacing: '-0.035em' }}
         />
-        <p className="font-body measure mt-8 text-base leading-relaxed text-text-300">
+        <Reveal variant="fade-up" delay={0.06} className="font-body measure mt-8 text-base leading-relaxed text-text-300">
           Three brands. Real journeys — strategy, content and campaigns that turned attention into growth.
-        </p>
+        </Reveal>
       </header>
 
       {caseStudies.map((cs, i) => {
@@ -214,7 +220,6 @@ export default function WorkIndex() {
                       {cs.category} — {cs.year}
                     </p>
                     <h2
-                      data-own-reveal
                       className="font-display mt-4 font-bold uppercase text-text-100 transition-colors duration-500 group-hover:text-[var(--blue-200)]"
                       style={{ fontSize: 'clamp(2rem, 7.4vw, 7rem)', lineHeight: 0.88, letterSpacing: '-0.035em' }}
                     >

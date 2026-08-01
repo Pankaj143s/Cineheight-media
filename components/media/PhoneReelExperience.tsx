@@ -5,6 +5,7 @@ import PhoneReelShell, { type PhoneReelItem } from './PhoneReelShell'
 import MediaLightbox, { type LightboxItem } from './MediaLightbox'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
+import Reveal from '@/components/ui/Reveal'
 import { clamp, damp } from '@/lib/utils'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
@@ -418,9 +419,9 @@ export default function PhoneReelExperience({
         />
       )}
       {explanation && (
-        <p className="font-body mt-5 text-sm leading-relaxed text-text-300" style={{ maxWidth: '42ch' }}>
+        <Reveal as="p" className="font-body mt-5 text-sm leading-relaxed text-text-300" style={{ maxWidth: '42ch' }}>
           {explanation}
-        </p>
+        </Reveal>
       )}
     </div>
   )

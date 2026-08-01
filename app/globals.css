@@ -182,6 +182,20 @@ html[data-hero-surface='true'][data-signal-cursor='true'] [role='button'] {
   cursor: auto !important;
 }
 
+/* Fullscreen media lightbox sits above the signal cursor (z-modal 95 >
+   z-cursor 70). Without a native-cursor handoff the pointer disappears —
+   `cursor: none` stays on, and the custom glyph is painted under the dialog.
+   `MediaLightbox` sets this attribute for the open duration. */
+html[data-modal-surface='true'] [data-signal-cursor] {
+  opacity: 0 !important;
+}
+html[data-modal-surface='true'][data-signal-cursor='true'] body,
+html[data-modal-surface='true'][data-signal-cursor='true'] a,
+html[data-modal-surface='true'][data-signal-cursor='true'] button,
+html[data-modal-surface='true'][data-signal-cursor='true'] [role='button'] {
+  cursor: auto !important;
+}
+
 @media (prefers-reduced-motion: reduce), (pointer: coarse) {
   [data-signal-cursor] {
     display: none !important;
@@ -208,6 +222,22 @@ html[data-hero-surface='true'][data-signal-cursor='true'] [role='button'] {
   background-clip: text;
   color: transparent;
   user-select: none;
+  font-kerning: none;
+  text-rendering: optimizeSpeed;
+  /* Hidden until GSAP Domino Fall; inline autoAlpha then owns visibility */
+  opacity: 0;
+}
+
+/* SplitText char wrappers — inline-block required for rotationZ */
+.hero-title-char {
+  display: inline-block;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  background-image: linear-gradient(to bottom, #f5f7fa 42%, #dde2e8 74%, #b8bfc9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* NOTE: the hero-v2 cloud compositing helpers (.cloud-screen mix-blend + the
@@ -224,6 +254,88 @@ html[data-hero-surface='true'][data-signal-cursor='true'] [role='button'] {
    both asset scripts ASSERT it. Do not add a CSS mask to compensate for an
    asset-level edge — fixing it in the pipeline is what keeps the clouds
    compositing normally. */
+
+/* Cinematic hero-v5 recomposition — four depth planes:
+   far accent (center asset, small/high/dim) → mid side streaks → title → foreground bank.
+   Depth rule: far = smaller, dimmer, more blur; near = larger, brighter, sharper. */
+.hero-cloud-stage {
+  isolation: isolate;
+}
+
+.hero-cloud-plate {
+  pointer-events: none;
+  user-select: none;
+  position: absolute;
+  opacity: 0.8;
+}
+
+.hero-cloud-plate img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  transform-origin: center;
+}
+
+/* Far accent — distant cloud high in the frame, offset right of center */
+.hero-cloud-center {
+  left: 73%;
+  top: 32%;
+  width: clamp(343px, 31.2vw, 593px);
+  transform: translate(-50%, -50%);
+  opacity: 0.6;
+}
+
+/* Mid plane, left edge — shifted +10vw right, +20% down from prior spot */
+.hero-cloud-left {
+  left: 6vw;
+  top: 60%;
+  width: clamp(468px, 39vw, 728px);
+  transform: translateY(-50%) rotate(-2deg);
+}
+
+/* Mid plane, right edge — shifted 15vw left, 3% down from prior spot */
+.hero-cloud-right {
+  right: 17vw;
+  top: 62%;
+  width: clamp(520px, 42.9vw, 806px);
+  transform: translateY(-50%) rotate(1.5deg) scale(0.97);
+}
+
+/* Tablet — far accent and right streak off; left streak carries the mood */
+@media (max-width: 1023px) {
+  .hero-cloud-center,
+  .hero-cloud-right {
+    display: none;
+  }
+
+  .hero-cloud-left {
+    top: 62%;
+    width: clamp(390px, 41.6vw, 624px);
+  }
+}
+
+/* Mobile — faint far accent only; sides off */
+@media (max-width: 767px) {
+  .hero-cloud-left,
+  .hero-cloud-right {
+    display: none !important;
+  }
+
+  .hero-cloud-center {
+    display: block;
+    left: 60%;
+    top: 24%;
+    width: clamp(265px, 65.5vw, 468px);
+  }
+}
+
+/* Short laptops */
+@media (min-width: 1280px) and (max-width: 1439px) {
+  .hero-cloud-center {
+    width: clamp(312px, 28.1vw, 499px);
+  }
+}
 
 /* Film grain — inline SVG turbulence, extremely low opacity */
 .grain-overlay {

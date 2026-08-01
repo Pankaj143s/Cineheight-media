@@ -16,6 +16,8 @@ import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import { LIQUID_MEDIA_PROTO } from '@/lib/liquidMedia/config'
 import { setSignalIntensity } from '@/lib/liquidMedia/signalIntensity'
+import { SCRUB } from '@/lib/motionTokens'
+import { reportUiClick } from '@/lib/audio/reportUiClick'
 
 /**
  * Selected work — one full-viewport-width media stage the three projects pass
@@ -93,6 +95,7 @@ function ProjectCopy({
 
       <Link
         href={`/work/${cs.id}`}
+        onClick={reportUiClick}
         className="group/link font-display mt-7 inline-flex min-h-[44px] items-center gap-3 text-[12px] font-medium uppercase text-text-100 transition-colors duration-300 hover:text-[var(--blue-400)]"
         style={{ letterSpacing: '0.24em' }}
       >
@@ -155,6 +158,12 @@ export default function FeaturedWorkJourney() {
       const intro = self.selector!('[data-intro]')[0] as HTMLElement
       if (frames.length !== PROJECTS.length) return
 
+      // Keep SES/Divija fully hidden during P1. Entrance tweens still use the
+      // original “already present under matte” from-states (autoAlpha: 1 + clip);
+      // immediateRender: false so those from-values never leak before the handoff.
+      gsap.set(frames[0], { zIndex: 3 })
+      gsap.set([frames[1], frames[2]], { autoAlpha: 0, zIndex: 1 })
+
       const matte = { p: 0 }
 
       const tl = gsap.timeline({
@@ -201,29 +210,47 @@ export default function FeaturedWorkJourney() {
         0
       )
 
-      // P1→P2 — incoming already present (poster/media) under diagonal matte;
-      // outgoing only releases after ownership transfers (no empty bright gap).
+      // P1→P2 — incoming already present under diagonal matte (original feel)
       tl.fromTo(
         frames[1],
-        { autoAlpha: 1, clipPath: 'polygon(0% 0%, 0% 0%, -8% 100%, 0% 100%)', scale: 1.015 },
+        {
+          autoAlpha: 1,
+          clipPath: 'polygon(0% 0%, 0% 0%, -8% 100%, 0% 100%)',
+          scale: 1.015,
+          zIndex: 4,
+        },
         {
           autoAlpha: 1,
           clipPath: 'polygon(0% 0%, 112% 0%, 100% 100%, 0% 100%)',
           scale: 1,
+          zIndex: 4,
           duration: 0.2,
+          immediateRender: false,
         },
         0.28
       )
-      tl.to(frames[0], { autoAlpha: 0, duration: 0.1 }, 0.4)
+      tl.to(frames[0], { autoAlpha: 0, zIndex: 1, duration: 0.1 }, 0.4)
 
-      // P2→P3 — simpler handoff; keep overlap so stage never empties
+      // P2→P3 — letterbox open (original feel); overlap so stage never empties
       tl.fromTo(
         frames[2],
-        { autoAlpha: 1, clipPath: 'inset(48% 0% 48% 0%)', scale: 1.04 },
-        { autoAlpha: 1, clipPath: 'inset(0% 0% 0% 0%)', scale: 1, duration: 0.16 },
+        {
+          autoAlpha: 1,
+          clipPath: 'inset(48% 0% 48% 0%)',
+          scale: 1.04,
+          zIndex: 4,
+        },
+        {
+          autoAlpha: 1,
+          clipPath: 'inset(0% 0% 0% 0%)',
+          scale: 1,
+          zIndex: 4,
+          duration: 0.16,
+          immediateRender: false,
+        },
         0.6
       )
-      tl.to(frames[1], { autoAlpha: 0, duration: 0.1 }, 0.7)
+      tl.to(frames[1], { autoAlpha: 0, zIndex: 1, duration: 0.1 }, 0.7)
 
       copies.forEach((block, i) => {
         const at = i === 0 ? 0.06 : i === 1 ? 0.36 : 0.66
@@ -255,7 +282,13 @@ export default function FeaturedWorkJourney() {
           gsap.fromTo(
             scene.querySelectorAll('[data-copy] > *'),
             { autoAlpha: 0, y: 22 },
-            { autoAlpha: 1, y: 0, duration: 0.7, stagger: 0.06, ease: 'power2.out', scrollTrigger: { trigger: scene, start: 'top 76%' } }
+            {
+              autoAlpha: 1,
+              y: 0,
+              stagger: 0.06,
+              ease: 'none',
+              scrollTrigger: { trigger: scene, start: 'top 76%', end: 'top 42%', scrub: SCRUB.text },
+            }
           )
         }
         const io = new IntersectionObserver(
@@ -399,7 +432,7 @@ export default function FeaturedWorkJourney() {
             aria-label={`${cs.client} case study`}
             className="relative mt-[6vh]"
           >
-            <Link href={`/work/${cs.id}`} className="block" aria-label={`${cs.client} — ${cs.tagline}`}>
+            <Link href={`/work/${cs.id}`} onClick={reportUiClick} className="block" aria-label={`${cs.client} — ${cs.tagline}`}>
               <div className="relative w-full" style={{ height: '72svh' }}>
                 <MediaSpecPlaceholder
                   ref={(el) => { videoRefs.current[i] = el }}
@@ -488,6 +521,7 @@ export default function FeaturedWorkJourney() {
           <Link
             key={cs.id}
             href={`/work/${cs.id}`}
+            onClick={reportUiClick}
             aria-hidden={active !== i}
             tabIndex={active === i ? 0 : -1}
             className="absolute inset-0 z-20"

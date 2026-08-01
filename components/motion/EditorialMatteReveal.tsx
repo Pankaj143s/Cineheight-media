@@ -5,27 +5,29 @@ import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import { LIQUID_MEDIA_PROTO } from '@/lib/liquidMedia/config'
-import { LIQUID_BEAT, LIQUID_EASE } from '@/lib/liquidMedia/tokens'
 import { applyMotionFinalState } from '@/lib/liquidMedia/finalState'
+import { SCRUB, TRIGGER } from '@/lib/motionTokens'
 
 export type EditorialMatteForm = 'film-gate' | 'vertical-rise' | 'soft-iris' | 'diagonal-soft'
 
 /**
- * Editorial matte reveal for page media — related to homepage LiquidMatte but
- * deliberately different forms so Work/case pages don't clone Selected Work.
+ * Editorial matte reveal for page media — clip-path opens scrubbed to scroll.
  */
 export default function EditorialMatteReveal({
   children,
   form = 'vertical-rise',
   className = '',
-  once = true,
-  start = 'top 82%',
+  /** @deprecated Ignored — mattes are always scrubbed. */
+  once: _once = false,
+  start = TRIGGER.sectionStart,
+  end = 'top 36%',
 }: {
   children: ReactNode
   form?: EditorialMatteForm
   className?: string
   once?: boolean
   start?: string
+  end?: string
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const reduced = useReducedMotion()
@@ -60,28 +62,26 @@ export default function EditorialMatteReveal({
         : 'inset(0% 0% 0% 0%)'
 
     const tl = gsap.timeline({
+      defaults: { ease: 'none' },
       scrollTrigger: {
         trigger: root,
         start,
-        toggleActions: once ? 'play none none none' : 'play none none reverse',
+        end,
+        scrub: SCRUB.signal,
       },
     })
 
     tl.fromTo(
       inner,
       { clipPath: fromClip, scale: form === 'soft-iris' ? 1.04 : 1.02 },
-      {
-        clipPath: toClip,
-        scale: 1,
-        duration: mobile ? LIQUID_BEAT.transition : LIQUID_BEAT.reveal,
-        ease: LIQUID_EASE.reveal,
-      }
+      { clipPath: toClip, scale: 1, duration: 1 }
     )
 
     return () => {
+      tl.scrollTrigger?.kill()
       tl.kill()
     }
-  }, [reduced, enabled, form, mobile, once, start])
+  }, [reduced, enabled, form, mobile, start, end])
 
   return (
     <div ref={rootRef} className={`overflow-hidden ${className}`.trim()}>

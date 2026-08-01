@@ -30,6 +30,8 @@ export type AudioBusEvent =
   | { type: 'route-out' }
   /** Route loader is revealing the destination. */
   | { type: 'route-in' }
+  /** Soft UI click on a primary control (nav, CTA, form submit). */
+  | { type: 'ui-click' }
 
 type Listener = (event: AudioBusEvent) => void
 

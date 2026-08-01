@@ -115,7 +115,11 @@ export default function SoundscapeProvider({ children }: { children: React.React
       }
       if (next) {
         // The click IS the gesture, so this is the legitimate moment to start.
-        void engine.start().then(() => setActive(engine.isRunning()))
+        // Soft confirm tick after the graph is up (bus not subscribed until active).
+        void engine.start().then(() => {
+          setActive(engine.isRunning())
+          if (engine.isRunning()) engine.playUiClick()
+        })
       } else {
         void engine.stop()
         setActive(false)
@@ -140,18 +144,20 @@ export default function SoundscapeProvider({ children }: { children: React.React
         case 'route-in':
           engine.routeIn()
           break
+        case 'ui-click':
+          engine.playUiClick()
+          break
       }
     })
   }, [active])
 
   /*
-   * There is deliberately no pointer listener here.
+   * There is deliberately no pointer-move listener here.
    *
    * A brush voice and chalk grains used to track pointer velocity across the
-   * page. Moving the mouse now makes no sound at all: the listener, the
-   * `elementFromPoint` quiet-zone probe it ran on every move, and the engine
-   * nodes behind it have all been removed. The only sounds the site makes are
-   * the ambient bed and the two route cues.
+   * page. Moving the mouse makes no sound at all. The only sounds the site
+   * makes are the ambient bed, route cues, and soft UI clicks on primary
+   * controls (published via the audio bus).
    */
 
   /** Never leave an audio graph running behind a hidden tab. */

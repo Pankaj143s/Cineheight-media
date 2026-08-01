@@ -8,7 +8,9 @@ import KineticLabel from '@/components/motion/KineticLabel'
 import OpticalResolve from '@/components/motion/OpticalResolve'
 import ScrollHeadline from '@/components/motion/ScrollHeadline'
 import MagneticLink from '@/components/ui/MagneticLink'
+import Reveal from '@/components/ui/Reveal'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { SCRUB } from '@/lib/motionTokens'
 
 /**
  * The six services as ONE system.
@@ -46,7 +48,6 @@ export default function ServicesPage() {
   const entryRefs = useRef<(HTMLElement | null)[]>([])
   const introCopyRef = useRef<HTMLParagraphElement>(null)
   const chainRef = useRef<HTMLOListElement>(null)
-  const revealedRef = useRef<Set<number>>(new Set())
   const mobile = useIsMobileTier()
   const reduced = useReducedMotion()
 
@@ -74,9 +75,8 @@ export default function ServicesPage() {
             autoAlpha: 1,
             y: 0,
             letterSpacing: '0em',
-            duration: 0.75,
-            ease: 'power2.out',
-            scrollTrigger: { trigger: paragraph, start: 'top 90%', once: true },
+            ease: 'none',
+            scrollTrigger: { trigger: paragraph, start: 'top 90%', end: 'top 48%', scrub: SCRUB.text },
           }
         )
       )
@@ -86,15 +86,16 @@ export default function ServicesPage() {
       const steps = Array.from(chain.querySelectorAll<HTMLElement>('[data-chain-step]'))
       const arrows = Array.from(chain.querySelectorAll<SVGPathElement>('[data-chain-pulse]'))
       const timeline = gsap.timeline({
-        scrollTrigger: { trigger: chain, start: 'top 82%', once: true },
+        defaults: { ease: 'none' },
+        scrollTrigger: { trigger: chain, start: 'top 82%', end: 'top 40%', scrub: SCRUB.signal },
       })
       steps.forEach((step, i) => {
-        timeline.to(step, { opacity: 1, y: 0, duration: 0.28, ease: 'power2.out' })
+        timeline.to(step, { opacity: 1, y: 0, duration: 0.28 })
         if (arrows[i]) {
           timeline.fromTo(
             arrows[i],
             { opacity: 0, strokeDashoffset: 34 },
-            { opacity: 0.9, strokeDashoffset: -34, duration: 0.38, ease: 'power1.inOut' },
+            { opacity: 0.9, strokeDashoffset: -34, duration: 0.38 },
             '<0.04'
           )
           timeline.to(arrows[i], { opacity: 0, duration: 0.12 })
@@ -111,75 +112,57 @@ export default function ServicesPage() {
     return () => animations.forEach((animation) => animation.kill())
   }, [reduced])
 
-  useEffect(() => {
-    if (mobile || reduced) return
-    const entry = entryRefs.current[active]
-    if (!entry) return
-    const first = !revealedRef.current.has(active)
-    revealedRef.current.add(active)
-
-    const number = entry.querySelector('[data-service-number]')
-    const title = entry.querySelector('[data-service-title]')
-    const description = entry.querySelector('[data-service-description]')
-    const rule = entry.querySelector('[data-service-rule]')
-
-    if (!first) {
-      gsap.to([number, title, description], {
-        autoAlpha: 1,
-        y: 0,
-        duration: 0.24,
-        ease: 'power1.out',
-        overwrite: true,
-      })
-      return
-    }
-
-    const timeline = gsap.timeline()
-    timeline
-      .fromTo(number, { autoAlpha: 0.25, x: -8 }, { autoAlpha: 1, x: 0, duration: 0.42, ease: 'power2.out' })
-      .fromTo(
-        title,
-        { autoAlpha: 0.45, yPercent: 105 },
-        { autoAlpha: 1, yPercent: 0, duration: 0.62, ease: 'power3.out' },
-        '<0.04'
-      )
-      .fromTo(
-        description,
-        { autoAlpha: 0.55, y: 14 },
-        { autoAlpha: 1, y: 0, duration: 0.5, ease: 'power2.out' },
-        '<0.16'
-      )
-      .fromTo(rule, { scaleX: 0.12, opacity: 0.24 }, { scaleX: 1, opacity: 0.8, duration: 0.65, ease: 'power3.out' }, 0)
-    return () => {
-      timeline.kill()
-    }
-  }, [active, mobile, reduced])
-
-  useEffect(() => {
-    if (!mobile || reduced) return
-    const observers: IntersectionObserver[] = []
+  useIsomorphicLayoutEffect(() => {
+    if (reduced) return
+    const animations: gsap.core.Animation[] = []
     entryRefs.current.forEach((entry) => {
       if (!entry) return
-      const revealTargets = entry.querySelectorAll<HTMLElement>('[data-mobile-reveal]')
-      gsap.killTweensOf(revealTargets)
-      gsap.set(revealTargets, { autoAlpha: 1, y: 0, yPercent: 0 })
-      const observer = new IntersectionObserver(
-        ([record]) => {
-          if (!record.isIntersecting || entry.dataset.mobileSeen) return
-          entry.dataset.mobileSeen = 'true'
+
+      if (mobile) {
+        const revealTargets = entry.querySelectorAll<HTMLElement>('[data-mobile-reveal]')
+        if (!revealTargets.length) return
+        animations.push(
           gsap.fromTo(
             revealTargets,
-            { autoAlpha: 0.72, y: 12, yPercent: 0 },
-            { autoAlpha: 1, y: 0, yPercent: 0, duration: 0.5, stagger: 0.055, ease: 'power2.out' }
+            { autoAlpha: 0.72, y: 12 },
+            {
+              autoAlpha: 1,
+              y: 0,
+              stagger: 0.055,
+              ease: 'none',
+              scrollTrigger: { trigger: entry, start: 'top 88%', end: 'top 48%', scrub: SCRUB.text },
+            }
           )
-          observer.disconnect()
-        },
-        { threshold: 0.16 }
-      )
-      observer.observe(entry)
-      observers.push(observer)
+        )
+        return
+      }
+
+      const number = entry.querySelector('[data-service-number]')
+      const title = entry.querySelector('[data-service-title]')
+      const description = entry.querySelector('[data-service-description]')
+      const rule = entry.querySelector('[data-service-rule]')
+      const timeline = gsap.timeline({
+        defaults: { ease: 'none' },
+        scrollTrigger: { trigger: entry, start: 'top 88%', end: 'top 48%', scrub: SCRUB.text },
+      })
+      timeline
+        .fromTo(number, { autoAlpha: 0.25, x: -8 }, { autoAlpha: 1, x: 0, duration: 0.42 }, 0)
+        .fromTo(
+          title,
+          { autoAlpha: 0.45, yPercent: 105 },
+          { autoAlpha: 1, yPercent: 0, duration: 0.62 },
+          0.04
+        )
+        .fromTo(
+          description,
+          { autoAlpha: 0.55, y: 14 },
+          { autoAlpha: 1, y: 0, duration: 0.5 },
+          0.2
+        )
+        .fromTo(rule, { scaleX: 0.12, opacity: 0.24 }, { scaleX: 1, opacity: 0.8, duration: 0.65 }, 0)
+      animations.push(timeline)
     })
-    return () => observers.forEach((observer) => observer.disconnect())
+    return () => animations.forEach((a) => a.kill())
   }, [mobile, reduced])
 
   useEffect(() => {
@@ -303,9 +286,12 @@ export default function ServicesPage() {
                 style={{
                   width: 'min(20rem, 55%)',
                   background: 'linear-gradient(to right, var(--blue-500), rgba(0,137,255,0))',
-                  transform: `scaleX(${active === i ? 1 : 0.12})`,
-                  opacity: active === i ? 0.8 : 0.24,
-                  transition: reduced ? 'none' : 'transform 0.8s cubic-bezier(0.16,1,0.3,1), opacity 0.5s ease',
+                  ...(reduced || mobile
+                    ? {
+                        transform: `scaleX(${mobile || active === i ? 1 : 0.12})`,
+                        opacity: mobile || active === i ? 0.8 : 0.24,
+                      }
+                    : { transform: 'scaleX(0.12)', opacity: 0.24 }),
                 }}
               />
               <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-5">
@@ -393,9 +379,9 @@ export default function ServicesPage() {
       {/* how the six add up */}
       <section aria-label="How the services connect" className="flow-gutter relative" style={{ marginTop: mobile ? '8vh' : '14vh' }}>
         <KineticLabel text="HOW IT CONNECTS" />
-        <p className="font-body measure mt-6 text-[15px] leading-relaxed text-text-300">
+        <Reveal as="p" className="font-body measure mt-6 text-[15px] leading-relaxed text-text-300">
           Each discipline feeds the next. That chain is the reason one team is faster than four suppliers.
-        </p>
+        </Reveal>
 
         <ol ref={chainRef} className="mt-10 flex flex-wrap items-center gap-x-3 gap-y-4">
           {CHAIN.map((step, i) => (

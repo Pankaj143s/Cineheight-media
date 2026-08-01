@@ -5,21 +5,22 @@ import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { useReducedMotion } from '@/lib/useMediaPreferences'
 import { LIQUID_MEDIA_PROTO } from '@/lib/liquidMedia/config'
-import { LIQUID_BEAT, LIQUID_EASE, LIQUID_OPTICAL } from '@/lib/liquidMedia/tokens'
+import { LIQUID_OPTICAL } from '@/lib/liquidMedia/tokens'
 import { applyMotionFinalState } from '@/lib/liquidMedia/finalState'
+import { SCRUB, TRIGGER } from '@/lib/motionTokens'
 
 type Tag = 'h1' | 'h2' | 'h3' | 'p'
 
 /**
  * Optical title resolve — blur + tracking settle into sharp type.
- * Not the hero canvas refraction; safe to reuse on Work / About / case pages.
+ * Scrubbed to scroll so progress rewinds on the way back up.
  */
 export default function OpticalResolve({
   text,
   as: Tag = 'h1',
   className = '',
   style,
-  delay = 0.35,
+  delay = 0,
   accentWords,
 }: {
   text: string
@@ -44,15 +45,16 @@ export default function OpticalResolve({
     }
 
     const words = el.querySelectorAll<HTMLElement>('[data-opt-word]')
-    let finished = false
-    const finish = () => {
-      if (finished) return
-      finished = true
-      applyMotionFinalState(words)
-    }
-    const failOpen = window.setTimeout(finish, LIQUID_OPTICAL.failOpenMs + delay * 1000)
+    const tl = gsap.timeline({
+      defaults: { ease: 'none' },
+      scrollTrigger: {
+        trigger: el,
+        start: TRIGGER.headlineStart,
+        end: 'top 42%',
+        scrub: SCRUB.text,
+      },
+    })
 
-    const tl = gsap.timeline({ delay, onComplete: finish })
     tl.fromTo(
       words,
       {
@@ -66,20 +68,19 @@ export default function OpticalResolve({
         yPercent: 0,
         filter: 'blur(0px)',
         letterSpacing: `${LIQUID_OPTICAL.trackingTo}em`,
-        duration: LIQUID_BEAT.revealLong,
+        duration: 1,
         stagger: 0.07,
-        ease: LIQUID_EASE.reveal,
-      }
+      },
+      delay
     )
 
     return () => {
-      window.clearTimeout(failOpen)
+      tl.scrollTrigger?.kill()
       tl.kill()
-      if (!finished) finish()
     }
   }, [reduced, enabled, delay, text])
 
-  const accent = new Set((accentWords ?? []).map((w) => w.toLowerCase().replace(/[.,—–:;!?]/g, '')))
+  const accent = new Set((accentWords ?? []).map((w) => w.toLowerCase().replace(/[.,—–:;!?']/g, '')))
   const parts = text.split(/\s+/).filter(Boolean)
 
   return (

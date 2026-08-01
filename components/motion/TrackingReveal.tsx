@@ -1,14 +1,14 @@
 'use client'
 
-import { useInViewOnce } from './useInViewOnce'
+import { useRef } from 'react'
+import { useScrollScrub } from './useScrollScrub'
+import { TRIGGER } from '@/lib/motionTokens'
 
 type Tag = 'h1' | 'h2' | 'h3' | 'p' | 'div' | 'span'
 
 /**
  * Letter-spacing settles from open to its resting value while the text fades
- * up. Nothing is split, so the element keeps its own accessible text — no
- * `aria-hidden` mirror needed. Good for short statements where a per-word
- * stagger would feel fussy.
+ * up — scrubbed to scroll.
  */
 export default function TrackingReveal({
   children,
@@ -19,7 +19,7 @@ export default function TrackingReveal({
   to = '0.18em',
   delay = 0,
   duration = 1.2,
-  amount = 0.3,
+  amount: _amount = 0.3,
 }: {
   children: React.ReactNode
   as?: Tag
@@ -31,21 +31,34 @@ export default function TrackingReveal({
   duration?: number
   amount?: number
 }) {
-  const { ref, shown, reduced } = useInViewOnce<HTMLElement>(amount)
+  const rootRef = useRef<HTMLElement>(null)
+
+  useScrollScrub(
+    rootRef,
+    (tl, trigger) => {
+      tl.fromTo(
+        trigger,
+        { letterSpacing: from, autoAlpha: 0, y: 8 },
+        { letterSpacing: to, autoAlpha: 1, y: 0, duration },
+        delay
+      )
+    },
+    (trigger) => {
+      trigger.style.letterSpacing = to
+      trigger.style.opacity = '1'
+      trigger.style.transform = 'none'
+    },
+    { start: TRIGGER.headlineStart, end: 'top 48%', deps: [from, to, delay, duration] }
+  )
 
   return (
     <Tag
-      ref={ref as React.Ref<never>}
+      ref={rootRef as React.Ref<never>}
       className={className}
       style={{
-        letterSpacing: shown ? to : from,
-        opacity: shown ? 1 : 0,
-        transform: shown ? 'translate3d(0,0,0)' : 'translate3d(0,8px,0)',
-        transition: reduced
-          ? 'none'
-          : `letter-spacing ${duration}s cubic-bezier(0.16,1,0.3,1) ${delay}s,` +
-            ` opacity ${duration * 0.6}s linear ${delay}s,` +
-            ` transform ${duration}s cubic-bezier(0.16,1,0.3,1) ${delay}s`,
+        letterSpacing: from,
+        opacity: 0,
+        transform: 'translate3d(0,8px,0)',
         ...style,
       }}
     >

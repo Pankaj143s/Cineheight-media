@@ -10,6 +10,8 @@ import OpticalResolve from '@/components/motion/OpticalResolve'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import TrackingReveal from '@/components/motion/TrackingReveal'
 import EditorialMatteReveal from '@/components/motion/EditorialMatteReveal'
+import Reveal from '@/components/ui/Reveal'
+import CountUp from '@/components/ui/CountUp'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import { CASE_OPENING_SIGNATURE } from '@/lib/liquidMedia/tokens'
 import { setSignalIntensity } from '@/lib/liquidMedia/signalIntensity'
@@ -83,9 +85,7 @@ export default function CaseOpening({
         className="font-display font-bold leading-none text-text-100"
         style={{ fontSize: 'calc(clamp(2.6rem, 5.4vw, 5rem) * var(--display-scale))', letterSpacing: '-0.03em' }}
       >
-        {m.prefix}
-        {m.value}
-        <span style={{ color: 'var(--blue-500)' }}>{m.suffix}</span>
+        <CountUp value={m.value} prefix={m.prefix} suffix={m.suffix} duration={1400} />
       </p>
       <p className="font-body max-w-[12ch] text-sm leading-snug text-text-300">{m.label}</p>
     </div>
@@ -123,7 +123,9 @@ export default function CaseOpening({
         {cs.category} — {cs.year}
       </p>
       {title}
-      <p className="font-body measure mt-7 text-base leading-relaxed text-text-200">{presentation.supporting}</p>
+      <Reveal variant="fade-up" delay={0.06} className="font-body measure mt-7 text-base leading-relaxed text-text-200">
+        {presentation.supporting}
+      </Reveal>
       <div className="mt-9">{proof}</div>
       <span aria-hidden="true" className="mt-8 block h-px w-24" style={{ background: cs.accentColor }} />
     </div>

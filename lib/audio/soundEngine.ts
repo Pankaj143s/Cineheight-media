@@ -1,36 +1,36 @@
 /**
  * The Cineheight soundscape — entirely procedural Web Audio.
  *
- * Nothing here is downloaded. Every texture is synthesised from a noise buffer
- * and two oscillators, which keeps the payload at zero bytes, sidesteps
- * licensing entirely, and means the ambience has no loop seam to hear. (There
- * is no approved ambient asset in `public/`; if one is ever supplied, it can be
- * routed into `ambientDuck` in place of the noise bed without touching any
- * caller — the ducking and gesture rules below already apply to it.)
+ * Voice matches the visual brand: dark field, blue signal, film weight.
+ * Nothing is downloaded — dual-sine cinematic drone + soft low signal ticks.
  *
  * Design rules the graph enforces:
  *
  *  - **Nothing sounds until a visitor asks for it.** The AudioContext is not
  *    even constructed until {@link SoundEngine.start} is called from inside a
- *    real user gesture. Browsers would block audible autoplay anyway; more to
- *    the point, surprise sound is hostile.
- *  - **The bed is felt, not heard.** Level sits low enough that most people
- *    only notice it when it stops. Low-passed pink noise reads as room air, not
- *    hiss — there is no beat, no melody and nothing above ~320Hz to fatigue.
- *  - **Video always wins.** When any video on the page is unmuted the bed ducks
- *    out of its way, because two audio experiences competing is worse than
- *    either alone.
- *  - **The pointer is silent.** Moving the mouse makes no sound at all. The
- *    brush voice and chalk grains that used to track pointer velocity were
- *    removed along with their nodes, their token bucket and their listener.
+ *    real user gesture.
+ *  - **The bed is felt, not heard.** A deep dual-sine drone with barely-there
+ *    sub-180 Hz pressure — no mid/high hiss, no melody.
+ *  - **Video always wins.** When any video on the page is unmuted the bed and
+ *    SFX duck out of its way.
+ *  - **The pointer is silent.** Only primary UI controls publish signal ticks.
  */
 
-/** Peak level of the ambient bed. Deliberately very low. */
-const AMBIENT_LEVEL = 0.03
-const SUB_LEVEL = 0.012
+/** Ambient drone mix — quieter than the old “room air” bed. */
+const AMBIENT_LEVEL = 0.022
+/** Primary sub drone (~52 Hz). */
+const SUB_LEVEL = 0.014
+/** Quieter companion (~78 Hz) for body without a tune. */
+const COMPANION_LEVEL = 0.007
+/** Ultra-quiet low pressure noise under the drones. */
+const PRESSURE_LEVEL = 0.006
 /** Multiplier applied to the bed while a video is audible. */
 const DUCK_AMBIENT = 0.14
 const DUCK_SFX = 0.08
+/** Soft signal-tick peak — dark, not a plastic beep. */
+const CLICK_LEVEL = 0.04
+/** Minimum gap between UI ticks (ms). */
+const CLICK_MIN_INTERVAL_MS = 80
 
 type Cleanup = () => void
 
@@ -70,6 +70,7 @@ export class SoundEngine {
 
   private ducked = false
   private running = false
+  private lastClickAt = 0
 
   isRunning() {
     return this.running
@@ -95,12 +96,12 @@ export class SoundEngine {
     if (this.ctx.state === 'suspended') await this.ctx.resume()
     this.running = true
 
-    // Fade up rather than punching in — a longer ramp than before, so the bed
-    // arrives without a perceptible "on".
+    // Fade up rather than punching in — a longer ramp so the drone arrives
+    // without a perceptible "on".
     const now = this.ctx.currentTime
     this.master?.gain.cancelScheduledValues(now)
     this.master?.gain.setValueAtTime(this.master.gain.value, now)
-    this.master?.gain.linearRampToValueAtTime(1, now + 1.4)
+    this.master?.gain.linearRampToValueAtTime(1, now + 1.6)
   }
 
   /** Fade out and suspend. The graph is kept so restarting is instant. */
@@ -160,9 +161,8 @@ export class SoundEngine {
 
   /**
    * A read-only window handle so the screenshot harness can assert what the
-   * audio graph is actually doing. Audio state is invisible in a screenshot,
-   * and "it probably ducked" is not verification. Exposes nothing writable and
-   * only ever exists after the visitor has switched sound on.
+   * audio graph is actually doing. Exposes nothing writable and only ever
+   * exists after the visitor has switched sound on.
    */
   private exposeForVerification() {
     Object.defineProperty(window, '__cineheightAudio', {
@@ -188,66 +188,63 @@ export class SoundEngine {
     this.sfxDuck = ctx.createGain()
     this.sfxDuck.connect(this.master)
 
-    // ---- noise source --------------------------------------------------
+    // Shared pink buffer for pressure bed + SFX grains / route whooshes.
     const pink = ctx.createBuffer(2, Math.floor(ctx.sampleRate * 8), ctx.sampleRate)
     fillPinkNoise(pink)
     this.pinkBuffer = pink
 
-    // ---- ambient bed ---------------------------------------------------
-    // Pink noise through a low-pass reads as air rather than hiss. Looping an
-    // 8 s buffer of noise has no audible seam because noise has no phase to
-    // mismatch.
-    const noiseSource = ctx.createBufferSource()
-    noiseSource.buffer = pink
-    noiseSource.loop = true
-
-    // 320Hz with a soft Q: everything that could read as hiss or sibilance is
-    // simply not there. Two poles rather than one so the roll-off is gentle
-    // instead of a resonant edge.
-    const lowpass = ctx.createBiquadFilter()
-    lowpass.type = 'lowpass'
-    lowpass.frequency.value = 320
-    lowpass.Q.value = 0.5
-
-    const lowpass2 = ctx.createBiquadFilter()
-    lowpass2.type = 'lowpass'
-    lowpass2.frequency.value = 620
-    lowpass2.Q.value = 0.4
-
-    // Roll off the very bottom: bass-heavy rumble is fatiguing and inaudible
-    // on the laptop speakers most visitors will use.
-    const highpass = ctx.createBiquadFilter()
-    highpass.type = 'highpass'
-    highpass.frequency.value = 70
-
+    // ---- cinematic drone bed -------------------------------------------
+    // Dual sines carry the presence; noise only adds sub-180 Hz pressure so
+    // nothing reads as hiss or “room air”.
     this.ambientGain = ctx.createGain()
     this.ambientGain.gain.value = AMBIENT_LEVEL
-
-    noiseSource.connect(highpass)
-    highpass.connect(lowpass)
-    lowpass.connect(lowpass2)
-    lowpass2.connect(this.ambientGain)
     this.ambientGain.connect(this.ambientDuck)
-    noiseSource.start()
-    this.cleanups.push(() => noiseSource.stop())
 
-    // A soft low sine underneath gives the bed a floor without becoming a note.
     const sub = ctx.createOscillator()
     sub.type = 'sine'
     sub.frequency.value = 52
     const subGain = ctx.createGain()
     subGain.gain.value = SUB_LEVEL
     sub.connect(subGain)
-    subGain.connect(this.ambientDuck)
+    subGain.connect(this.ambientGain)
     sub.start()
     this.cleanups.push(() => sub.stop())
 
-    // Two very slow amplitude drifts at deliberately incommensurate rates
-    // (~23s and ~59s). Their sum never repeats within a visit, so the bed
-    // breathes without ever settling into an audible cycle.
+    // Soft fifth-ish companion — body without becoming a melody.
+    const companion = ctx.createOscillator()
+    companion.type = 'sine'
+    companion.frequency.value = 78
+    const companionGain = ctx.createGain()
+    companionGain.gain.value = COMPANION_LEVEL
+    companion.connect(companionGain)
+    companionGain.connect(this.ambientGain)
+    companion.start()
+    this.cleanups.push(() => companion.stop())
+
+    // Barely-there low pressure — tight lowpass so mids never leak.
+    const noiseSource = ctx.createBufferSource()
+    noiseSource.buffer = pink
+    noiseSource.loop = true
+    const pressureLp = ctx.createBiquadFilter()
+    pressureLp.type = 'lowpass'
+    pressureLp.frequency.value = 160
+    pressureLp.Q.value = 0.7
+    const pressureHp = ctx.createBiquadFilter()
+    pressureHp.type = 'highpass'
+    pressureHp.frequency.value = 40
+    const pressureGain = ctx.createGain()
+    pressureGain.gain.value = PRESSURE_LEVEL
+    noiseSource.connect(pressureHp)
+    pressureHp.connect(pressureLp)
+    pressureLp.connect(pressureGain)
+    pressureGain.connect(this.ambientGain)
+    noiseSource.start()
+    this.cleanups.push(() => noiseSource.stop())
+
+    // Two very slow amplitude drifts (~23s / ~59s) so the drone breathes.
     for (const [rate, depth] of [
-      [0.043, AMBIENT_LEVEL * 0.26],
-      [0.017, AMBIENT_LEVEL * 0.14],
+      [0.043, AMBIENT_LEVEL * 0.22],
+      [0.017, AMBIENT_LEVEL * 0.12],
     ] as const) {
       const lfo = ctx.createOscillator()
       lfo.type = 'sine'
@@ -261,14 +258,77 @@ export class SoundEngine {
     }
   }
 
-  /** Soft rising sweep as the route mask closes. */
+  /** Soft rising film whoosh as the route mask closes. */
   routeOut() {
-    this.sweep(320, 1900, 0.36, 0.022)
+    this.sweep(120, 480, 0.4, 0.018)
   }
 
   /** Softer falling resolve as the destination reveals. */
   routeIn() {
-    this.sweep(1600, 520, 0.44, 0.016)
+    this.sweep(420, 140, 0.48, 0.014)
+  }
+
+  /**
+   * Soft signal tick — low sine gate + dark grain through sfxDuck.
+   * Rate-limited so rapid taps cannot stack into a burst.
+   */
+  playUiClick() {
+    const ctx = this.ctx
+    if (!this.running || !ctx || !this.sfxDuck || !this.pinkBuffer) return
+
+    const nowMs = performance.now()
+    if (nowMs - this.lastClickAt < CLICK_MIN_INTERVAL_MS) return
+    this.lastClickAt = nowMs
+
+    const now = ctx.currentTime
+    const duration = 0.078
+
+    // Soft low sine — film-gate weight, not a UI beep.
+    const osc = ctx.createOscillator()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(240, now)
+    osc.frequency.exponentialRampToValueAtTime(155, now + duration)
+
+    const oscGain = ctx.createGain()
+    oscGain.gain.setValueAtTime(0.0001, now)
+    oscGain.gain.linearRampToValueAtTime(CLICK_LEVEL, now + 0.01)
+    oscGain.gain.exponentialRampToValueAtTime(0.0001, now + duration)
+
+    osc.connect(oscGain)
+    oscGain.connect(this.sfxDuck)
+    osc.start(now)
+    osc.stop(now + duration + 0.02)
+
+    // Dark bandpass grain for body.
+    const src = ctx.createBufferSource()
+    src.buffer = this.pinkBuffer
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.value = 220
+    bp.Q.value = 1.6
+    const noiseGain = ctx.createGain()
+    noiseGain.gain.setValueAtTime(0.0001, now)
+    noiseGain.gain.linearRampToValueAtTime(CLICK_LEVEL * 0.28, now + 0.008)
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045)
+
+    src.connect(bp)
+    bp.connect(noiseGain)
+    noiseGain.connect(this.sfxDuck)
+    src.start(now)
+    src.stop(now + 0.05)
+
+    const teardown = () => {
+      try {
+        osc.disconnect()
+        oscGain.disconnect()
+        src.disconnect()
+        bp.disconnect()
+        noiseGain.disconnect()
+      } catch {
+        /* already disconnected */
+      }
+    }
+    osc.onended = teardown
   }
 
   private sweep(from: number, to: number, seconds: number, level: number) {
@@ -281,7 +341,7 @@ export class SoundEngine {
     src.loop = true
     const filter = ctx.createBiquadFilter()
     filter.type = 'bandpass'
-    filter.Q.value = 1.1
+    filter.Q.value = 0.85
     filter.frequency.setValueAtTime(from, now)
     filter.frequency.exponentialRampToValueAtTime(to, now + seconds)
     const gain = ctx.createGain()

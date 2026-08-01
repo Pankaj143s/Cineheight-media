@@ -8,6 +8,7 @@ import { setLenisStopped } from '@/lib/scrollTo'
 import { useReducedMotion } from '@/lib/useMediaPreferences'
 import SoundToggle from '@/components/audio/SoundToggle'
 import { navItems } from '@/content/siteContent'
+import { reportUiClick } from '@/lib/audio/reportUiClick'
 
 /**
  * Hidden on the homepage's initial hero, revealed once intro progress passes
@@ -164,7 +165,7 @@ export default function Navbar() {
       aria-hidden={!visible}
     >
       <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-5 sm:px-8 lg:h-[72px] lg:px-10">
-        <Link href="/" className="flex flex-col leading-none" aria-label="Cineheight Media — home">
+        <Link href="/" className="flex flex-col leading-none" aria-label="Cineheight Media — home" onClick={reportUiClick}>
           <span
             className="font-display text-[15px] font-700 text-text-100"
             style={{ letterSpacing: '0.34em', fontWeight: 700 }}
@@ -185,6 +186,7 @@ export default function Navbar() {
               key={item.label}
               href={item.href}
               aria-current={pathname === item.href ? 'page' : undefined}
+              onClick={reportUiClick}
               className="text-[11px] font-medium uppercase text-text-200 transition-colors duration-200 hover:text-[var(--blue-400)] focus-visible:text-[var(--blue-400)]"
               style={{ letterSpacing: '0.24em', color: pathname === item.href ? 'var(--blue-400)' : undefined }}
             >
@@ -197,6 +199,7 @@ export default function Navbar() {
           <SoundToggle />
           <Link
             href="/contact"
+            onClick={reportUiClick}
             className="hidden items-center gap-2 rounded-full border px-5 py-2.5 text-[11px] font-medium uppercase text-text-100 transition-colors duration-200 hover:border-[var(--blue-400)] hover:text-[var(--blue-200)] sm:inline-flex"
             style={{ letterSpacing: '0.2em', borderColor: 'var(--blue-alpha-40)' }}
           >
@@ -213,7 +216,10 @@ export default function Navbar() {
             aria-expanded={menuOpen}
             aria-controls={menuPanelId}
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-            onClick={() => setMenuOpen((v) => !v)}
+            onClick={() => {
+              reportUiClick()
+              setMenuOpen((v) => !v)
+            }}
           >
             <span className="relative block h-3 w-6" aria-hidden="true">
               <span
@@ -250,7 +256,10 @@ export default function Navbar() {
             <Link
               key={item.label}
               href={item.href}
-              onClick={closeMenu}
+              onClick={() => {
+                reportUiClick()
+                closeMenu()
+              }}
               tabIndex={menuOpen ? undefined : -1}
               aria-current={pathname === item.href ? 'page' : undefined}
               className="border-b py-3.5 text-sm uppercase text-text-200"
@@ -261,7 +270,10 @@ export default function Navbar() {
           ))}
           <Link
             href="/contact"
-            onClick={closeMenu}
+            onClick={() => {
+              reportUiClick()
+              closeMenu()
+            }}
             tabIndex={menuOpen ? undefined : -1}
             className="mt-5 inline-flex items-center justify-center gap-2 rounded-full border px-5 py-3 text-xs font-medium uppercase text-text-100"
             style={{ letterSpacing: '0.2em', borderColor: 'var(--blue-alpha-40)' }}
