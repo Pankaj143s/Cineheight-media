@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start -p 3100",
     "lint": "eslint .",
+    "media:featured": "node scripts/build-featured-responsive-assets.mjs",
     "clouds:repair": "node scripts/repair-hero-clouds.mjs",
     "clouds:v5": "node scripts/process-hero-clouds-v5.mjs"
   },

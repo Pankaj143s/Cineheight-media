@@ -846,12 +846,26 @@ if (hasFlag('probe')) {
   await cdp.eval(`document.querySelector('#work')?.scrollIntoView({ block: 'center' })`)
   await sleep(1000)
   const homeNearLoads = await resourceNames()
+  const homeNearVideoState = await cdp.eval(`({
+    sectionTop: Math.round(document.querySelector('#work')?.getBoundingClientRect().top ?? -1),
+    videos: [...document.querySelectorAll('#work video')].map(video => ({
+      currentSrc: video.currentSrc,
+      paused: video.paused,
+      readyState: video.readyState,
+    })),
+    requests: performance.getEntriesByType('resource')
+      .map(entry => entry.name)
+      .filter(name => name.includes('/media/home-work/')),
+  })`)
   check(
     'Featured Work loads a project film once the section is near the viewport',
     DESKTOP_READY_IDS.some((id) =>
       homeNearLoads.some((name) => name.endsWith(`/media/home-work/${id}-desktop.mp4`))
+    ) || homeNearVideoState.videos.some((video) =>
+      DESKTOP_READY_IDS.some((id) => video.currentSrc.endsWith(`/media/home-work/${id}-desktop.mp4`)) &&
+      video.readyState >= 2 && !video.paused
     ),
-    'at least one authored desktop film requested near the section'
+    JSON.stringify(homeNearVideoState)
   )
 
   await goto(cdp, BASE + '/work')
@@ -866,26 +880,46 @@ if (hasFlag('probe')) {
     indexDesktopMisses.join(', ')
   )
 
-  // The real risk: a genuine mobile-width visitor must never request the
-  // not-yet-supplied mobile/ultrawide variants.
+  // A genuine mobile-width visitor must stay poster-only before the section,
+  // then request exactly the supplied mobile class rather than the fallback.
   await setViewport(cdp, 390, 844, 2)
   await goto(cdp, BASE + '/')
-  await sleep(700)
+  await sleep(450)
+  const homeMobileInitialLoads = await resourceNames()
+  const mobileInitialProjectVideos = homeMobileInitialLoads.filter((name) =>
+    /\/media\/home-work\/[^/]+-(mobile|desktop|ultrawide)\.mp4$/.test(name)
+  )
+  check(
+    'mobile homepage stays poster-only before Featured Work approaches',
+    mobileInitialProjectVideos.length === 0,
+    mobileInitialProjectVideos.join(', ')
+  )
+  await cdp.eval(`document.querySelector('#work')?.scrollIntoView({ block: 'center' })`)
+  await sleep(1000)
   const homeMobileLoads = await resourceNames()
   await goto(cdp, BASE + '/work')
   await sleep(700)
   const indexMobileLoads = await resourceNames()
-  const mobileLoads = [...homeMobileLoads, ...indexMobileLoads]
-  const forbiddenSuffixes = DESKTOP_READY_IDS.flatMap((id) => [
-    `/media/home-work/${id}-mobile.mp4`,
-    `/media/home-work/${id}-mobile.webp`,
-    `/media/home-work/${id}-ultrawide.mp4`,
-    `/media/home-work/${id}-ultrawide.webp`,
+  const mobileFilmHits = DESKTOP_READY_IDS.filter((id) =>
+    homeMobileLoads.some((name) => name.endsWith(`/media/home-work/${id}-mobile.mp4`))
+  )
+  const desktopFilmHits = DESKTOP_READY_IDS.filter((id) =>
+    homeMobileLoads.some((name) => name.endsWith(`/media/home-work/${id}-desktop.mp4`))
+  )
+  check(
+    'Featured Work selects a mobile film without also downloading its desktop source',
+    mobileFilmHits.length === 1 && desktopFilmHits.length === 0,
+    `mobile=${mobileFilmHits.join(',') || 'none'} desktop=${desktopFilmHits.join(',') || 'none'}`
+  )
+
+  const forbiddenIndexSuffixes = DESKTOP_READY_IDS.flatMap((id) => [
     `/media/work-index/${id}-mobile.webp`,
   ])
-  const forbiddenHits = forbiddenSuffixes.filter((suffix) => mobileLoads.some((name) => name.endsWith(suffix)))
+  const forbiddenHits = forbiddenIndexSuffixes.filter((suffix) =>
+    indexMobileLoads.some((name) => name.endsWith(suffix))
+  )
   check(
-    'desktop-ready slots never request their not-yet-supplied mobile/ultrawide variants at 390px',
+    'desktop-ready work-index slots never request unsupplied mobile variants at 390px',
     forbiddenHits.length === 0,
     forbiddenHits.join(', ')
   )
@@ -1014,6 +1048,151 @@ if (hasFlag('probe')) {
     fullOrder.join(',') === 'name,contact,company,service,preferredContact,timeline,projectDetails,submit',
     fullOrder.join(' → ')
   )
+
+  await setViewport(cdp, 1440, 900, 2)
+  await goto(cdp, BASE + '/')
+  await cdp.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 })
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 })
+  const skipFirst = await cdp.eval(`({
+    text: document.activeElement?.textContent?.trim(),
+    href: document.activeElement?.getAttribute?.('href'),
+  })`)
+  check(
+    'the skip link is the first keyboard destination',
+    skipFirst.text === 'Skip to main content' && skipFirst.href === '#main-content',
+    JSON.stringify(skipFirst)
+  )
+  await cdp.eval(`document.activeElement?.click()`)
+  await sleep(650)
+  const skippedMain = await cdp.eval(`({
+    activeId: document.activeElement?.id,
+    mainCount: document.querySelectorAll('main#main-content').length,
+    top: Math.round(document.querySelector('main#main-content')?.getBoundingClientRect().top ?? -1),
+  })`)
+  check(
+    'the skip link focuses the sole route main without negative clipping',
+    skippedMain.activeId === 'main-content' && skippedMain.mainCount === 1 && skippedMain.top >= 0,
+    JSON.stringify(skippedMain)
+  )
+
+  const navTargets = await cdp.eval(`[...document.querySelectorAll('nav[aria-label="Primary"] a')].map(link => {
+    const rect = link.getBoundingClientRect()
+    return { label: link.textContent.trim(), width: Math.round(rect.width), height: Math.round(rect.height) }
+  })`)
+  check(
+    'desktop primary navigation links have 44px interaction areas',
+    navTargets.length > 0 && navTargets.every(target => target.width >= 44 && target.height >= 44),
+    JSON.stringify(navTargets)
+  )
+
+  await goto(cdp, BASE + '/contact')
+  await cdp.eval(`document.querySelector('[data-contact-form="full"]')?.requestSubmit()`)
+  await sleep(180)
+  const invalidRecovery = await cdp.eval(`({
+    activeName: document.activeElement?.getAttribute?.('name'),
+    invalidCount: document.querySelectorAll('[data-contact-form="full"] [aria-invalid="true"]').length,
+    message: document.querySelector('[data-contact-form="full"] [aria-live="polite"]')?.textContent?.trim(),
+  })`)
+  check(
+    'contact validation focuses the first invalid field and announces recovery',
+    invalidRecovery.activeName === 'name' && invalidRecovery.invalidCount === 4 && invalidRecovery.message === 'Check the highlighted fields.',
+    JSON.stringify(invalidRecovery)
+  )
+
+  for (const width of [320, 360, 390, 430]) {
+    await setViewport(cdp, width, 844, 2)
+    await goto(cdp, BASE + '/')
+    await cdp.eval(`document.querySelector('[data-audit="home-capabilities"]')?.scrollIntoView({ block: 'center' })`)
+    await sleep(300)
+    const capabilityFit = await cdp.eval(`(() => {
+      const root = document.querySelector('[data-audit="home-capabilities"]')
+      const taxonomies = [...(root?.querySelectorAll('[data-audit="capability-taxonomy"]') ?? [])]
+      const textNodes = [...(root?.querySelectorAll('button span') ?? [])]
+      const outOfBounds = textNodes.filter(node => {
+        const rect = node.getBoundingClientRect()
+        return rect.width > 0 && (rect.left < -1 || rect.right > window.innerWidth + 1)
+      })
+      return {
+        pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+        clipped: taxonomies.filter(node => node.scrollWidth > node.clientWidth + 1).length,
+        hidden: taxonomies.filter(node => getComputedStyle(node).display === 'none').length,
+        outOfBounds: outOfBounds.slice(0, 4).map(node => ({
+          text: node.textContent.trim().slice(0, 36),
+          left: Math.round(node.getBoundingClientRect().left),
+          right: Math.round(node.getBoundingClientRect().right),
+        })),
+      }
+    })()`)
+    check(
+      `capability taxonomy fits without hiding content at ${width}px`,
+      capabilityFit.pageOverflow <= 1 && capabilityFit.clipped === 0 && capabilityFit.hidden === 0 && capabilityFit.outOfBounds.length === 0,
+      JSON.stringify(capabilityFit)
+    )
+  }
+
+  await setViewport(cdp, 320, 844, 2)
+  await goto(cdp, BASE + '/')
+  const capabilityZoom = await cdp.eval(`(() => {
+    const root = document.querySelector('[data-audit="home-capabilities"]')
+    if (!root) return null
+    root.querySelectorAll('button span').forEach(node => {
+      const size = parseFloat(getComputedStyle(node).fontSize)
+      if (size) node.style.fontSize = (size * 2) + 'px'
+    })
+    const taxonomies = [...root.querySelectorAll('[data-audit="capability-taxonomy"]')]
+    const textNodes = [...root.querySelectorAll('button span')]
+    const outOfBounds = textNodes.filter(node => {
+      const rect = node.getBoundingClientRect()
+      return rect.width > 0 && (rect.left < -1 || rect.right > window.innerWidth + 1)
+    })
+    return {
+      pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      clipped: taxonomies.filter(node => node.scrollWidth > node.clientWidth + 1).length,
+      buttons: [...root.querySelectorAll('button')]
+        .filter(button => button.scrollWidth > button.clientWidth + 2)
+        .map(button => ({
+          label: button.textContent.trim().replace(/\s+/g, ' ').slice(0, 48),
+          clientWidth: button.clientWidth,
+          scrollWidth: button.scrollWidth,
+        })),
+      outOfBounds: outOfBounds.slice(0, 4).map(node => node.textContent.trim().slice(0, 36)),
+    }
+  })()`)
+  check(
+    'capabilities remain contained with text doubled at 320px',
+    capabilityZoom && capabilityZoom.pageOverflow <= 1 && capabilityZoom.clipped === 0 && capabilityZoom.buttons.length === 0 && capabilityZoom.outOfBounds.length === 0,
+    JSON.stringify(capabilityZoom)
+  )
+
+  await setViewport(cdp, 390, 844, 2)
+  await goto(cdp, BASE + '/')
+  await cdp.eval(`document.querySelector('#stories')?.scrollIntoView({ block: 'center' })`)
+  await sleep(350)
+  const storyRails = await cdp.eval(`(() => {
+    const canvas = document.querySelector('[data-audit="client-stories-canvas"]')
+    const media = canvas?.querySelector(':scope > [data-parallax-y]')
+    const controls = canvas?.querySelector('[data-story-controls]')
+    const attribution = canvas?.querySelector('[data-story-attribution]')
+    const mediaRect = media?.getBoundingClientRect()
+    const controlRect = controls?.getBoundingClientRect()
+    const buttons = [...(controls?.querySelectorAll('button') ?? [])].map(button => {
+      const rect = button.getBoundingClientRect()
+      return { width: Math.round(rect.width), height: Math.round(rect.height) }
+    })
+    return {
+      present: Boolean(canvas && media && controls && attribution),
+      gap: mediaRect && controlRect ? Math.round(controlRect.top - mediaRect.bottom) : -999,
+      buttons,
+      pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+    }
+  })()`)
+  check(
+    'mobile Client Stories separates attribution and 44px controls from its film rail',
+    storyRails.present && storyRails.gap >= -1 && storyRails.buttons.length === 2 &&
+      storyRails.buttons.every(button => button.width >= 44 && button.height >= 44) && storyRails.pageOverflow <= 1,
+    JSON.stringify(storyRails)
+  )
+  await setViewport(cdp, 1440, 900, 2)
   /*
    * All four social channels are launch placeholders: real buttons that
    * explain themselves, never anchors and never disabled glyphs. The probe

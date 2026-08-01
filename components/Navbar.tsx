@@ -180,14 +180,14 @@ export default function Navbar() {
           </span>
         </Link>
 
-        <nav aria-label="Primary" className="hidden items-center gap-8 lg:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-5 lg:flex">
           {navItems.map((item) => (
             <Link
               key={item.label}
               href={item.href}
               aria-current={pathname === item.href ? 'page' : undefined}
               onClick={reportUiClick}
-              className="text-[11px] font-medium uppercase text-text-200 transition-colors duration-200 hover:text-[var(--blue-400)] focus-visible:text-[var(--blue-400)]"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center text-[11px] font-medium uppercase text-text-200 transition-colors duration-200 hover:text-[var(--blue-400)] focus-visible:text-[var(--blue-400)]"
               style={{ letterSpacing: '0.24em', color: pathname === item.href ? 'var(--blue-400)' : undefined }}
             >
               {item.label}
@@ -200,7 +200,7 @@ export default function Navbar() {
           <Link
             href="/contact"
             onClick={reportUiClick}
-            className="hidden items-center gap-2 rounded-full border px-5 py-2.5 text-[11px] font-medium uppercase text-text-100 transition-colors duration-200 hover:border-[var(--blue-400)] hover:text-[var(--blue-200)] sm:inline-flex"
+            className="hidden min-h-11 items-center gap-2 rounded-full border px-5 py-2.5 text-[11px] font-medium uppercase text-text-100 transition-colors duration-200 hover:border-[var(--blue-400)] hover:text-[var(--blue-200)] sm:inline-flex"
             style={{ letterSpacing: '0.2em', borderColor: 'var(--blue-alpha-40)' }}
           >
             Start a Project

@@ -6,6 +6,7 @@ import type { MediaSlotSpec } from '@/content/mediaSlots'
 interface MediaSpecPlaceholderProps {
   spec: MediaSlotSpec
   alt: string
+  enabled?: boolean
   priority?: boolean
   muted?: boolean
   className?: string
@@ -14,7 +15,7 @@ interface MediaSpecPlaceholderProps {
 
 const MediaSpecPlaceholder = forwardRef<HTMLVideoElement, MediaSpecPlaceholderProps>(
   function MediaSpecPlaceholder(
-    { spec, alt, priority = false, muted = true, className = '', children },
+    { spec, alt, enabled = true, priority = false, muted = true, className = '', children },
     videoRef
   ) {
     const [videoReady, setVideoReady] = useState(false)
@@ -24,7 +25,7 @@ const MediaSpecPlaceholder = forwardRef<HTMLVideoElement, MediaSpecPlaceholderPr
         <div className={`relative h-full w-full overflow-hidden ${className}`}>
           <picture
             className="absolute inset-0 transition-opacity duration-500"
-            style={{ opacity: videoReady ? 0 : 1 }}
+            style={{ opacity: enabled && videoReady ? 0 : 1 }}
           >
             {spec.status === 'ready' && (
               <source media="(max-width: 767px)" srcSet={spec.mobile.poster} />
@@ -41,25 +42,27 @@ const MediaSpecPlaceholder = forwardRef<HTMLVideoElement, MediaSpecPlaceholderPr
               decoding="async"
             />
           </picture>
-          <video
-            ref={videoRef}
-            className="absolute inset-0 h-full w-full object-cover"
-            muted={muted}
-            loop
-            playsInline
-            preload="none"
-            tabIndex={-1}
-            aria-hidden="true"
-            onCanPlay={() => setVideoReady(true)}
-          >
-            {spec.status === 'ready' && (
-              <source media="(max-width: 767px)" src={spec.mobile.src} type="video/mp4" />
-            )}
-            {spec.status === 'ready' && spec.ultrawide && (
-              <source media="(min-aspect-ratio: 21/9)" src={spec.ultrawide.src} type="video/mp4" />
-            )}
-            <source src={spec.desktop.src} type="video/mp4" />
-          </video>
+          {enabled && (
+            <video
+              ref={videoRef}
+              className="absolute inset-0 h-full w-full object-cover"
+              muted={muted}
+              loop
+              playsInline
+              preload="metadata"
+              tabIndex={-1}
+              aria-hidden="true"
+              onCanPlay={() => setVideoReady(true)}
+            >
+              {spec.status === 'ready' && (
+                <source media="(max-width: 767px)" src={spec.mobile.src} type="video/mp4" />
+              )}
+              {spec.status === 'ready' && spec.ultrawide && (
+                <source media="(min-aspect-ratio: 21/9)" src={spec.ultrawide.src} type="video/mp4" />
+              )}
+              <source src={spec.desktop.src} type="video/mp4" />
+            </video>
+          )}
           {children}
         </div>
       )

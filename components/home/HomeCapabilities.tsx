@@ -256,11 +256,11 @@ export default function HomeCapabilities() {
   )
 
   const index = (
-    <ul className="flex flex-col">
+    <ul className="flex min-w-0 flex-col">
       {PILLARS.map((p, i) => {
         const isActive = active === i
         return (
-          <li key={p.index} className="list-none">
+          <li key={p.index} className="min-w-0 list-none">
             <button
               ref={(el) => { rowRefs.current[i] = el }}
               type="button"
@@ -277,7 +277,7 @@ export default function HomeCapabilities() {
               }}
               onFocus={() => setActiveIndex(i)}
               onClick={() => setActiveIndex(i)}
-              className="w-full border-0 bg-transparent py-[clamp(1.25rem,2.6vh,2rem)] text-left"
+              className="min-w-0 w-full border-0 bg-transparent py-[clamp(1.25rem,2.6vh,2rem)] text-left transition-[background-color] duration-200 active:bg-white/[0.025]"
               style={{
                 opacity: mobile || isActive ? 1 : 0.55,
                 transition: reduced ? 'none' : 'opacity 0.5s ease',
@@ -295,7 +295,7 @@ export default function HomeCapabilities() {
                   transition: reduced ? 'none' : 'transform 0.8s cubic-bezier(0.16,1,0.3,1), opacity 0.5s ease',
                 }}
               />
-              <span className="flex items-baseline gap-5">
+              <span className="grid grid-cols-[2.25rem_minmax(0,1fr)] items-baseline gap-x-2 sm:flex sm:gap-5">
                 <span
                   className="font-display text-[12px] font-medium"
                   style={{ letterSpacing: '0.28em', color: isActive ? 'var(--blue-400)' : 'var(--text-500)' }}
@@ -314,13 +314,17 @@ export default function HomeCapabilities() {
                   {p.title}
                 </span>
               </span>
-              <span className="mt-3 block pl-[calc(12px+1.25rem)]">
+              <span className="mt-3 block pl-0 sm:pl-[calc(12px+1.25rem)]">
                 <span className="font-body block text-[15px] leading-relaxed text-text-200" style={{ maxWidth: '46ch' }}>
                   {p.description}
                 </span>
-                <span className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                <span
+                  data-audit="capability-taxonomy"
+                  className="mt-3 grid gap-x-4 gap-y-1"
+                  style={{ gridTemplateColumns: mobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(8.5rem, 1fr))' }}
+                >
                   {p.includes.map((item) => (
-                    <span key={item} className="font-body text-[12px] text-text-500">
+                    <span key={item} className="font-body min-w-0 text-[12px] leading-relaxed text-text-500">
                       {item}
                     </span>
                   ))}
@@ -406,8 +410,8 @@ export default function HomeCapabilities() {
         </p>
       </div>
 
-      <div className="flow-gutter relative mt-10 grid grid-cols-12 items-center gap-x-12 sm:mt-14">
-        <div className="col-span-12 lg:col-span-7">{index}</div>
+      <div className="flow-gutter relative mt-10 grid grid-cols-12 items-center gap-x-0 sm:mt-14 lg:gap-x-12">
+        <div className="col-span-12 min-w-0 lg:col-span-7">{index}</div>
         {!mobile && (
           <div className="col-span-12 lg:col-span-5" data-parallax-y="0.08" data-parallax-scale="0.012">
             {mediaStage}

@@ -167,7 +167,7 @@ export default function ContactPage() {
   }, [rich, reduced, formActive])
 
   return (
-    <main ref={rootRef} className="relative z-10 overflow-hidden">
+    <main id="main-content" tabIndex={-1} ref={rootRef} className="relative z-10 scroll-mt-24 overflow-hidden outline-none">
       {rich && !reduced && !formActive && (
         <svg aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full" style={{ zIndex: 1 }} fill="none">
           <path

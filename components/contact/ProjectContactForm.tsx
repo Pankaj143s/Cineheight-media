@@ -6,6 +6,7 @@ import { reportUiClick } from '@/lib/audio/reportUiClick'
 
 type FormVariant = 'compact' | 'full'
 type FieldErrors = Record<string, string>
+const requiredFieldOrder = ['name', 'contact', 'company', 'projectDetails'] as const
 
 /**
  * `field-surface` (globals.css) gives every control a near-solid dark-glass
@@ -23,6 +24,26 @@ export default function ProjectContactForm({ variant }: { variant: FormVariant }
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState('')
   const [errors, setErrors] = useState<FieldErrors>({})
+
+  const focusFirstInvalidField = (form: HTMLFormElement, fieldErrors: FieldErrors) => {
+    const firstName = requiredFieldOrder.find((name) => fieldErrors[name])
+    if (!firstName) return
+    const field = form.elements.namedItem(firstName)
+    if (!(field instanceof HTMLElement)) return
+    requestAnimationFrame(() => {
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      field.focus({ preventScroll: true })
+      field.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' })
+      field.animate(
+        [
+          { boxShadow: '0 0 0 0 rgba(239, 68, 68, 0)' },
+          { boxShadow: '0 0 0 3px rgba(239, 68, 68, 0.38)' },
+          { boxShadow: '0 0 0 0 rgba(239, 68, 68, 0)' },
+        ],
+        { duration: reduced ? 1 : 520, easing: 'ease-out' }
+      )
+    })
+  }
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -49,6 +70,7 @@ export default function ProjectContactForm({ variant }: { variant: FormVariant }
       setErrors(nextErrors)
       setStatus('error')
       setMessage('Check the highlighted fields.')
+      focusFirstInvalidField(form, nextErrors)
       return
     }
 
@@ -67,9 +89,11 @@ export default function ProjectContactForm({ variant }: { variant: FormVariant }
         fields?: FieldErrors
       }
       if (!result.ok || !body.ok) {
-        setErrors(body.fields ?? {})
+        const fieldErrors = body.fields ?? {}
+        setErrors(fieldErrors)
         setStatus('error')
         setMessage(body.message || 'The message could not be sent.')
+        focusFirstInvalidField(form, fieldErrors)
         return
       }
       setStatus('success')
@@ -123,16 +147,21 @@ export default function ProjectContactForm({ variant }: { variant: FormVariant }
           {errorFor('name') && <span id={`${variant}-name-error`} className="font-body mt-1 block text-xs text-red-300">{errorFor('name')}</span>}
         </label>
         <label className={labelClass}>
-          Email or phone <span aria-hidden="true">*</span>
+          Contact email or phone <span aria-hidden="true">*</span>
           <input
             name="contact"
-            autoComplete="email"
+            type="text"
+            inputMode="text"
+            autoComplete="off"
             required
             maxLength={160}
             aria-invalid={Boolean(errorFor('contact'))}
-            aria-describedby={errorFor('contact') ? `${variant}-contact-error` : undefined}
+            aria-describedby={`${variant}-contact-hint${errorFor('contact') ? ` ${variant}-contact-error` : ''}`}
             className={fieldClass}
           />
+          <span id={`${variant}-contact-hint`} className="font-body mt-1 block text-xs normal-case text-text-500">
+            Use an email address or a phone number with country code.
+          </span>
           {errorFor('contact') && <span id={`${variant}-contact-error`} className="font-body mt-1 block text-xs text-red-300">{errorFor('contact')}</span>}
         </label>
         <label className={`${labelClass} sm:col-span-2`}>

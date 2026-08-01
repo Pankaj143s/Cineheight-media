@@ -4,6 +4,7 @@ import './globals.css'
 import SmoothScrollProvider from '@/components/flow/SmoothScrollProvider'
 import RouteTransition from '@/components/flow/RouteTransition'
 import SoundscapeProvider from '@/components/audio/SoundscapeProvider'
+import SkipLink from '@/components/ui/SkipLink'
 
 const bebas = localFont({
   src: '../public/fonts/bebas-neue-400.woff2',
@@ -89,7 +90,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${bebas.variable} ${satoshi.variable} ${poppins.variable}`}>
       <body>
         <SoundscapeProvider>
-          <SmoothScrollProvider>{children}</SmoothScrollProvider>
+          <SmoothScrollProvider>
+            <SkipLink />
+            {children}
+          </SmoothScrollProvider>
         </SoundscapeProvider>
         <RouteTransition />
       </body>

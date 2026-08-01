@@ -38,6 +38,8 @@ const OrientationMedia = forwardRef<HTMLVideoElement, {
   alt: string
   /** Where to anchor a cover-cropped landscape source. */
   objectPosition?: string
+  /** Preserve the complete authored frame inside a cinematic blurred fill. */
+  preserveFrame?: boolean
   /** Faint wash in the letterbox area, on this project's own page only. */
   accent?: string
   muted?: boolean
@@ -45,10 +47,10 @@ const OrientationMedia = forwardRef<HTMLVideoElement, {
   /** Extra element layered above the media (gradients, labels). */
   children?: React.ReactNode
 }>(function OrientationMedia(
-  { poster, src, orientation, alt, objectPosition = 'center', accent, muted = true, className = '', children },
+  { poster, src, orientation, alt, objectPosition = 'center', preserveFrame = false, accent, muted = true, className = '', children },
   videoRef
 ) {
-  const contain = orientation !== 'landscape'
+  const contain = preserveFrame || orientation !== 'landscape'
 
   return (
     <div className={`relative h-full w-full overflow-hidden ${className}`}>

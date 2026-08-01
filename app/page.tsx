@@ -22,7 +22,7 @@ export default function Home() {
       <span id="top" />
       <FlowDirector />
       <Navbar />
-      <main className="layer-content">
+      <main id="main-content" tabIndex={-1} className="layer-content scroll-mt-24 outline-none">
         <HeroIntroSequence />
         <ShowreelSection />
         <FeaturedWorkJourney />

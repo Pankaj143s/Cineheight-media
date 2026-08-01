@@ -87,7 +87,7 @@ export default function CaseStudyPage({ slug }: { slug: string }) {
   const bridge = presentation.workBridge
 
   return (
-    <main className="relative z-10">
+    <main id="main-content" tabIndex={-1} className="relative z-10 scroll-mt-24 outline-none">
       <CaseOpening cs={cs} presentation={presentation} />
       <CaseStartingPoint cs={cs} presentation={presentation} />
       <CaseStrategy cs={cs} presentation={presentation} />

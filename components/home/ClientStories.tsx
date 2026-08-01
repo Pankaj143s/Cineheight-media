@@ -43,6 +43,7 @@ const FILMS = caseStudies
     orientation: cs.topVideo.orientation,
     accent: cs.accentColor,
     id: cs.id,
+    mobileObjectPosition: cs.id === 'divija-old-age-home' ? '54% center' : 'center',
   }))
 
 export default function ClientStories() {
@@ -79,6 +80,27 @@ export default function ClientStories() {
     }, rootRef)
     return () => ctx.revert()
   }, [reduced])
+
+  useIsomorphicLayoutEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const targets = root.querySelectorAll<HTMLElement>('[data-story-attribution], [data-story-controls]')
+    if (!targets.length) return
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        targets,
+        { autoAlpha: reduced ? 0.72 : 0, y: reduced ? 0 : mobile ? 8 : 12 },
+        {
+          autoAlpha: 1,
+          y: 0,
+          duration: reduced ? 0.16 : 0.24,
+          stagger: reduced ? 0 : 0.06,
+          ease: reduced ? 'none' : 'power2.out',
+        }
+      )
+    }, root)
+    return () => ctx.revert()
+  }, [active, mobile, reduced])
 
   useEffect(() => {
     const el = rootRef.current
@@ -135,10 +157,16 @@ export default function ClientStories() {
           scrollbar gutter can never push the page sideways. */}
       <div
         data-canvas
+        data-audit="client-stories-canvas"
+        data-story-id={film.id}
         className="relative mt-10 w-full overflow-hidden will-change-transform"
-        style={{ height: mobile ? '62svh' : 'clamp(30rem, 82svh, 62rem)' }}
+        style={{ height: mobile ? 'calc(56.25vw + 10.25rem)' : 'clamp(30rem, 82svh, 62rem)' }}
       >
-        <div className="absolute inset-[-2%]" data-parallax-y="0.07" data-parallax-scale="0.008">
+        <div
+          className={mobile ? 'absolute inset-x-0 bottom-[5.75rem] top-[4.5rem]' : 'absolute inset-[-2%]'}
+          data-parallax-y={mobile ? '0.025' : '0.07'}
+          data-parallax-scale="0.008"
+        >
           <OrientationMedia
             ref={videoRef}
             poster={film.poster}
@@ -147,6 +175,8 @@ export default function ClientStories() {
             alt={`${film.title} — ${film.client}`}
             accent={film.accent}
             muted={muted}
+            objectPosition={mobile ? film.mobileObjectPosition : 'center'}
+            preserveFrame={mobile}
           >
             {/* safe overlay zone for the attribution and controls */}
             <div
@@ -161,9 +191,72 @@ export default function ClientStories() {
           </OrientationMedia>
         </div>
 
-        <div className="flow-gutter absolute inset-x-0 bottom-0 pb-[clamp(1.25rem,4vh,2.75rem)]">
+        {mobile ? (
+          <>
+            <div
+              data-story-attribution
+              className="flow-gutter pointer-events-none absolute inset-x-0 top-0 z-20 flex h-[4.5rem] flex-col justify-center"
+              style={{ background: 'var(--bg-950)' }}
+            >
+              <p
+                className="font-display text-[12px] font-medium uppercase text-text-100"
+                style={{ letterSpacing: '0.18em', textShadow: '0 2px 14px rgba(0,0,0,0.9)' }}
+                aria-live="polite"
+              >
+                {film.client}
+              </p>
+              <p
+                className="font-body mt-1 text-[10px] uppercase text-text-200"
+                style={{ letterSpacing: '0.14em', textShadow: '0 2px 14px rgba(0,0,0,0.9)' }}
+              >
+                {film.category}
+              </p>
+            </div>
+
+            <div
+              data-story-controls
+              className="flow-gutter absolute inset-x-0 bottom-0 z-20 flex h-[5.75rem] items-center justify-between gap-4"
+              style={{ background: 'linear-gradient(to bottom, rgba(2,3,6,0.9), var(--bg-950) 38%)' }}
+            >
+              <div className="flex items-center gap-2" role="group" aria-label={`${film.client} film controls`}>
+                <button
+                  type="button"
+                  onClick={() => setUserPaused((paused) => !paused)}
+                  aria-label={userPaused ? `Play the ${film.client} film` : `Pause the ${film.client} film`}
+                  className="flex h-11 w-11 items-center justify-center rounded-full border text-text-100 transition-[transform,border-color] duration-200 active:scale-95"
+                  style={{ borderColor: 'var(--border-strong)', background: 'rgba(2,3,6,0.72)' }}
+                >
+                  {userPaused ? (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+                  ) : (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z" /></svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMuted((current) => !current)}
+                  aria-label={muted ? `Unmute the ${film.client} film` : `Mute the ${film.client} film`}
+                  aria-pressed={!muted}
+                  className="flex h-11 w-11 items-center justify-center rounded-full border text-text-100 transition-[transform,border-color] duration-200 active:scale-95"
+                  style={{ borderColor: muted ? 'var(--border-strong)' : 'var(--blue-500)', background: 'rgba(2,3,6,0.72)' }}
+                >
+                  {muted ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 9v6h4l5 5V4L8 9H4zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z" opacity="0.4" /><path d="m3 3 18 18-1.4 1.4L2 4.4z" /></svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 9v6h4l5 5V4L8 9H4zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z" /></svg>
+                  )}
+                </button>
+              </div>
+              <p className="font-body text-right text-[11px] leading-tight text-text-300">
+                {muted ? 'Sound off' : 'Sound on'}
+                <span className="sr-only">. Sound is off until you turn it on.</span>
+              </p>
+            </div>
+          </>
+        ) : (
+        <div data-story-controls className="flow-gutter absolute inset-x-0 bottom-0 pb-[clamp(1.25rem,4vh,2.75rem)]">
           <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-6">
-            <div className="min-w-0" data-parallax-y="0.04">
+            <div className="min-w-0" data-parallax-y="0.04" data-story-attribution>
               <p
                 className="font-display text-[13px] font-medium uppercase text-text-100"
                 style={{ letterSpacing: '0.2em' }}
@@ -240,6 +333,7 @@ export default function ClientStories() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       <p className="flow-gutter font-body mt-5 text-sm leading-relaxed text-text-500">

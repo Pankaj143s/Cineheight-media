@@ -10,7 +10,7 @@ export default function NotFound() {
       <FlowDirector />
       <Navbar />
       <div className="layer-content">
-      <main className="relative flex min-h-[70vh] items-center">
+      <main id="main-content" tabIndex={-1} className="relative flex min-h-[70vh] scroll-mt-24 items-center outline-none">
         <div className="mx-auto w-full max-w-[1500px] px-6 py-32 sm:px-10 lg:px-14">
           <p className="font-display text-[11px] font-medium uppercase" style={{ letterSpacing: '0.32em', color: 'var(--blue-400)' }}>
             404

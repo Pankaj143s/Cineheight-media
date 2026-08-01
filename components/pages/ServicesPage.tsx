@@ -247,7 +247,7 @@ export default function ServicesPage() {
   )
 
   return (
-    <main className="relative z-10">
+    <main id="main-content" tabIndex={-1} className="relative z-10 scroll-mt-24 outline-none">
       <header className="flow-gutter relative pb-[4vh] pt-32 lg:pt-36">
         <KineticLabel text="WHAT WE DO" />
         <OpticalResolve

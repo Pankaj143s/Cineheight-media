@@ -119,6 +119,7 @@ export default function FeaturedWorkJourney() {
   const [active, setActive] = useState(0)
   const activeRef = useRef(0)
   const [userPaused] = useState(false)
+  const [mediaNear, setMediaNear] = useState(false)
 
   /**
    * Has the sequence actually started presenting?
@@ -144,6 +145,17 @@ export default function FeaturedWorkJourney() {
     if (i === activeRef.current) return
     activeRef.current = i
     setActive(i)
+  }, [])
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setMediaNear(entry.isIntersecting),
+      { rootMargin: '55% 0px', threshold: 0 }
+    )
+    observer.observe(root)
+    return () => observer.disconnect()
   }, [])
 
   /* ------------------------------------------------- desktop choreography */
@@ -314,7 +326,7 @@ export default function FeaturedWorkJourney() {
     const play = () => {
       videos.forEach((v, i) => {
         if (!v) return
-        if (i === active && !userPaused && !reduced && !document.hidden) v.play().catch(() => {})
+        if (mediaNear && i === active && !userPaused && !reduced && !document.hidden) v.play().catch(() => {})
         else v.pause()
       })
     }
@@ -325,7 +337,7 @@ export default function FeaturedWorkJourney() {
       document.removeEventListener('visibilitychange', onVis)
       videos.forEach((v) => v?.pause())
     }
-  }, [active, userPaused, reduced])
+  }, [active, userPaused, reduced, mediaNear])
 
   // Pause everything when the whole sequence leaves the viewport.
   useEffect(() => {
@@ -435,6 +447,7 @@ export default function FeaturedWorkJourney() {
                   ref={(el) => { videoRefs.current[i] = el }}
                   spec={featuredWorkSlots[cs.id]}
                   alt={`${cs.client} campaign preview`}
+                  enabled={mediaNear && !reduced && active === i}
                   priority={i === 0}
                 >
                   <div
@@ -483,6 +496,7 @@ export default function FeaturedWorkJourney() {
                     ref={(el) => { videoRefs.current[i] = el }}
                     spec={featuredWorkSlots[cs.id]}
                     alt={`${cs.client} campaign preview`}
+                    enabled={mediaNear && !reduced && active === i}
                     priority={i === 0}
                   />
                 </div>

@@ -59,7 +59,7 @@ export default function AboutPage() {
   }, [reduced])
 
   return (
-    <main ref={rootRef} className="relative z-10">
+    <main id="main-content" tabIndex={-1} ref={rootRef} className="relative z-10 scroll-mt-24 outline-none">
       <header className="flow-gutter relative pb-[5vh] pt-32 lg:pt-40">
         <KineticLabel text="WHO WE ARE" />
         <OpticalResolve

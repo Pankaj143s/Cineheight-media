@@ -146,8 +146,10 @@ export default function WorkIndex() {
 
   return (
     <main
+      id="main-content"
+      tabIndex={-1}
       ref={rootRef}
-      className="relative z-10"
+      className="relative z-10 scroll-mt-24 outline-none"
       style={{ ['--lean-x' as string]: '0px', ['--lean-y' as string]: '0px', ['--px' as string]: '50%', ['--py' as string]: '50%' }}
     >
       <header className="flow-gutter relative pb-[4vh] pt-32 lg:pt-36">

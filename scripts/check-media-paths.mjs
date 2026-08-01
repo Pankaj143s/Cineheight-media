@@ -43,6 +43,14 @@ for (const slots of [featuredWorkSlots, workIndexSlots]) {
     if (spec.status === 'placeholder') continue
     check(spec.desktop.src, `mediaSlots:${spec.id}:desktop`)
     if (spec.desktop.poster) check(spec.desktop.poster, `mediaSlots:${spec.id}:desktop:poster`)
+    if (spec.status === 'ready') {
+      check(spec.mobile.src, `mediaSlots:${spec.id}:mobile`)
+      if (spec.mobile.poster) check(spec.mobile.poster, `mediaSlots:${spec.id}:mobile:poster`)
+      if (spec.ultrawide) {
+        check(spec.ultrawide.src, `mediaSlots:${spec.id}:ultrawide`)
+        if (spec.ultrawide.poster) check(spec.ultrawide.poster, `mediaSlots:${spec.id}:ultrawide:poster`)
+      }
+    }
   }
 }
 
