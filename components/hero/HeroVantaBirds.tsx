@@ -24,7 +24,10 @@ export default function HeroVantaBirds() {
     ;(async () => {
       const THREE = await import('three')
       const birdsMod = await import('vanta/dist/vanta.birds.min')
-      const BIRDS = (birdsMod as { default?: typeof birdsMod }).default ?? birdsMod
+      const BIRDS =
+        typeof birdsMod === 'function'
+          ? birdsMod
+          : (birdsMod as { default: (options: Record<string, unknown>) => VantaEffect }).default
 
       if (cancelled || !hostRef.current) return
 

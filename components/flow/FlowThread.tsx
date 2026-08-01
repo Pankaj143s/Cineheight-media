@@ -620,10 +620,10 @@ export default function FlowThread() {
   return (
     <div ref={hostRef} aria-hidden="true">
       <ThreadChrome
-        wrapRef={wrapRef}
-        svgRef={svgRef}
-        pathRef={pathRef}
-        dotRef={dotRef}
+        wrapRef={wrapRef as React.RefObject<HTMLDivElement>}
+        svgRef={svgRef as React.RefObject<SVGSVGElement>}
+        pathRef={pathRef as React.RefObject<SVGPathElement>}
+        dotRef={dotRef as React.RefObject<HTMLDivElement>}
         narrow={narrow}
         reduced={reduced}
       />
@@ -639,10 +639,12 @@ function ThreadChrome({
   narrow,
   reduced,
 }: {
-  wrapRef: React.RefObject<HTMLDivElement | null>
-  svgRef: React.RefObject<SVGSVGElement | null>
-  pathRef: React.RefObject<SVGPathElement | null>
-  dotRef: React.RefObject<HTMLDivElement | null>
+  // React's DOM `ref` expects RefObject<T> (current: T), while useRef(null)
+  // is typed as RefObject<T | null> — cast at the call site bridges them.
+  wrapRef: React.RefObject<HTMLDivElement>
+  svgRef: React.RefObject<SVGSVGElement>
+  pathRef: React.RefObject<SVGPathElement>
+  dotRef: React.RefObject<HTMLDivElement>
   narrow: boolean
   reduced: boolean
 }) {

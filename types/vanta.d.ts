@@ -1,4 +1,9 @@
+declare module 'three'
+
 declare module 'vanta/dist/vanta.birds.min' {
-  const BIRDS: (options: Record<string, unknown>) => { destroy: () => void }
+  type VantaEffect = { destroy: () => void }
+  type VantaFactory = (options: Record<string, unknown>) => VantaEffect
+
+  const BIRDS: VantaFactory
   export default BIRDS
 }
