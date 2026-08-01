@@ -1,5 +1,15 @@
 # HERO-CLOUD-SYSTEM — cineheight-single-flow-v2
 
+## Live visual owner
+
+The cloud composition has exactly one live background owner. Vanta is the
+production default. Set `NEXT_PUBLIC_HERO_VISUAL_MODE=ripple` before building
+to load the retained ripple system as an intentional alternate mode; every
+other or missing value resolves to Vanta. The ripple component and shader
+chunk are dynamically isolated and are not requested by the default mode.
+Reduced-motion users receive the static cloud composition in either mode and
+do not initialize the ripple WebGL canvas.
+
 > ## hero-v4 repair — the drifting rectangle + solid occlusion (2026-07-30)
 >
 > Two defects, both fixed by a new post-process pass,

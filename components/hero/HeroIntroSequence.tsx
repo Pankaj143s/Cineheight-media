@@ -14,6 +14,9 @@ import { LIQUID_MEDIA_PROTO } from '@/lib/liquidMedia/config'
 import { setSignalIntensity } from '@/lib/liquidMedia/signalIntensity'
 
 const HeroVantaBirds = dynamic(() => import('./HeroVantaBirds'), { ssr: false })
+const HeroRippleMode = dynamic(() => import('./HeroRippleMode'), { ssr: false })
+
+const HERO_VISUAL_MODE = process.env.NEXT_PUBLIC_HERO_VISUAL_MODE === 'ripple' ? 'ripple' : 'vanta'
 
 function resolveVantaTier(mobile: boolean): HeroVantaTier {
   const cores = navigator.hardwareConcurrency ?? 4
@@ -344,7 +347,13 @@ export default function HeroIntroSequence() {
   const sectionHeight = reduced ? 'auto' : mobile ? '148vh' : '172vh'
 
   return (
-    <section ref={rootRef} aria-label="Cineheight Media introduction" style={{ height: sectionHeight }} className="relative">
+    <section
+      ref={rootRef}
+      aria-label="Cineheight Media introduction"
+      data-hero-visual-mode={HERO_VISUAL_MODE}
+      style={{ height: sectionHeight }}
+      className="relative"
+    >
       {/* FlowThread origin — visible top-left of hero (not off-screen edge-left) */}
       <div
         data-flow-anchor="left"
@@ -368,7 +377,9 @@ export default function HeroIntroSequence() {
             z-12  transition light
             z-13  statement
         */}
-        {vantaTier ? (
+        {HERO_VISUAL_MODE === 'ripple' ? (
+          <HeroRippleMode />
+        ) : vantaTier ? (
           <HeroVantaBirds tier={vantaTier} />
         ) : (
           <div

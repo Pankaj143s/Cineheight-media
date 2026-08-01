@@ -447,8 +447,31 @@ if (hasFlag('probe')) {
       detail: String(detail).slice(0, 160),
     })
 
+  const heroChunksDir = path.resolve('.next/static/chunks')
+  const rippleChunks = existsSync(heroChunksDir)
+    ? readdirSync(heroChunksDir)
+        .filter((name) => name.endsWith('.js'))
+        .filter((name) => readFileSync(path.join(heroChunksDir, name), 'utf8').includes('data-hero-ripple'))
+    : []
+
   // ---- signal tip tracking, forwards and in reverse --------------------
   await goto(cdp, BASE + '/')
+  const defaultHeroOwner = await cdp.eval(`(() => {
+    const resources = performance.getEntriesByType('resource').map(entry => entry.name)
+    const rippleChunks = ${JSON.stringify(rippleChunks)}
+    return {
+      mode: document.querySelector('[data-hero-visual-mode]')?.getAttribute('data-hero-visual-mode'),
+      rippleHost: document.querySelector('[data-ripple-mode]') !== null,
+      rippleCanvas: document.querySelector('[data-hero-ripple]') !== null,
+      loadedRippleRuntime: resources.filter(url => rippleChunks.some(name => url.endsWith('/' + name))),
+    }
+  })()`)
+  check(
+    'default hero keeps the alternate ripple runtime unloaded',
+    defaultHeroOwner.mode === 'vanta' && !defaultHeroOwner.rippleHost &&
+      !defaultHeroOwner.rippleCanvas && defaultHeroOwner.loadedRippleRuntime.length === 0,
+    JSON.stringify(defaultHeroOwner)
+  )
   const vantaLifecycle = await cdp.eval(`(async () => {
     await new Promise(r => setTimeout(r, 1100))
     const host = document.querySelector('[data-vanta-tier]')
@@ -1651,13 +1674,18 @@ if (hasFlag('probe')) {
     const front = [...orbit.querySelectorAll('[data-index]')]
       .find(el => (el.getAttribute('aria-label') || '').includes('Press to expand'))
     if (!front) return 'no front card'
-    window.__restoreProbe = document.activeElement
+    front.dataset.lightboxLauncher = 'orbit'
+    front.focus()
     front.click()
     await new Promise(r => setTimeout(r, 700))
     const dlg = document.querySelector('[role="dialog"]')
     return dlg ? 'open' : 'did not open'
   })()`)
   check('orbit front card opens the image lightbox', orbitOpened === 'open', orbitOpened)
+  check(
+    'image lightbox moves focus to its close control',
+    await cdp.eval(`document.activeElement?.getAttribute('aria-label') === 'Close'`)
+  )
 
   const lockOk = await cdp.eval(`getComputedStyle(document.body).position === 'fixed'`)
   check('body scroll locked while lightbox is open', lockOk)
@@ -1675,6 +1703,10 @@ if (hasFlag('probe')) {
   check('Escape closes the lightbox', closed)
   const unlocked = await cdp.eval(`getComputedStyle(document.body).position !== 'fixed'`)
   check('body scroll released after close', unlocked)
+  check(
+    'image lightbox returns focus to its launcher',
+    await cdp.eval(`document.activeElement?.getAttribute('data-lightbox-launcher') === 'orbit'`)
+  )
 
   // ---- video lightbox from the phone reels ----------------------------
   const reelOpened = await cdp.eval(`(async () => {
@@ -1685,12 +1717,18 @@ if (hasFlag('probe')) {
     const active = [...reels.querySelectorAll('[data-index]')]
       .find(el => (el.getAttribute('aria-label') || '').includes('open full size'))
     if (!active) return 'no active phone'
+    active.dataset.lightboxLauncher = 'reel'
+    active.focus()
     active.click()
     await new Promise(r => setTimeout(r, 800))
     const v = document.querySelector('[role="dialog"] video')
     return v ? (v.muted ? 'open-muted' : 'open-UNMUTED') : 'did not open'
   })()`)
   check('active phone opens the video lightbox, muted', reelOpened === 'open-muted', reelOpened)
+  check(
+    'video lightbox moves focus to its close control',
+    await cdp.eval(`document.activeElement?.getAttribute('aria-label') === 'Close'`)
+  )
 
   const inlinePaused = await cdp.eval(`(() => {
     const inline = [...document.querySelectorAll('video')].filter(v => !v.closest('[role="dialog"]'))
@@ -1702,6 +1740,10 @@ if (hasFlag('probe')) {
   await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
   await sleep(700)
   check('video lightbox closes on Escape', await cdp.eval(`!document.querySelector('[role="dialog"]')`))
+  check(
+    'video lightbox returns focus to its launcher',
+    await cdp.eval(`document.activeElement?.getAttribute('data-lightbox-launcher') === 'reel'`)
+  )
 
   /*
    * Handset proportions. The shell must follow the iPhone 17 Pro body
