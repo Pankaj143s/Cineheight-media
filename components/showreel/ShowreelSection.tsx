@@ -291,9 +291,9 @@ export default function ShowreelSection({ context }: { context?: 'home' | 'about
        * Label sits ON the film — no dark header strip above the picture.
        */
       style={{
-        minHeight: reduced ? 'auto' : 'calc(min(56.25vw, 100dvh) + 8vh)',
-        paddingTop: mobile ? '1vh' : '0',
-        paddingBottom: '6vh',
+        minHeight: reduced ? 'auto' : mobile ? '72svh' : 'calc(min(56.25vw, 100dvh) + 8vh)',
+        paddingTop: mobile ? '4svh' : '0',
+        paddingBottom: mobile ? '8svh' : '6vh',
       }}
     >
       {/* Steer FlowThread along the left edge so it doesn’t cut a horizontal
@@ -315,8 +315,11 @@ export default function ShowreelSection({ context }: { context?: 'home' | 'about
       <div
         ref={frameRef}
         data-showreel-frame
-        className="relative z-10 w-full"
-        style={{ aspectRatio: '16 / 9', maxHeight: '100dvh' }}
+        className={mobile ? 'relative z-10 w-[94vw]' : 'relative z-10 w-full'}
+        style={{
+          aspectRatio: mobile ? '4 / 5' : '16 / 9',
+          maxHeight: mobile ? '60svh' : '100dvh',
+        }}
       >
         <div className="relative h-full w-full">
           {/* Media shell — short edge dissolve into the stage (no heavy black wash). */}
