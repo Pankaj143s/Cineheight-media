@@ -99,13 +99,28 @@ export default function ClientMarquee() {
       defaults: { ease: 'none' },
       scrollTrigger: { trigger: root, start: 'top 92%', end: 'top 58%', scrub: 0.7 },
     })
-    timeline.fromTo(root, { autoAlpha: 0.7, y: 16 }, { autoAlpha: 1, y: 0, duration: 1 }, 0)
+    timeline.fromTo(
+      root,
+      { autoAlpha: 0.7, y: 16, clipPath: mobile ? 'inset(16% 0% 0% 0%)' : 'inset(0% 0% 0% 0%)' },
+      { autoAlpha: 1, y: 0, clipPath: 'inset(0% 0% 0% 0%)', duration: 1 },
+      0
+    )
     if (rule) timeline.fromTo(rule, { scaleX: 0.08 }, { scaleX: 1, duration: 0.8 }, 0.05)
     if (viewport) timeline.fromTo(viewport, { scale: 1.015 }, { scale: 1, duration: 1 }, 0)
+    const exit = mobile && viewport
+      ? gsap.to(viewport, {
+          scale: 0.95,
+          y: '-3svh',
+          autoAlpha: 0.42,
+          ease: 'none',
+          scrollTrigger: { trigger: root, start: 'bottom 72%', end: 'bottom 24%', scrub: 0.75 },
+        })
+      : null
     return () => {
+      exit?.kill()
       timeline.revert()
     }
-  }, [reduced])
+  }, [reduced, mobile])
 
   useEffect(() => {
     const root = rootRef.current
@@ -317,7 +332,11 @@ export default function ClientMarquee() {
       aria-label="Brands we have worked with"
       className="relative z-10 overflow-hidden"
       style={{
-        marginTop: 'calc(clamp(2.5rem, 7vh, 6rem) * var(--scene-gap))',
+        marginTop: mobile ? '-7svh' : 'calc(clamp(2.5rem, 7vh, 6rem) * var(--scene-gap))',
+        paddingTop: mobile ? '9svh' : undefined,
+        background: mobile
+          ? 'linear-gradient(to bottom, rgba(2,3,6,0) 0%, var(--bg-950) 9svh)'
+          : undefined,
         ['--depth-x' as string]: '0px',
         ['--depth-y' as string]: '0px',
       }}

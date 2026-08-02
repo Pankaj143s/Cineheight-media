@@ -90,6 +90,16 @@ export default function ClientStories() {
           }
         )
       }
+      if (mobile) {
+        gsap.to(canvas, {
+          clipPath: 'inset(3% 4% 6% 4%)',
+          scale: 0.94,
+          y: '-4svh',
+          autoAlpha: 0.56,
+          ease: 'none',
+          scrollTrigger: { trigger: rootRef.current, start: 'bottom 92%', end: 'bottom 22%', scrub: 0.8 },
+        })
+      }
     }, rootRef)
     return () => ctx.revert()
   }, [reduced, mobile])
@@ -153,7 +163,13 @@ export default function ClientStories() {
       id="stories"
       aria-label="Client stories"
       className="relative z-10"
-      style={{ marginTop: 'calc(clamp(3.5rem, 10vh, 8rem) * var(--scene-gap))' }}
+      style={{
+        marginTop: mobile ? '-6svh' : 'calc(clamp(3.5rem, 10vh, 8rem) * var(--scene-gap))',
+        paddingTop: mobile ? '10svh' : undefined,
+        background: mobile
+          ? 'linear-gradient(to bottom, rgba(2,3,6,0) 0%, var(--bg-950) 10svh)'
+          : undefined,
+      }}
     >
       <div className="flow-gutter">
         <KineticLabel text="CLIENT STORIES" />

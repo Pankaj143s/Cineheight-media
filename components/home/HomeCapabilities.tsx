@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { gsap } from '@/lib/gsap'
+import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { getCaseStudy } from '@/content/caseStudies'
 import { portraitReel } from '@/content/presentationMedia'
 import KineticLabel from '@/components/motion/KineticLabel'
@@ -97,6 +99,35 @@ export default function HomeCapabilities() {
     activeRef.current = i
     setActive(i)
   }, [])
+
+  useIsomorphicLayoutEffect(() => {
+    if (!mobile || reduced) return
+    const root = rootRef.current
+    const stage = root?.querySelector<HTMLElement>('[data-capability-stage]')
+    if (!root || !stage) return
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        stage,
+        { clipPath: 'inset(18% 0% 18% 0%)', scale: 1.04, y: '5svh' },
+        {
+          clipPath: 'inset(0% 0% 0% 0%)',
+          scale: 1,
+          y: 0,
+          ease: 'none',
+          scrollTrigger: { trigger: root, start: 'top 82%', end: 'top 18%', scrub: 0.78 },
+        }
+      )
+      gsap.to(stage, {
+        clipPath: 'inset(3% 3% 5% 3%)',
+        scale: 0.94,
+        y: '-4svh',
+        autoAlpha: 0.52,
+        ease: 'none',
+        scrollTrigger: { trigger: root, start: 'bottom 94%', end: 'bottom 24%', scrub: 0.8 },
+      })
+    }, root)
+    return () => ctx.revert()
+  }, [mobile, reduced])
 
   // Scroll picks the active pillar; hover/focus overrides it on desktop.
   useEffect(() => {
@@ -266,7 +297,7 @@ export default function HomeCapabilities() {
             key={p.index}
             data-capability-chapter={i}
             className="min-w-0 list-none"
-            style={{ minHeight: mobile && !reduced ? '42svh' : undefined }}
+            style={{ minHeight: mobile && !reduced ? 'max(30svh, 13rem)' : undefined }}
           >
             <button
               ref={(el) => { rowRefs.current[i] = el }}
@@ -395,7 +426,11 @@ export default function HomeCapabilities() {
       aria-label="What Cineheight does"
       className="relative z-10"
       style={{
-        marginTop: 'calc(clamp(3.5rem, 10vh, 8rem) * var(--scene-gap))',
+        marginTop: mobile ? '-6svh' : 'calc(clamp(3.5rem, 10vh, 8rem) * var(--scene-gap))',
+        paddingTop: mobile ? '10svh' : undefined,
+        background: mobile
+          ? 'linear-gradient(to bottom, rgba(2,3,6,0) 0%, var(--bg-950) 10svh)'
+          : undefined,
         ['--sx' as string]: '50%',
         ['--sy' as string]: '50%',
         ['--cap-lean-x' as string]: '0px',
@@ -433,7 +468,7 @@ export default function HomeCapabilities() {
               {mediaStage}
             </div>
           )}
-          <div className={reduced ? '' : 'relative z-10 mt-[7svh]'}>{index}</div>
+          <div className={reduced ? '' : 'relative z-10 mt-[3svh]'}>{index}</div>
         </div>
       ) : (
         <div className="flow-gutter relative mt-10 grid grid-cols-12 items-center gap-x-0 sm:mt-14 lg:gap-x-12">

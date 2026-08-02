@@ -352,6 +352,23 @@ export default function FeaturedWorkJourney() {
           })
         }
       })
+
+      const finalStage = stages[stages.length - 1]
+      if (finalStage) {
+        gsap.to(finalStage, {
+          scale: 0.93,
+          y: '-5svh',
+          autoAlpha: 0.5,
+          clipPath: 'inset(2.5% 4% 5% 4%)',
+          ease: 'none',
+          scrollTrigger: {
+            trigger: rootRef.current,
+            start: 'bottom 94%',
+            end: 'bottom 24%',
+            scrub: 0.8,
+          },
+        })
+      }
     }, rootRef)
     return () => ctx.revert()
   }, [mobile, reduced, setActiveIndex, markStageEntered])
@@ -512,7 +529,7 @@ export default function FeaturedWorkJourney() {
         id="work"
         aria-label="Selected work"
         className="relative z-10 overflow-x-clip"
-        style={{ marginTop: 'calc(clamp(3rem, 9vh, 7rem) * var(--scene-gap))' }}
+        style={{ marginTop: '-7svh', paddingTop: '10svh' }}
       >
         {intro}
         <div className="relative mt-[5svh] pb-[8svh]">

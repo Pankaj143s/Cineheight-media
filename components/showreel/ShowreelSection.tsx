@@ -126,6 +126,20 @@ export default function ShowreelSection({ context }: { context?: 'home' | 'about
           { autoAlpha: 1, scale: 1, ease: 'none', scrollTrigger: { trigger: sectionRef.current, start: 'top 66%', end: 'top 45%', scrub: 0.7 } }
         )
       }
+      if (mobile) {
+        gsap.to(frame, {
+          scale: 0.94,
+          y: '-4svh',
+          autoAlpha: 0.64,
+          ease: 'none',
+          scrollTrigger: {
+            trigger: sectionRef.current,
+            start: 'bottom 64%',
+            end: 'bottom 18%',
+            scrub: 0.8,
+          },
+        })
+      }
     }, sectionRef)
     return () => ctx.revert()
   }, [reduced, mobile, aboutPresentation])

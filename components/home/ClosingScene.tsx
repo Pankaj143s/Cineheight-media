@@ -126,7 +126,13 @@ export default function ClosingScene() {
         on one axis still contains the decorative radial without cutting type.
       */
       className="relative z-10 overflow-x-clip"
-      style={{ marginTop: mobile ? '10vh' : 'clamp(8rem, 20vh, 18rem)' }}
+      style={{
+        marginTop: mobile ? '-7svh' : 'clamp(8rem, 20vh, 18rem)',
+        paddingTop: mobile ? '12svh' : undefined,
+        background: mobile
+          ? 'linear-gradient(to bottom, rgba(2,3,6,0) 0%, var(--bg-950) 12svh)'
+          : undefined,
+      }}
     >
       {rich && (
         <div
