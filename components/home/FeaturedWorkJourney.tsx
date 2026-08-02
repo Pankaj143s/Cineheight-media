@@ -30,9 +30,8 @@ import { observeVisibleLayerPromotion } from '@/lib/visibleLayerPromotion'
  * later needs no layout change here. Real media stays untouched on the
  * individual `/work/[slug]` case-study pages.
  *
- * Desktop uses CSS `position: sticky` (not `ScrollTrigger.pin`) so there is no
- * pin-spacer fighting Lenis and no scroll rewriting. Mobile drops the sticky
- * entirely — each project is a plain full-width scene in sequence.
+ * Desktop and normal mobile both use CSS `position: sticky` (never
+ * `ScrollTrigger.pin`). Reduced motion receives a compact static sequence.
  */
 
 const PROJECTS = caseStudies
@@ -294,41 +293,67 @@ export default function FeaturedWorkJourney() {
 
   /* ------------------------------------------------------- mobile sequence */
   useIsomorphicLayoutEffect(() => {
-    if (!mobile) return
-    const observers: IntersectionObserver[] = []
+    if (!mobile || reduced) return
     const ctx = gsap.context((self) => {
       const scenes = self.selector!('[data-scene]') as HTMLElement[]
+      const stages = self.selector!('[data-mobile-stage]') as HTMLElement[]
       scenes.forEach((scene, i) => {
-        if (!reduced) {
-          gsap.fromTo(
-            scene.querySelectorAll('[data-copy] > *'),
-            { autoAlpha: 0, y: 22 },
-            {
-              autoAlpha: 1,
-              y: 0,
-              stagger: 0.06,
-              ease: 'none',
-              scrollTrigger: { trigger: scene, start: 'top 76%', end: 'top 42%', scrub: SCRUB.text },
-            }
-          )
-        }
-        const io = new IntersectionObserver(
-          ([e]) => {
-            if (e.intersectionRatio > 0.5) {
+        const stage = stages[i]
+        const copy = scene.querySelector<HTMLElement>('[data-copy]')
+        if (!stage || !copy) return
+
+        gsap.fromTo(
+          stage,
+          { clipPath: 'inset(13% 0% 8% 0%)', scale: 1.035, y: '4svh' },
+          {
+            clipPath: 'inset(0% 0% 0% 0%)',
+            scale: 1,
+            y: 0,
+            ease: 'none',
+            scrollTrigger: { trigger: scene, start: 'top 94%', end: 'top 14%', scrub: 0.72 },
+          },
+        )
+        gsap.fromTo(
+          copy,
+          { autoAlpha: 0.42, y: 24 },
+          {
+            autoAlpha: 1,
+            y: 0,
+            ease: 'none',
+            scrollTrigger: { trigger: scene, start: 'top 76%', end: 'top 34%', scrub: SCRUB.text },
+          }
+        )
+
+        gsap.timeline({
+          scrollTrigger: {
+            trigger: scene,
+            start: 'top 58%',
+            end: 'bottom 42%',
+            onEnter: () => {
               markStageEntered()
               setActiveIndex(i)
-            }
+            },
+            onEnterBack: () => {
+              markStageEntered()
+              setActiveIndex(i)
+            },
           },
-          { threshold: [0, 0.5] }
-        )
-        io.observe(scene)
-        observers.push(io)
+        })
+
+        const next = scenes[i + 1]
+        if (next) {
+          gsap.to(stage, {
+            scale: 0.96,
+            y: '-5svh',
+            autoAlpha: 0.72,
+            clipPath: 'inset(1.5% 2.5% 3% 2.5%)',
+            ease: 'none',
+            scrollTrigger: { trigger: next, start: 'top 88%', end: 'top 18%', scrub: 0.72 },
+          })
+        }
       })
     }, rootRef)
-    return () => {
-      observers.forEach((io) => io.disconnect())
-      ctx.revert()
-    }
+    return () => ctx.revert()
   }, [mobile, reduced, setActiveIndex, markStageEntered])
 
   /* ------------------------------------------------------ video ownership */
@@ -436,7 +461,7 @@ export default function FeaturedWorkJourney() {
   )
 
   /* --------------------------------------------------------------- mobile */
-  if (mobile || reduced) {
+  if (reduced) {
     return (
       <section
         ref={rootRef}
@@ -454,7 +479,7 @@ export default function FeaturedWorkJourney() {
             className="relative mt-[6vh]"
           >
             <Link href={`/work/${cs.id}`} onClick={reportUiClick} className="block" aria-label={`${cs.client} — ${cs.tagline}`}>
-              <div className="relative w-full" style={{ height: '72svh' }}>
+              <div className="relative w-full" style={{ height: mobile ? '64svh' : '72svh' }}>
                 <MediaSpecPlaceholder
                   ref={(el) => { videoRefs.current[i] = el }}
                   spec={featuredWorkSlots[cs.id]}
@@ -476,6 +501,74 @@ export default function FeaturedWorkJourney() {
           </article>
         ))}
         <div data-flow-anchor="center" className="pointer-events-none h-px" aria-hidden="true" />
+      </section>
+    )
+  }
+
+  if (mobile) {
+    return (
+      <section
+        ref={rootRef}
+        id="work"
+        aria-label="Selected work"
+        className="relative z-10 overflow-x-clip"
+        style={{ marginTop: 'calc(clamp(3rem, 9vh, 7rem) * var(--scene-gap))' }}
+      >
+        {intro}
+        <div className="relative mt-[5svh] pb-[8svh]">
+          {PROJECTS.map((cs, i) => (
+            <article
+              key={cs.id}
+              data-scene
+              aria-label={`${cs.client} case study`}
+              className="relative"
+              style={{
+                minHeight: i === PROJECTS.length - 1 ? '96svh' : '112svh',
+                marginTop: i === 0 ? 0 : '-14svh',
+                zIndex: i + 1,
+              }}
+            >
+              <div
+                data-mobile-stage
+                className="sticky top-[11svh] h-[78svh] overflow-hidden bg-[var(--bg-950)] will-change-transform"
+              >
+                <Link
+                  href={`/work/${cs.id}`}
+                  onClick={reportUiClick}
+                  className="absolute inset-0 block"
+                  aria-label={`${cs.client} — ${cs.tagline}`}
+                >
+                  <MediaSpecPlaceholder
+                    ref={(el) => { videoRefs.current[i] = el }}
+                    spec={featuredWorkSlots[cs.id]}
+                    alt={`${cs.client} campaign preview`}
+                    enabled={mediaNear && active === i}
+                    priority={i === 0}
+                  >
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0"
+                      style={{
+                        background:
+                          'linear-gradient(to top, var(--bg-950) 2%, rgba(2,3,6,0.86) 27%, rgba(2,3,6,0.16) 66%, transparent 82%)',
+                      }}
+                    />
+                  </MediaSpecPlaceholder>
+                </Link>
+                <div data-copy className="flow-gutter pointer-events-none absolute inset-x-0 bottom-0 z-10 pb-[4svh]">
+                  <div className="pointer-events-auto max-w-[33rem]">
+                    <ProjectCopy cs={cs} index={i} compact active={stageEntered && active === i} />
+                  </div>
+                </div>
+              </div>
+              <div
+                data-flow-anchor={i % 2 === 0 ? 'edge-left' : 'edge-right'}
+                className="pointer-events-none absolute inset-x-0 top-1/2 h-px"
+                aria-hidden="true"
+              />
+            </article>
+          ))}
+        </div>
       </section>
     )
   }

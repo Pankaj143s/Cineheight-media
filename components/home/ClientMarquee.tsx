@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from 'react'
 import Image from 'next/image'
+import { gsap } from '@/lib/gsap'
+import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import KineticLabel from '@/components/motion/KineticLabel'
 import { trustedClients, logoBox } from '@/content/siteContent'
 import { clamp } from '@/lib/utils'
@@ -86,6 +88,24 @@ export default function ClientMarquee() {
   const mobile = useIsMobileTier()
   const rich = useCanRunRichEffects()
   const tier = mobile ? 0.88 : 1
+
+  useIsomorphicLayoutEffect(() => {
+    if (reduced) return
+    const root = rootRef.current
+    if (!root) return
+    const rule = root.querySelector<HTMLElement>('[data-marquee-entry-rule]')
+    const viewport = root.querySelector<HTMLElement>('[data-client-marquee-viewport]')
+    const timeline = gsap.timeline({
+      defaults: { ease: 'none' },
+      scrollTrigger: { trigger: root, start: 'top 92%', end: 'top 58%', scrub: 0.7 },
+    })
+    timeline.fromTo(root, { autoAlpha: 0.7, y: 16 }, { autoAlpha: 1, y: 0, duration: 1 }, 0)
+    if (rule) timeline.fromTo(rule, { scaleX: 0.08 }, { scaleX: 1, duration: 0.8 }, 0.05)
+    if (viewport) timeline.fromTo(viewport, { scale: 1.015 }, { scale: 1, duration: 1 }, 0)
+    return () => {
+      timeline.revert()
+    }
+  }, [reduced])
 
   useEffect(() => {
     const root = rootRef.current
@@ -304,10 +324,17 @@ export default function ClientMarquee() {
     >
       <div className="flow-gutter" data-parallax-y="0.08">
         <KineticLabel text="BRANDS WE HAVE WORKED WITH" />
+        <span
+          data-marquee-entry-rule
+          aria-hidden="true"
+          className="mt-4 block h-px w-24 origin-left bg-[var(--blue-500)] opacity-55"
+        />
         <p className="font-body measure mt-4 text-sm leading-relaxed text-text-300">
           Trusted across mobility, education, hospitality and public organisations.
         </p>
       </div>
+
+      <div data-flow-anchor="center" className="pointer-events-none h-px" aria-hidden="true" />
 
       <div
         className="relative mt-7 overflow-hidden py-4"

@@ -65,6 +65,7 @@ export default function ClientStories() {
     if (reduced) return
     const ctx = gsap.context((self) => {
       const canvas = self.selector!('[data-canvas]')[0]
+      const media = self.selector!('[data-story-media]')[0]
       if (!canvas) return
       // The canvas opens from a letterbox slit as it arrives — the film emerges
       // from the page rather than appearing on top of it.
@@ -77,9 +78,21 @@ export default function ClientStories() {
           scrollTrigger: { trigger: canvas, start: 'top 94%', end: 'top 34%', scrub: 0.8 },
         }
       )
+      if (media) {
+        gsap.fromTo(
+          media,
+          { scale: mobile ? 1.035 : 1.055, yPercent: mobile ? 1.5 : 2.5 },
+          {
+            scale: 1,
+            yPercent: mobile ? -1 : -1.5,
+            ease: 'none',
+            scrollTrigger: { trigger: canvas, start: 'top 96%', end: 'bottom 28%', scrub: 0.9 },
+          }
+        )
+      }
     }, rootRef)
     return () => ctx.revert()
-  }, [reduced])
+  }, [reduced, mobile])
 
   useIsomorphicLayoutEffect(() => {
     const root = rootRef.current
@@ -163,6 +176,7 @@ export default function ClientStories() {
         style={{ height: mobile ? 'calc(56.25vw + 10.25rem)' : 'clamp(30rem, 82svh, 62rem)' }}
       >
         <div
+          data-story-media
           className={mobile ? 'absolute inset-x-0 bottom-[5.75rem] top-[4.5rem]' : 'absolute inset-[-2%]'}
           data-parallax-y={mobile ? '0.025' : '0.07'}
           data-parallax-scale="0.008"

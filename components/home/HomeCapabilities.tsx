@@ -9,6 +9,7 @@ import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { scrollToElementCenter } from '@/lib/scrollTo'
 
 /**
  * What Cineheight sells, as one capability switcher.
@@ -19,9 +20,9 @@ import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/u
  *
  * Now: one editorial index on the left and ONE substantial shared media stage
  * on the right that crossfades between the three pillars. Nothing changes
- * height, so the page never lurches; there is no sticky trap; and on mobile it
- * becomes a plain accordion where the active pillar's media sits directly
- * beneath its own heading.
+ * height, so the page never lurches. Normal mobile uses the same shared stage
+ * in a native-sticky chapter sequence; reduced motion uses a compact static
+ * disclosure without sticky reserve space.
  *
  * The media is real client work, matched by meaning, using the derived 9:16
  * presentation masters. No footage is reused between pillars or borrowed from
@@ -104,13 +105,11 @@ export default function HomeCapabilities() {
     const io = new IntersectionObserver(([e]) => setInView(e.isIntersecting), { threshold: 0 })
     io.observe(root)
 
-    if (mobile) return () => io.disconnect()
-
     let ticking = false
     const pick = () => {
       ticking = false
       if (hoverRef.current !== null) return
-      const mid = window.innerHeight * 0.5
+      const mid = window.innerHeight * (mobile ? 0.68 : 0.5)
       let best = 0
       let bestD = Infinity
       rowRefs.current.forEach((el, i) => {
@@ -129,13 +128,15 @@ export default function HomeCapabilities() {
       ticking = true
       requestAnimationFrame(pick)
     }
-    pick()
+    if (!reduced) pick()
     window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
     return () => {
       io.disconnect()
       window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
     }
-  }, [setActiveIndex, mobile])
+  }, [setActiveIndex, mobile, reduced])
 
   // Only the active pillar's film plays, and only while the band is on screen.
   useEffect(() => {
@@ -196,8 +197,8 @@ export default function HomeCapabilities() {
   /** One 16:10 stage; the pillars crossfade through it. */
   const mediaStage = (
     <div
-      className="relative w-full overflow-hidden"
-      style={{ aspectRatio: '16 / 9', background: 'var(--bg-900)' }}
+      className="relative h-full w-full overflow-hidden"
+      style={{ aspectRatio: mobile ? undefined : '16 / 9', background: 'var(--bg-900)' }}
     >
       {PILLARS.map((p, i) => (
         <div
@@ -208,8 +209,9 @@ export default function HomeCapabilities() {
             transform:
               active === i
                 ? 'translate3d(var(--cap-lean-x), var(--cap-lean-y), 0) scale(1.02)'
-                : 'translate3d(0, 0, 0) scale(1.05)',
-            transition: reduced ? 'none' : 'opacity 0.7s ease, transform 1.1s cubic-bezier(0.16,1,0.3,1)',
+                : `translate3d(0, ${i < active ? '-4%' : '4%'}, 0) scale(1.055)`,
+            clipPath: active === i ? 'inset(0% 0% 0% 0%)' : i < active ? 'inset(0% 0% 100% 0%)' : 'inset(100% 0% 0% 0%)',
+            transition: reduced ? 'none' : 'opacity 0.55s ease, transform 0.85s cubic-bezier(0.16,1,0.3,1), clip-path 0.65s cubic-bezier(0.16,1,0.3,1)',
           }}
           aria-hidden={active !== i}
         >
@@ -260,7 +262,12 @@ export default function HomeCapabilities() {
       {PILLARS.map((p, i) => {
         const isActive = active === i
         return (
-          <li key={p.index} className="min-w-0 list-none">
+          <li
+            key={p.index}
+            data-capability-chapter={i}
+            className="min-w-0 list-none"
+            style={{ minHeight: mobile && !reduced ? '42svh' : undefined }}
+          >
             <button
               ref={(el) => { rowRefs.current[i] = el }}
               type="button"
@@ -276,10 +283,16 @@ export default function HomeCapabilities() {
                 hoverRef.current = null
               }}
               onFocus={() => setActiveIndex(i)}
-              onClick={() => setActiveIndex(i)}
+              onClick={() => {
+                setActiveIndex(i)
+                if (mobile) {
+                  const row = rowRefs.current[i]
+                  if (row) scrollToElementCenter(row, { immediate: reduced, duration: 0.65 })
+                }
+              }}
               className="min-w-0 w-full border-0 bg-transparent py-[clamp(1.25rem,2.6vh,2rem)] text-left transition-[background-color] duration-200 active:bg-white/[0.025]"
               style={{
-                opacity: mobile || isActive ? 1 : 0.55,
+                opacity: reduced || isActive ? 1 : mobile ? 0.62 : 0.55,
                 transition: reduced ? 'none' : 'opacity 0.5s ease',
               }}
             >
@@ -332,8 +345,8 @@ export default function HomeCapabilities() {
               </span>
             </button>
 
-            {/* Mobile: the active pillar's media sits directly under its item. */}
-            {mobile && isActive && (
+            {/* Reduced motion has no sticky reserve space. */}
+            {mobile && reduced && isActive && (
               <div className="mt-2" style={{ height: '52svh' }}>
                 <div className="relative h-full w-full overflow-hidden">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -410,14 +423,26 @@ export default function HomeCapabilities() {
         </p>
       </div>
 
-      <div className="flow-gutter relative mt-10 grid grid-cols-12 items-center gap-x-0 sm:mt-14 lg:gap-x-12">
-        <div className="col-span-12 min-w-0 lg:col-span-7">{index}</div>
-        {!mobile && (
+      {mobile ? (
+        <div className="flow-gutter relative mt-10">
+          {!reduced && (
+            <div
+              data-capability-stage
+              className="sticky top-[11svh] z-20 h-[clamp(19rem,46svh,27rem)] overflow-hidden"
+            >
+              {mediaStage}
+            </div>
+          )}
+          <div className={reduced ? '' : 'relative z-10 mt-[7svh]'}>{index}</div>
+        </div>
+      ) : (
+        <div className="flow-gutter relative mt-10 grid grid-cols-12 items-center gap-x-0 sm:mt-14 lg:gap-x-12">
+          <div className="col-span-12 min-w-0 lg:col-span-7">{index}</div>
           <div className="col-span-12 lg:col-span-5" data-parallax-y="0.08" data-parallax-scale="0.012">
             {mediaStage}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="flow-gutter mt-10">
         <Link

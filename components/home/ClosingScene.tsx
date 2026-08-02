@@ -29,6 +29,8 @@ export default function ClosingScene() {
     const ctx = gsap.context((self) => {
       const cta = self.selector!('[data-cta]')[0]
       const channels = self.selector!('[data-channel]') as HTMLElement[]
+      const form = self.selector!('[data-closing-form]')[0]
+      const footer = self.selector!('[data-closing-footer]')[0]
       if (cta) {
         gsap.fromTo(
           cta,
@@ -51,6 +53,30 @@ export default function ClosingScene() {
             stagger: 0.08,
             ease: 'none',
             scrollTrigger: { trigger: channels[0], start: 'top 90%', end: 'top 50%', scrub: SCRUB.text },
+          }
+        )
+      }
+      if (form) {
+        gsap.fromTo(
+          form,
+          { autoAlpha: 0.58, y: 28 },
+          {
+            autoAlpha: 1,
+            y: 0,
+            ease: 'none',
+            scrollTrigger: { trigger: form, start: 'top 88%', end: 'top 56%', scrub: SCRUB.text },
+          }
+        )
+      }
+      if (footer) {
+        gsap.fromTo(
+          footer,
+          { autoAlpha: 0.64, y: 20 },
+          {
+            autoAlpha: 1,
+            y: 0,
+            ease: 'none',
+            scrollTrigger: { trigger: footer, start: 'top 94%', end: 'top 70%', scrub: SCRUB.text },
           }
         )
       }
@@ -128,13 +154,13 @@ export default function ClosingScene() {
         </div>
 
         <div className="mt-14 grid gap-x-14 gap-y-14 lg:grid-cols-12">
-          <div data-cta data-parallax-y="0.055" className="lg:col-span-5" style={{ opacity: reduced ? 1 : 0 }}>
+          <div data-cta data-parallax-y="0.055" className="lg:col-span-5">
             <p className="font-body max-w-md text-base leading-relaxed text-text-300">
               Share the brief here, or reach us directly. A real person answers every channel.
             </p>
             <ul className="mt-9 flex flex-col items-start gap-5">
               {channels.map((ch, index) => (
-                <li key={ch.label} data-channel className="group list-none" style={{ opacity: reduced ? 1 : 0 }}>
+                <li key={ch.label} data-channel className="group list-none">
                   <p className="font-display text-[10px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.28em' }}>
                     {ch.label}
                   </p>
@@ -157,14 +183,16 @@ export default function ClosingScene() {
             <div data-flow-anchor="left" className="pointer-events-none h-px w-full" aria-hidden="true" />
           </div>
 
-          <div className="lg:col-span-6 lg:col-start-7">
+          <div data-closing-form className="lg:col-span-6 lg:col-start-7">
             <ProjectContactForm variant="compact" />
           </div>
         </div>
       </div>
 
-      <AnimatedBrandSignature />
-      <Footer variant="integrated" />
+      <div data-closing-footer>
+        <AnimatedBrandSignature />
+        <Footer variant="integrated" />
+      </div>
     </section>
   )
 }
