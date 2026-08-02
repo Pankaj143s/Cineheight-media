@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { gsap, ScrollTrigger, SplitText } from '@/lib/gsap'
 import { setHeroProgress } from '@/lib/heroProgress'
 import {
   useIsMobileTier,
-  useMotionCapabilityProfile,
   useReducedMotionState,
+  useScrollMotionEnabled,
 } from '@/lib/useMediaPreferences'
 import type { HeroVantaTier } from './HeroVantaBirds'
 import { LIQUID_MEDIA_PROTO } from '@/lib/liquidMedia/config'
@@ -84,18 +84,9 @@ export default function HeroIntroSequence() {
   const fallbackRef = useRef<HTMLDivElement>(null)
   const { reduced, ready: prefsReady } = useReducedMotionState()
   const mobile = useIsMobileTier()
-  const profile = useMotionCapabilityProfile()
-
-  // useMotionCapabilityProfile starts as 'static' until its useEffect runs —
-  // wait one effect pass so we don't treat that default as a real static tier.
-  const [capabilityReady, setCapabilityReady] = useState(false)
-
-  useEffect(() => {
-    setCapabilityReady(true)
-  }, [])
-
-  const allowTitleScrub = !reduced && profile.level !== 'static'
-  const allowCloudDrift = !reduced && profile.level !== 'static'
+  const scrollMotion = useScrollMotionEnabled()
+  const allowTitleScrub = scrollMotion
+  const allowCloudDrift = scrollMotion
   // CSS also hides sides ≤767px; JS covers coarse-pointer "mobile tier" on wider screens
   const vantaTier = prefsReady && !reduced ? resolveVantaTier(mobile) : null
 
@@ -108,12 +99,12 @@ export default function HeroIntroSequence() {
   }, [prefsReady, reduced])
 
   useLayoutEffect(() => {
-    if (!prefsReady || !capabilityReady) return
+    if (!prefsReady) return
 
     const el = wordmarkRef.current
     if (!el) return
 
-    if (reduced || profile.level === 'static') {
+    if (reduced) {
       gsap.set(el, { autoAlpha: 1 })
       return
     }
@@ -159,7 +150,7 @@ export default function HeroIntroSequence() {
       split?.revert()
       gsap.set(el, { autoAlpha: 1, clearProps: 'transform' })
     }
-  }, [prefsReady, capabilityReady, reduced, mobile, profile.level])
+  }, [prefsReady, reduced, mobile])
 
   useLayoutEffect(() => {
     if (reduced) {
@@ -196,9 +187,9 @@ export default function HeroIntroSequence() {
       if (allowCloudDrift && has(driftNodes)) {
         // Seamless one-way wind: exit one edge → wrap in from the opposite side
         const specs = [
-          { name: 'center', pxPerSec: 14, phase: 0.42 },
-          { name: 'left', pxPerSec: 20, phase: 0.12 },
-          { name: 'right', pxPerSec: 22, phase: 0.68 },
+          { name: 'center', pxPerSec: mobile ? 6 : 14, phase: 0.42 },
+          { name: 'left', pxPerSec: mobile ? 8 : 20, phase: 0.12 },
+          { name: 'right', pxPerSec: mobile ? 9 : 22, phase: 0.68 },
         ] as const
 
         const driftTweens: gsap.core.Tween[] = []
@@ -279,8 +270,8 @@ export default function HeroIntroSequence() {
             title,
             { y: 0, scale: 1, transformOrigin: '50% 50%' },
             {
-              y: vh(mobile ? -32 : -48),
-              scale: mobile ? 1.28 : 1.42,
+              y: vh(mobile ? -24 : -48),
+              scale: mobile ? 1.2 : 1.42,
               transformOrigin: '50% 50%',
               force3D: true,
               ...spanDur(rise, 0.88),
@@ -308,7 +299,7 @@ export default function HeroIntroSequence() {
       if (has(statement)) {
         tl.fromTo(
           statement,
-          { y: vh(28), autoAlpha: 0, filter: 'blur(8px)' },
+          { y: vh(mobile ? 16 : 28), autoAlpha: 0, filter: `blur(${mobile ? 3 : 8}px)` },
           { y: 0, autoAlpha: 1, filter: 'blur(0px)', ...spanDur(0.44, 0.86) },
           0.44
         )

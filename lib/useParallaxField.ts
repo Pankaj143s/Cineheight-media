@@ -7,7 +7,7 @@ import { readScrollSignal, subscribeScrollSignal } from './scrollSignal'
 
 const BASE_PX = 150
 const SELECTOR =
-  '[data-parallax-y], [data-parallax-x], [data-parallax-scale], [data-depth-layer]'
+  '[data-parallax-y], [data-parallax-x], [data-parallax-scale], [data-parallax-mobile-y], [data-parallax-mobile-x], [data-parallax-mobile-scale], [data-depth-layer]'
 const AUTO_SELECTOR = 'main h1, main h2, main figure, main [data-scene-media], main [data-open-media]'
 
 /**
@@ -36,6 +36,10 @@ interface ParallaxItem {
   y: number
   x: number
   scale: number
+  mobileY: number
+  mobileX: number
+  mobileScale: number
+  mobileDisable: boolean
   auto: boolean
   centerY: number
   currentX: number
@@ -76,6 +80,10 @@ export function useParallaxField(): void {
         y,
         x,
         scale,
+        mobileY: Number(el.dataset.parallaxMobileY ?? y * 0.6),
+        mobileX: Number(el.dataset.parallaxMobileX ?? 0),
+        mobileScale: Number(el.dataset.parallaxMobileScale ?? scale * 0.65),
+        mobileDisable: el.hasAttribute('data-parallax-mobile-disable'),
         auto,
         centerY: rect.top + readScrollSignal().y + rect.height / 2,
         currentX: 0,
@@ -136,20 +144,28 @@ export function useParallaxField(): void {
     let running = false
     let visible = !document.hidden
     let last = performance.now()
-    const mobileQuery = window.matchMedia('(max-width: 767px), (pointer: coarse)')
+    const mobileQuery = window.matchMedia('(max-width: 767px)')
 
     const updateTargets = () => {
       const vh = window.innerHeight || 1
       const mobile = mobileQuery.matches
-      const amplitude = mobile ? 0.4 : 1
       const scrollY = readScrollSignal().y
 
       for (const item of items) {
         const progress =
           clamp((vh - (item.centerY - scrollY)) / vh - 0.5, -0.75, 0.75) * 1.33
-        item.targetX = mobile ? 0 : progress * item.x * BASE_PX
-        item.targetY = progress * item.y * BASE_PX * amplitude
-        item.targetScale = mobile ? 1 : 1 + progress * item.scale
+        if (mobile && item.mobileDisable) {
+          item.targetX = 0
+          item.targetY = 0
+          item.targetScale = 1
+          continue
+        }
+        const x = mobile ? item.mobileX : item.x
+        const y = mobile ? item.mobileY : item.y
+        const scale = mobile ? item.mobileScale : item.scale
+        item.targetX = progress * x * BASE_PX
+        item.targetY = progress * y * BASE_PX
+        item.targetScale = 1 + progress * scale
       }
     }
 
@@ -165,7 +181,10 @@ export function useParallaxField(): void {
         item.el.style.setProperty('--parallax-x', `${item.currentX.toFixed(2)}px`)
         item.el.style.setProperty('--parallax-y', `${item.currentY.toFixed(2)}px`)
         item.el.style.setProperty('--parallax-scale', item.currentScale.toFixed(4))
-        unsettled ||= Math.abs(item.targetY - item.currentY) > 0.03
+        unsettled ||=
+          Math.abs(item.targetX - item.currentX) > 0.03 ||
+          Math.abs(item.targetY - item.currentY) > 0.03 ||
+          Math.abs(item.targetScale - item.currentScale) > 0.0001
       }
       if (unsettled && visible) raf = requestAnimationFrame(frame)
       else running = false
