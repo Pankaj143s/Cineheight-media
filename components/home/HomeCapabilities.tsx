@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { gsap } from '@/lib/gsap'
-import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { getCaseStudy } from '@/content/caseStudies'
 import { portraitReel } from '@/content/presentationMedia'
 import KineticLabel from '@/components/motion/KineticLabel'
@@ -99,35 +97,6 @@ export default function HomeCapabilities() {
     activeRef.current = i
     setActive(i)
   }, [])
-
-  useIsomorphicLayoutEffect(() => {
-    if (!mobile || reduced) return
-    const root = rootRef.current
-    const stage = root?.querySelector<HTMLElement>('[data-capability-stage]')
-    if (!root || !stage) return
-    const ctx = gsap.context(() => {
-      gsap.fromTo(
-        stage,
-        { clipPath: 'inset(18% 0% 18% 0%)', scale: 1.04, y: '5svh' },
-        {
-          clipPath: 'inset(0% 0% 0% 0%)',
-          scale: 1,
-          y: 0,
-          ease: 'none',
-          scrollTrigger: { trigger: root, start: 'top 82%', end: 'top 18%', scrub: 0.78 },
-        }
-      )
-      gsap.to(stage, {
-        clipPath: 'inset(3% 3% 5% 3%)',
-        scale: 0.94,
-        y: '-4svh',
-        autoAlpha: 0.52,
-        ease: 'none',
-        scrollTrigger: { trigger: root, start: 'bottom 94%', end: 'bottom 24%', scrub: 0.8 },
-      })
-    }, root)
-    return () => ctx.revert()
-  }, [mobile, reduced])
 
   // Scroll picks the active pillar; hover/focus overrides it on desktop.
   useEffect(() => {
@@ -463,12 +432,12 @@ export default function HomeCapabilities() {
           {!reduced && (
             <div
               data-capability-stage
-              className="sticky top-[11svh] z-20 h-[clamp(19rem,46svh,27rem)] overflow-hidden"
+              className="sticky top-[9svh] z-20 h-[clamp(17rem,40svh,23rem)] overflow-hidden"
             >
               {mediaStage}
             </div>
           )}
-          <div className={reduced ? '' : 'relative z-10 mt-[3svh]'}>{index}</div>
+          <div className={reduced ? '' : 'relative z-10 mt-[clamp(7rem,23svh,14rem)]'}>{index}</div>
         </div>
       ) : (
         <div className="flow-gutter relative mt-10 grid grid-cols-12 items-center gap-x-0 sm:mt-14 lg:gap-x-12">

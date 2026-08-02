@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { subscribeHeroProgress } from '@/lib/heroProgress'
 import { setLenisStopped } from '@/lib/scrollTo'
-import { useReducedMotion } from '@/lib/useMediaPreferences'
+import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import SoundToggle from '@/components/audio/SoundToggle'
 import { navItems } from '@/content/siteContent'
 import { reportUiClick } from '@/lib/audio/reportUiClick'
@@ -25,6 +25,7 @@ export default function Navbar() {
   const [visible, setVisible] = useState(!isHome)
   const [menuOpen, setMenuOpen] = useState(false)
   const visibleRef = useRef(!isHome)
+  const mobile = useIsMobileTier()
   const reduced = useReducedMotion()
   const menuId = useId()
   const menuPanelId = `mobile-menu-${menuId}`
@@ -45,10 +46,12 @@ export default function Navbar() {
       if (next !== visibleRef.current) {
         visibleRef.current = next
         setVisible(next)
-        if (!next) setMenuOpen(false)
+        if (!next && !mobile) setMenuOpen(false)
       }
     })
-  }, [isHome])
+  }, [isHome, mobile])
+
+  const navVisible = mobile || visible
 
   // Close on route change so a client navigation never leaves the panel open.
   useEffect(() => {
@@ -150,19 +153,19 @@ export default function Navbar() {
       className="fixed inset-x-0 top-0"
       style={{
         zIndex: 'var(--z-nav)',
-        opacity: visible ? 1 : 0,
-        transform: reduced ? 'none' : visible ? 'translateY(0)' : 'translateY(-12px)',
+        opacity: navVisible ? 1 : 0,
+        transform: reduced ? 'none' : navVisible ? 'translateY(0)' : 'translateY(-12px)',
         transition: reduced
           ? 'opacity 0.2s linear'
           : 'opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1)',
-        pointerEvents: visible ? 'auto' : 'none',
-        visibility: visible ? 'visible' : 'hidden',
+        pointerEvents: navVisible ? 'auto' : 'none',
+        visibility: navVisible ? 'visible' : 'hidden',
         background:
           'linear-gradient(to bottom, rgba(2,3,6,0.82), rgba(2,3,6,0.6) 80%, rgba(2,3,6,0.2))',
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
       }}
-      aria-hidden={!visible}
+      aria-hidden={!navVisible}
     >
       <div className="flow-gutter flex h-16 w-full items-center justify-between lg:h-[72px]">
         <Link href="/" className="flex flex-col leading-none" aria-label="Cineheight Media — home" onClick={reportUiClick}>
