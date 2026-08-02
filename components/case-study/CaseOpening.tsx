@@ -38,24 +38,34 @@ export default function CaseOpening({
     const ctx = gsap.context((self) => {
       const media = self.selector!('[data-open-media]')[0]
       const type = self.selector!('[data-open-type]')[0]
-      if (media && !mobile) {
+      if (media) {
         gsap.fromTo(
           media,
-          { scale: 1.05, yPercent: -2 },
+          { scale: mobile ? 1.025 : 1.05, yPercent: mobile ? -1 : -2 },
           {
             scale: 1,
-            yPercent: 3,
+            yPercent: mobile ? 1.5 : 3,
             ease: 'none',
-            scrollTrigger: { trigger: rootRef.current, start: 'top top', end: 'bottom top', scrub: 1 },
+            scrollTrigger: {
+              trigger: rootRef.current,
+              start: mobile ? 'top 16%' : 'top top',
+              end: mobile ? 'bottom 24%' : 'bottom top',
+              scrub: mobile ? 0.75 : 1,
+            },
           }
         )
       }
-      if (type && !mobile) {
+      if (type) {
         gsap.to(type, {
-          yPercent: -14,
-          autoAlpha: 0.55,
+          yPercent: mobile ? -4 : -14,
+          autoAlpha: mobile ? 0.78 : 0.55,
           ease: 'none',
-          scrollTrigger: { trigger: rootRef.current, start: 'top top', end: 'bottom top', scrub: 1 },
+          scrollTrigger: {
+            trigger: rootRef.current,
+            start: mobile ? 'top 12%' : 'top top',
+            end: mobile ? 'bottom 28%' : 'bottom top',
+            scrub: mobile ? 0.75 : 1,
+          },
         })
       }
 

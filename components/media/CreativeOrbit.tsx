@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
+import { gsap } from '@/lib/gsap'
+import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import MediaLightbox, { type LightboxItem } from './MediaLightbox'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
@@ -83,6 +85,8 @@ export default function CreativeOrbit({
   const rich = useCanRunRichEffects()
 
   const stageRef = useRef<HTMLDivElement>(null)
+  const sectionRef = useRef<HTMLElement>(null)
+  const arrivalTweenRef = useRef<gsap.core.Tween | null>(null)
   const ringRef = useRef<HTMLDivElement>(null)
   const cardRefs = useRef<(HTMLDivElement | null)[]>([])
 
@@ -250,6 +254,29 @@ export default function CreativeOrbit({
     setStageW(el.getBoundingClientRect().width)
     return () => ro.disconnect()
   }, [])
+
+  useIsomorphicLayoutEffect(() => {
+    if (reduced) return
+    const section = sectionRef.current
+    const stage = stageRef.current
+    if (!section || !stage) return
+    const tween = gsap.fromTo(
+      stage,
+      { autoAlpha: 0.68, y: narrow ? 18 : 26, scale: narrow ? 0.985 : 0.975 },
+      {
+        autoAlpha: 1,
+        y: 0,
+        scale: 1,
+        ease: 'none',
+        scrollTrigger: { trigger: section, start: 'top 92%', end: 'top 54%', scrub: 0.75 },
+      }
+    )
+    arrivalTweenRef.current = tween
+    return () => {
+      arrivalTweenRef.current = null
+      tween.revert()
+    }
+  }, [narrow, reduced])
 
   // ---- per-frame visuals -------------------------------------------------
   const applyVisuals = useCallback(() => {
@@ -495,6 +522,7 @@ export default function CreativeOrbit({
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (geom.current.N <= 1 || reduced) return
+    arrivalTweenRef.current?.scrollTrigger?.disable(false)
     stopIdleTimer()
     mode.current = 'drag'
     dragging.current = true
@@ -537,6 +565,8 @@ export default function CreativeOrbit({
   const endDrag = (e: React.PointerEvent) => {
     if (!dragging.current) return
     dragging.current = false
+    arrivalTweenRef.current?.scrollTrigger?.enable()
+    arrivalTweenRef.current?.scrollTrigger?.update()
     ;(e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId)
 
     const pressIndex = pressIndexRef.current
@@ -855,7 +885,7 @@ export default function CreativeOrbit({
   )
 
   return (
-    <section aria-label={label} className="relative">
+    <section ref={sectionRef} aria-label={label} className="relative">
       {narrow ? (
         <>
           <div className="flow-gutter relative z-10 mb-6">
