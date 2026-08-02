@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { gsap, ScrollTrigger } from '@/lib/gsap'
+import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { caseStudies } from '@/content/caseStudies'
 import { workIndexSlots } from '@/content/mediaSlots'
@@ -62,48 +62,37 @@ export default function WorkIndex() {
           }
         }
 
-        if (inner && !mobile) {
+        if (inner) {
           gsap.fromTo(
             inner,
-            { yPercent: -4 },
+            { yPercent: mobile ? -2 : -4, scale: mobile ? 1.025 : 1 },
             {
-              yPercent: 4,
+              yPercent: mobile ? 2 : 4,
+              scale: 1,
               ease: 'none',
               scrollTrigger: { trigger: scene, start: 'top bottom', end: 'bottom top', scrub: 1 },
             }
           )
         }
+
+        if (mobile) {
+          const stage = scene.querySelector<HTMLElement>('[data-work-index-stage]')
+          const nextScene = scene.nextElementSibling as HTMLElement | null
+          if (stage && nextScene?.hasAttribute('data-scene')) {
+            gsap.to(stage, {
+              scale: 0.965,
+              y: '-4svh',
+              autoAlpha: 0.74,
+              clipPath: 'inset(1.5% 2% 3% 2%)',
+              ease: 'none',
+              scrollTrigger: { trigger: nextScene, start: 'top 90%', end: 'top 18%', scrub: 0.72 },
+            })
+          }
+        }
       })
     }, rootRef)
     return () => ctx.revert()
   }, [reduced, mobile])
-
-  useEffect(() => {
-    const root = rootRef.current
-    if (!root) return
-    let pending = root.querySelectorAll('img').length
-    let raf = 0
-    const refresh = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => ScrollTrigger.refresh())
-    }
-    const settle = () => {
-      pending -= 1
-      if (pending <= 0) refresh()
-    }
-    const images = Array.from(root.querySelectorAll('img'))
-    images.forEach((img) => {
-      if (img.complete) settle()
-      else img.addEventListener('load', settle, { once: true })
-      img.addEventListener('error', settle, { once: true })
-    })
-    if (images.length === 0) refresh()
-    void document.fonts?.ready.then(refresh)
-    return () => {
-      cancelAnimationFrame(raf)
-      images.forEach((img) => img.removeEventListener('load', settle))
-    }
-  }, [])
 
   useEffect(() => {
     if (!rich) return
@@ -176,15 +165,23 @@ export default function WorkIndex() {
             data-scene={i}
             aria-label={`${cs.client} case study`}
             className="relative"
-            style={{ marginTop: i === 0 ? '1vh' : mobile ? '-4vh' : '-10vh' }}
+            style={{
+              marginTop: i === 0 ? '1vh' : mobile ? '-12svh' : '-10vh',
+              minHeight: mobile && !reduced ? (i === caseStudies.length - 1 ? '94svh' : '108svh') : undefined,
+              zIndex: mobile ? i + 1 : undefined,
+            }}
           >
-            <Link href={`/work/${cs.id}`} className="group block" aria-label={`${cs.client} — ${cs.tagline}`}>
+            <Link
+              href={`/work/${cs.id}`}
+              className={`group block ${mobile && !reduced ? 'sticky top-[10svh]' : ''}`}
+              aria-label={`${cs.client} — ${cs.tagline}`}
+            >
               <EditorialMatteReveal form={matteForm} start={i === 0 ? 'top 88%' : 'top 78%'}>
                 <div
                   data-work-index-stage
                   className="relative w-full overflow-hidden"
                   style={{
-                    height: mobile ? '72svh' : 'min(92svh, 58rem)',
+                    height: mobile ? (reduced ? '68svh' : '80svh') : 'min(92svh, 58rem)',
                     transform: rich && !mobile ? 'translate3d(var(--lean-x), var(--lean-y), 0)' : undefined,
                     background: 'var(--bg-950)',
                   }}

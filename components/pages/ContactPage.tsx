@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { gsap } from '@/lib/gsap'
+import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { contact, closing } from '@/content/siteContent'
 import KineticLabel from '@/components/motion/KineticLabel'
 import OpticalResolve from '@/components/motion/OpticalResolve'
@@ -8,6 +10,7 @@ import Reveal from '@/components/ui/Reveal'
 import ProjectContactForm from '@/components/contact/ProjectContactForm'
 import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { SCRUB } from '@/lib/motionTokens'
 
 /**
  * The destination. One large project-start statement and the real channels,
@@ -61,6 +64,46 @@ export default function ContactPage() {
   const reduced = useReducedMotion()
   const [focused, setFocused] = useState<number | null>(null)
   const [formActive, setFormActive] = useState(false)
+
+  useIsomorphicLayoutEffect(() => {
+    if (reduced) return
+    const root = rootRef.current
+    if (!root) return
+    const channels = root.querySelector<HTMLElement>('[data-contact-channels]')
+    const form = root.querySelector<HTMLElement>('[data-contact-form-shell]')
+    const groups = form?.querySelectorAll<HTMLElement>(':scope form > div:first-child > label')
+    const studio = root.querySelector<HTMLElement>('[data-contact-studio]')
+    const animations: gsap.core.Animation[] = []
+
+    if (channels) {
+      animations.push(gsap.fromTo(channels, { autoAlpha: 0.62, y: 16 }, {
+        autoAlpha: 1,
+        y: 0,
+        ease: 'none',
+        scrollTrigger: { trigger: channels, start: 'top 91%', end: 'top 64%', scrub: SCRUB.text },
+      }))
+    }
+    if (form) {
+      const timeline = gsap.timeline({
+        defaults: { ease: 'none' },
+        scrollTrigger: { trigger: form, start: 'top 94%', end: 'top 66%', scrub: SCRUB.text },
+      })
+      timeline.fromTo(form, { autoAlpha: 0.7, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.7 }, 0)
+      if (groups?.length) {
+        timeline.fromTo(groups, { autoAlpha: 0.78, y: 7 }, { autoAlpha: 1, y: 0, stagger: 0.035, duration: 0.45 }, 0.08)
+      }
+      animations.push(timeline)
+    }
+    if (studio) {
+      animations.push(gsap.fromTo(studio, { autoAlpha: 0.68, y: 12 }, {
+        autoAlpha: 1,
+        y: 0,
+        ease: 'none',
+        scrollTrigger: { trigger: studio, start: 'top 92%', end: 'top 68%', scrub: SCRUB.text },
+      }))
+    }
+    return () => animations.forEach((animation) => animation.revert())
+  }, [reduced])
 
   /**
    * The signal reaches from the statement toward whichever channel is nearest
@@ -199,7 +242,7 @@ export default function ContactPage() {
 
       <section aria-label="Contact channels and project form" className="flow-gutter relative z-10" style={{ marginTop: mobile ? '7vh' : '10vh' }}>
         <div className="grid gap-x-14 gap-y-16 lg:grid-cols-12">
-          <ul data-depth-layer="mid" className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:col-span-6">
+          <ul data-contact-channels data-depth-layer="mid" className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:col-span-6">
             {CHANNELS.map((ch, i) => (
               <li
                 key={ch.label}
@@ -238,6 +281,7 @@ export default function ContactPage() {
             ))}
           </ul>
           <div
+            data-contact-form-shell
             className="relative lg:col-span-6"
             data-interaction-quiet
             onFocusCapture={() => setFormActive(true)}
@@ -261,7 +305,7 @@ export default function ContactPage() {
         <div data-flow-anchor="right" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '50%' }} aria-hidden="true" />
       </section>
 
-      <section aria-label="Studio" className="flow-gutter relative z-10" style={{ marginTop: mobile ? '8vh' : '12vh' }}>
+      <section data-contact-studio aria-label="Studio" className="flow-gutter relative z-10" style={{ marginTop: mobile ? '8vh' : '12vh' }}>
         <Reveal variant="fade-up" as="div">
           <p className="font-display text-[10px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.3em' }}>
             Studio

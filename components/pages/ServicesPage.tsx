@@ -330,6 +330,11 @@ export default function ServicesPage() {
             />
           </span>
         )}
+        {mobile && !reduced && (
+          <div className="col-span-12 sticky top-[10svh] z-20 h-[clamp(18rem,44svh,26rem)] overflow-hidden">
+            {canvas}
+          </div>
+        )}
         {/* the scrolling index */}
         <div className="col-span-12 min-w-0 lg:col-span-6">
           {services.map((s, i) => (
@@ -340,14 +345,14 @@ export default function ServicesPage() {
               aria-label={s.title}
               className={`relative flex min-w-0 flex-col justify-center ${mobile ? 'pl-7' : ''}`}
               style={{
-                minHeight: mobile ? 'auto' : 'clamp(15rem, 34vh, 23rem)',
+                minHeight: mobile ? (reduced ? 'auto' : '40svh') : 'clamp(15rem, 34vh, 23rem)',
                 paddingBlock: mobile ? '2.5rem' : 'clamp(1.5rem, 3.2vh, 2.8rem)',
-                opacity: mobile || active === i ? 1 : Math.abs(active - i) === 1 ? 0.64 : Math.abs(active - i) === 2 ? 0.38 : 0.24,
+                opacity: reduced || active === i ? 1 : mobile ? 0.68 : Math.abs(active - i) === 1 ? 0.64 : Math.abs(active - i) === 2 ? 0.38 : 0.24,
                 transform: reduced || mobile || active === i ? 'none' : `translate3d(0,${i < active ? -6 : 6}px,0)`,
                 transition: reduced ? 'opacity 160ms ease-out' : 'opacity 0.5s ease, transform 0.6s cubic-bezier(0.16,1,0.3,1)',
               }}
             >
-              {mobile && (
+              {mobile && reduced && (
                 <span
                   data-mobile-service-marker
                   aria-hidden="true"
