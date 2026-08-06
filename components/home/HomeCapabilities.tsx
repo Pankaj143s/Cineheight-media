@@ -1,11 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
 import { getCaseStudy } from '@/content/caseStudies'
 import { portraitReel } from '@/content/presentationMedia'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
+import ScrollFillCta from '@/components/ui/ScrollFillCta'
 import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
@@ -449,16 +449,9 @@ export default function HomeCapabilities() {
       )}
 
       <div className="flow-gutter mt-10">
-        <Link
-          href="/services"
-          className="group font-display inline-flex min-h-[48px] items-center gap-3 text-[12px] font-medium uppercase text-text-100 transition-colors duration-300 hover:text-[var(--blue-400)]"
-          style={{ letterSpacing: '0.24em' }}
-        >
+        <ScrollFillCta href="/services" fillMode="scroll" className="text-[12px]">
           Explore all services
-          <svg width="26" height="10" viewBox="0 0 26 10" fill="none" aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1.5">
-            <path d="M0 5h24M20 1l4 4-4 4" stroke="currentColor" strokeWidth="1.3" />
-          </svg>
-        </Link>
+        </ScrollFillCta>
       </div>
 
       <div data-flow-anchor="right" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '46%' }} aria-hidden="true" />

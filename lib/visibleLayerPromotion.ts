@@ -40,3 +40,4 @@ export function observeVisibleLayerPromotion(
     elements.forEach(release)
   }
 }
+

@@ -7,6 +7,7 @@ import { subscribeHeroProgress } from '@/lib/heroProgress'
 import { setLenisStopped } from '@/lib/scrollTo'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import SoundToggle from '@/components/audio/SoundToggle'
+import ScrollFillCta from '@/components/ui/ScrollFillCta'
 import { navItems } from '@/content/siteContent'
 import { reportUiClick } from '@/lib/audio/reportUiClick'
 
@@ -42,7 +43,7 @@ export default function Navbar() {
       return
     }
     return subscribeHeroProgress((p) => {
-      const next = visibleRef.current ? p > 0.58 : p > 0.66
+      const next = visibleRef.current ? p > 0.76 : p > 0.82
       if (next !== visibleRef.current) {
         visibleRef.current = next
         setVisible(next)
@@ -200,17 +201,13 @@ export default function Navbar() {
 
         <div className="flex items-center gap-2 sm:gap-3">
           <SoundToggle />
-          <Link
+          <ScrollFillCta
             href="/contact"
-            onClick={reportUiClick}
-            className="hidden min-h-11 items-center gap-2 rounded-full border px-5 py-2.5 text-[11px] font-medium uppercase text-text-100 transition-colors duration-200 hover:border-[var(--blue-400)] hover:text-[var(--blue-200)] sm:inline-flex"
-            style={{ letterSpacing: '0.2em', borderColor: 'var(--blue-alpha-40)' }}
+            fillMode="hover"
+            className="hidden min-h-11 px-5 py-2.5 text-[11px] sm:inline-flex"
           >
             Start a Project
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-              <path d="M1.5 8.5 8.5 1.5M3 1.5h5.5V7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
-          </Link>
+          </ScrollFillCta>
 
           <button
             ref={toggleRef}
@@ -271,18 +268,15 @@ export default function Navbar() {
               {item.label}
             </Link>
           ))}
-          <Link
+          <ScrollFillCta
             href="/contact"
-            onClick={() => {
-              reportUiClick()
-              closeMenu()
-            }}
+            fillMode="hover"
+            className="mt-5 justify-center px-5 py-3 text-xs"
             tabIndex={menuOpen ? undefined : -1}
-            className="mt-5 inline-flex items-center justify-center gap-2 rounded-full border px-5 py-3 text-xs font-medium uppercase text-text-100"
-            style={{ letterSpacing: '0.2em', borderColor: 'var(--blue-alpha-40)' }}
+            onClick={closeMenu}
           >
             Start a Project
-          </Link>
+          </ScrollFillCta>
         </nav>
       </div>
     </header>

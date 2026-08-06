@@ -44,7 +44,8 @@ const normaliseRoute = (r) => {
   return s.startsWith('/') ? s : '/' + s
 }
 
-const ROUTES = argOf('routes', [
+const NOT_FOUND_ROUTE = '/mobile-motion-404'
+const requestedRoutes = argOf('routes', [
   'home',
   'work',
   'work/sapale-yamaha',
@@ -55,7 +56,22 @@ const ROUTES = argOf('routes', [
   'contact',
 ].join(',')).split(',').filter(Boolean).map(normaliseRoute)
 
-const SIZES = argOf('sizes', [
+const ROUTES = hasFlag('mobile-cinematic') && !requestedRoutes.includes(NOT_FOUND_ROUTE)
+  ? [...requestedRoutes, NOT_FOUND_ROUTE]
+  : requestedRoutes
+
+const defaultSizes = hasFlag('mobile-cinematic') ? [
+  '320x568',
+  '360x640',
+  '375x667',
+  '390x844',
+  '412x915',
+  '430x932',
+  '600x800',
+  '768x1024',
+  '844x390',
+  '667x375',
+] : [
   '390x844',
   '768x1024',
   '1366x768',
@@ -63,7 +79,8 @@ const SIZES = argOf('sizes', [
   '1920x1080',
   '2560x1440',
   '1920x600',
-].join(',')).split(',').filter(Boolean)
+]
+const SIZES = argOf('sizes', defaultSizes.join(',')).split(',').filter(Boolean)
 
 // ── locate a Chromium ────────────────────────────────────────────────────
 /**
@@ -396,8 +413,20 @@ cdp.on('Runtime.exceptionThrown', ({ exceptionDetails }) => {
   consoleErrors.push((exceptionDetails.text + ' ' + (exceptionDetails.exception?.description ?? '')).slice(0, 180))
 })
 cdp.on('Network.responseReceived', ({ response }) => {
-  if (response.status >= 400) failedRequests.push(`${response.status} ${response.url}`)
+  if (response.status >= 400 && !(response.status === 404 && response.url === BASE + NOT_FOUND_ROUTE)) {
+    failedRequests.push(`${response.status} ${response.url}`)
+  }
 })
+
+if (hasFlag('save-data')) {
+  await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
+    source: `Object.defineProperty(Navigator.prototype, 'connection', {
+      configurable: true,
+      get() { return { saveData: true, effectiveType: '3g' } }
+    })`,
+  })
+  console.log('emulating save-data rendering tier')
+}
 
 if (hasFlag('reduced')) {
   await cdp.send('Emulation.setEmulatedMedia', {
@@ -444,7 +473,7 @@ if (hasFlag('probe')) {
     results.push({
       name,
       status: applicable ? (pass ? 'PASS' : 'FAIL') : 'NOT APPLICABLE',
-      detail: String(detail).slice(0, 160),
+      detail: String(detail).slice(0, 1000),
     })
 
   const heroChunksDir = path.resolve('.next/static/chunks')
@@ -1018,6 +1047,26 @@ if (hasFlag('probe')) {
     active: element.dataset.mediaLayerActive === 'true',
     willChange: getComputedStyle(element).willChange,
   })))()`)
+  const scrollInstallationIntoView = async (selector) => {
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      const state = await cdp.eval(`(() => {
+        const element = document.querySelector(${JSON.stringify(selector)})
+        if (!element) return null
+        const rect = element.getBoundingClientRect()
+        return { visible: rect.top < innerHeight && rect.bottom > 0, direction: Math.sign(rect.top - innerHeight / 2) }
+      })()`)
+      if (!state || state.visible) return Boolean(state)
+      await cdp.send('Input.dispatchMouseEvent', {
+        type: 'mouseWheel',
+        x: 720,
+        y: 450,
+        deltaX: 0,
+        deltaY: state.direction * 720,
+      })
+      await sleep(140)
+    }
+    return false
+  }
   const showreelBefore = await layerState('[data-showreel-frame], [data-showreel-video]')
   await cdp.eval(`document.querySelector('#showreel')?.scrollIntoView({ block: 'center' })`)
   await sleep(450)
@@ -1035,10 +1084,10 @@ if (hasFlag('probe')) {
 
   await goto(cdp, BASE + '/work/sapale-yamaha')
   const installationBefore = await layerState('[data-orbit-card], [data-phone-card]')
-  await cdp.eval(`document.querySelector('[data-orbit-card]')?.scrollIntoView({ block: 'center' })`)
+  await scrollInstallationIntoView('[data-media-installation-stage="orbit"]')
   await sleep(450)
   const orbitActive = await layerState('[data-orbit-card]')
-  await cdp.eval(`document.querySelector('[data-phone-card]')?.scrollIntoView({ block: 'center' })`)
+  await scrollInstallationIntoView('[data-media-installation-stage="phone"]')
   await sleep(450)
   const phoneActive = await layerState('[data-phone-card]')
   await cdp.eval(`window.scrollTo(0, document.documentElement.scrollHeight)`)
@@ -1972,19 +2021,34 @@ if (hasFlag('probe')) {
     target?.scrollIntoView({ block: 'center' })
     await new Promise(r => setTimeout(r, 650))
     const entries = [...document.querySelectorAll('[data-service-entry]')]
-    const active = entries.map((entry, index) => ({
-      index,
-      artOpacity: Number(getComputedStyle(entry.querySelector('[data-mobile-service-art]')).opacity),
-      markerGlow: getComputedStyle(entry.querySelector('[data-mobile-service-marker]')).boxShadow !== 'none',
-    })).filter(entry => entry.artOpacity > 0.99 && entry.markerGlow)
-    const activeEntry = entries[active[0]?.index]
+    const stage = document.querySelector('[data-mobile-service-stage]')
+    const activeArt = [...(stage?.querySelectorAll('img') ?? [])]
+      .map((image, index) => ({ index, opacity: Number(getComputedStyle(image).opacity) }))
+      .filter(image => image.opacity > 0.99)
+    const markers = entries.map((entry, index) => {
+      const marker = entry.querySelector('[data-mobile-service-marker]')
+      return {
+        index,
+        present: Boolean(marker),
+        markerGlow: marker ? getComputedStyle(marker).boxShadow !== 'none' : false,
+        background: marker ? getComputedStyle(marker).backgroundColor : '',
+      }
+    })
+    const activeIndex = activeArt.length === 1 ? activeArt[0].index : -1
+    const activeEntry = entries[activeIndex]
+    const activeMarker = markers[activeIndex]
     const title = activeEntry?.querySelector('[data-service-title]')
     const titleRect = title?.getBoundingClientRect()
     const titleClip = title?.parentElement?.getBoundingClientRect()
-    const signal = getComputedStyle(document.querySelector('[data-mobile-service-signal]')).transform
+    const signalElement = document.querySelector('[data-mobile-service-signal]')
+    const signal = signalElement ? getComputedStyle(signalElement).transform : ''
     const scale = Number(signal.match(/matrix\\([^,]+, [^,]+, [^,]+, ([^,]+)/)?.[1] || 0)
     return {
-      active,
+      activeIndex,
+      activeArt,
+      markers,
+      markerActive: Boolean(activeMarker?.present && activeMarker.markerGlow),
+      sticky: stage ? getComputedStyle(stage).position : '',
       scale,
       titleVisible: title && titleRect && titleClip
         ? getComputedStyle(title).visibility === 'visible' && Number(getComputedStyle(title).opacity) >= 0.99 &&
@@ -2001,13 +2065,203 @@ if (hasFlag('probe')) {
   })()`)
   check(
     'mobile Services hands artwork to one active chapter and advances its spine',
-    touchScrollY > 0 && mobileServices.active.length === 1 && mobileServices.active[0].index >= 1 && mobileServices.scale > 0.2 && mobileServices.titleVisible,
+    touchScrollY > 0 && mobileServices.activeIndex >= 1 &&
+      mobileServices.markers.length === 6 && mobileServices.markers.every(marker => marker.present) &&
+      mobileServices.activeArt.length === 1 && mobileServices.sticky === 'sticky' &&
+      mobileServices.scale > 0.2 && mobileServices.titleVisible,
     mobileServices.titleDebug
-      ? `touchY=${touchScrollY} active=${mobileServices.active[0]?.index} scale=${mobileServices.scale} visible=${mobileServices.titleVisible} transform=${mobileServices.titleDebug.transform}`
+      ? `touchY=${touchScrollY} active=${mobileServices.activeIndex} scale=${mobileServices.scale} visible=${mobileServices.titleVisible} transform=${mobileServices.titleDebug.transform}`
       : JSON.stringify(mobileServices)
   )
 
   await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: false })
+
+  // ---- authored mobile cinematic journey -------------------------------
+  await setViewport(cdp, 390, 844, 2)
+  await goto(cdp, BASE + '/')
+  await sleep(950)
+  const mobileHero = await cdp.eval(`(async () => {
+    const title = document.querySelector('[data-layer="title"]')
+    const root = title?.closest('section')
+    const state = () => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(title).transform)
+      return { scale: matrix.a, y: matrix.m42, opacity: Number(getComputedStyle(title).opacity) }
+    }
+    const before = state()
+    window.scrollTo(0, Math.max(1, (root.offsetHeight - innerHeight) * 0.55))
+    await new Promise(resolve => setTimeout(resolve, 850))
+    return {
+      before,
+      after: state(),
+      chars: document.querySelectorAll('.hero-title-char').length,
+      cursor: Boolean(document.querySelector('[data-cursor-trail]')),
+      vantaTier: document.querySelector('[data-vanta-tier]')?.getAttribute('data-vanta-tier') ?? '',
+    }
+  })()`)
+  check(
+    'normal mobile restores SplitText and scroll-linked hero title movement',
+    mobileHero.chars > 0 && !mobileHero.cursor &&
+      (Math.abs(mobileHero.after.scale - mobileHero.before.scale) > 0.04 ||
+        Math.abs(mobileHero.after.y - mobileHero.before.y) > 12 ||
+        mobileHero.after.opacity < mobileHero.before.opacity - 0.08),
+    JSON.stringify(mobileHero)
+  )
+  if (hasFlag('save-data')) {
+    check(
+      'save-data keeps mobile scroll choreography while selecting compact rendering',
+      mobileHero.chars > 0 && mobileHero.vantaTier === 'compact',
+      JSON.stringify(mobileHero)
+    )
+  }
+
+  const showreelDepth = await cdp.eval(`(async () => {
+    const section = document.querySelector('#showreel')
+    const frame = section?.querySelector('[data-showreel-frame]')
+    const video = section?.querySelector('[data-showreel-video]')
+    const gate = section?.querySelector('[data-showreel-gate]')
+    const label = section?.querySelector('[data-showreel-label]')
+    const control = section?.querySelector('[data-showreel-control-wrap]')
+    const read = () => ({
+      frame: new DOMMatrixReadOnly(getComputedStyle(frame).transform).a,
+      video: new DOMMatrixReadOnly(getComputedStyle(video).transform).a,
+      clip: getComputedStyle(gate).clipPath,
+      label: Number(getComputedStyle(label).opacity),
+      control: Number(getComputedStyle(control).opacity),
+    })
+    const top = section.getBoundingClientRect().top + scrollY
+    window.scrollTo(0, top - innerHeight * 0.94)
+    await new Promise(resolve => setTimeout(resolve, 450))
+    const entering = read()
+    window.scrollTo(0, top - innerHeight * 0.42)
+    await new Promise(resolve => setTimeout(resolve, 850))
+    return { entering, settled: read() }
+  })()`)
+  check(
+    'mobile Showreel opens its frame, gate, inner media, label and control in sequence',
+    showreelDepth.entering.frame < showreelDepth.settled.frame &&
+      showreelDepth.entering.video > showreelDepth.settled.video &&
+      showreelDepth.settled.frame > 0.985 && showreelDepth.settled.video < 1.015 &&
+      showreelDepth.settled.label > 0.9 && showreelDepth.settled.control > 0.9,
+    JSON.stringify(showreelDepth)
+  )
+
+  const featuredState = await cdp.eval(`(async () => {
+    const scenes = [...document.querySelectorAll('#work [data-scene]')]
+    const stages = [...document.querySelectorAll('#work [data-mobile-stage]')]
+    const centre = async index => {
+      scenes[index]?.scrollIntoView({ block: 'center' })
+      await new Promise(resolve => setTimeout(resolve, 850))
+      return [...document.querySelectorAll('#work video')].map(video => video.currentSrc).find(Boolean) ?? ''
+    }
+    const second = await centre(1)
+    const third = await centre(2)
+    const reverse = await centre(1)
+    window.scrollTo(0, document.documentElement.scrollHeight)
+    await new Promise(resolve => setTimeout(resolve, 80))
+    scenes[1]?.scrollIntoView({ block: 'center' })
+    await new Promise(resolve => setTimeout(resolve, 900))
+    const copy = scenes[1]?.querySelector('[data-copy]')
+    return {
+      scenes: scenes.length,
+      sticky: stages.every(stage => getComputedStyle(stage).position === 'sticky'),
+      second,
+      third,
+      reverse,
+      mounted: document.querySelectorAll('#work video').length,
+      playing: [...document.querySelectorAll('#work video')].filter(video => !video.paused).length,
+      copyOpacity: Number(getComputedStyle(copy).opacity),
+      desktopRequests: performance.getEntriesByType('resource').filter(entry => /home-work\\/[^/]+-desktop\\.mp4$/.test(entry.name)).length,
+      overflow: document.documentElement.scrollWidth - innerWidth,
+    }
+  })()`)
+  check(
+    'Featured Work is a reversible native-sticky mobile stack with one mobile film owner',
+    featuredState.scenes === 3 && featuredState.sticky && featuredState.second && featuredState.third &&
+      featuredState.second !== featuredState.third && featuredState.reverse === featuredState.second &&
+      featuredState.mounted <= 1 && featuredState.playing <= 1 && featuredState.copyOpacity > 0.9 &&
+      featuredState.desktopRequests === 0 && featuredState.overflow <= 1,
+    JSON.stringify(featuredState)
+  )
+
+  const capabilityStage = await cdp.eval(`(async () => {
+    const stage = document.querySelector('[data-capability-stage]')
+    document.querySelector('[data-capability-chapter="1"]')?.scrollIntoView({ block: 'center' })
+    await new Promise(resolve => setTimeout(resolve, 750))
+    const images = [...(stage?.querySelectorAll('img') ?? [])]
+    return {
+      sticky: stage ? getComputedStyle(stage).position : '',
+      activeImages: images.filter(image => Number(getComputedStyle(image.parentElement).opacity) > 0.99).length,
+      videos: stage?.querySelectorAll('video').length ?? 0,
+      playing: [...(stage?.querySelectorAll('video') ?? [])].filter(video => !video.paused).length,
+    }
+  })()`)
+  check(
+    'mobile Capabilities uses one sticky stage and one active film',
+    capabilityStage.sticky === 'sticky' && capabilityStage.activeImages === 1 &&
+      capabilityStage.videos <= 1 && capabilityStage.playing <= 1,
+    JSON.stringify(capabilityStage)
+  )
+
+  await goto(cdp, BASE + '/work')
+  const workStack = await cdp.eval(`(async () => {
+    const stages = [...document.querySelectorAll('[data-work-index-stage]')]
+    stages[1]?.scrollIntoView({ block: 'center' })
+    await new Promise(resolve => setTimeout(resolve, 700))
+    return {
+      count: stages.length,
+      sticky: stages.every(stage => getComputedStyle(stage.closest('a')).position === 'sticky'),
+      overflow: document.documentElement.scrollWidth - innerWidth,
+      cta: stages.every(stage => Boolean(stage.querySelector('[data-work-cta]'))),
+    }
+  })()`)
+  check(
+    'Work Index uses connected sticky mobile project stages with visible CTAs',
+    workStack.count === 3 && workStack.sticky && workStack.cta && workStack.overflow <= 1,
+    JSON.stringify(workStack)
+  )
+
+  await goto(cdp, BASE + '/work/sapale-yamaha')
+  const caseDepth = await cdp.eval(`(async () => {
+    const opening = document.querySelector('[data-open-media]')
+    const metric = document.querySelector('[data-dominant]')
+    const read = element => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform)
+      return { scale: matrix.a, y: matrix.m42, opacity: Number(getComputedStyle(element).opacity) }
+    }
+    opening?.scrollIntoView({ block: 'end' })
+    await new Promise(resolve => setTimeout(resolve, 320))
+    const openingBefore = read(opening)
+    window.scrollBy(0, innerHeight * 0.35)
+    await new Promise(resolve => setTimeout(resolve, 650))
+    const openingAfter = read(opening)
+    metric?.scrollIntoView({ block: 'end' })
+    await new Promise(resolve => setTimeout(resolve, 320))
+    const metricBefore = read(metric)
+    window.scrollBy(0, innerHeight * 0.32)
+    await new Promise(resolve => setTimeout(resolve, 650))
+    const metricAfter = read(metric)
+    return { openingBefore, openingAfter, metricBefore, metricAfter }
+  })()`)
+  check(
+    'case-study opening and dominant metric retain bounded mobile depth',
+    Math.abs(caseDepth.openingAfter.y - caseDepth.openingBefore.y) > 1 &&
+      caseDepth.metricAfter.scale >= caseDepth.metricBefore.scale &&
+      caseDepth.metricAfter.scale <= 1.02 && caseDepth.metricAfter.opacity > 0.9,
+    JSON.stringify(caseDepth)
+  )
+
+  await goto(cdp, BASE + NOT_FOUND_ROUTE)
+  const notFound = await cdp.eval(`({
+    mainTargets: document.querySelectorAll('#main-content').length,
+    hasHeading: Boolean(document.querySelector('h1, h2')),
+    overflow: document.documentElement.scrollWidth - innerWidth,
+  })`)
+  check(
+    'mobile 404 preserves one main target without overflow',
+    notFound.mainTargets === 1 && notFound.hasHeading && notFound.overflow <= 1,
+    JSON.stringify(notFound)
+  )
+
   await setViewport(cdp, 2560, 1440, 1)
   await goto(cdp, BASE + '/services')
   const desktopServices = await cdp.eval(`(async () => {

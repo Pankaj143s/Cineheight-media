@@ -394,7 +394,8 @@ export default function ClientMarquee() {
                   key={copy}
                   ref={copy === 0 ? groupRef : undefined}
                   aria-hidden={copy === 0 ? undefined : true}
-                  className="flex shrink-0 items-center gap-x-10 md:gap-x-12"
+                  /* pr matches gap-x so the seam between copies (VW → Yamaha) equals in-row gaps */
+                  className="flex shrink-0 items-center gap-x-10 pr-10 md:gap-x-12 md:pr-12"
                 >
                   {trustedClients.map((client) => (
                     <LogoMark key={`${copy}-${client.name}`} client={client} tier={tier} />

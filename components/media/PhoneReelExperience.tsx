@@ -576,6 +576,7 @@ export default function PhoneReelExperience({
   const stage = (
     <div
       ref={stageRef}
+      data-media-installation-stage="phone"
       role="group"
       aria-roledescription="carousel"
       aria-label={label}

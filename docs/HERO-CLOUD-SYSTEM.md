@@ -1,5 +1,15 @@
 # HERO-CLOUD-SYSTEM — cineheight-single-flow-v2
 
+> ## RETIRED (feat/hero-handshake)
+>
+> The hero no longer uses Vanta Birds or the cloud plates described below.
+> The background is now `components/hero/HeroSignalGrid.tsx` (a reactive dot
+> field) and the wordmark's two `I` characters converge into a handshake —
+> see `components/hero/HeroIntroSequence.tsx` and
+> `components/hero/HeroHandshake.tsx`. This document is kept for history;
+> `HeroVantaBirds.tsx`, the `/generated/hero-v5/` assets, the `clouds:*` npm
+> scripts and the asset-pipeline scripts below are unused but left on disk.
+
 ## Live visual owner
 
 The cloud composition has exactly one live background owner. Vanta is the

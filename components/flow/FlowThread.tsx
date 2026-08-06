@@ -37,7 +37,7 @@ import { getHeroProgress } from '@/lib/heroProgress'
  */
 
 /** Homepage hero scrub progress (0–1) before the thread may draw. */
-const HERO_THREAD_REVEAL = 0.6
+const HERO_THREAD_REVEAL = 0.78
 
 /**
  * True while the sticky hero stage is still pinned.

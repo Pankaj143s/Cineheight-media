@@ -331,7 +331,7 @@ export default function ServicesPage() {
           </span>
         )}
         {mobile && !reduced && (
-          <div className="col-span-12 sticky top-[10svh] z-20 h-[clamp(18rem,44svh,26rem)] overflow-hidden">
+          <div data-mobile-service-stage className="col-span-12 sticky top-[10svh] z-20 h-[clamp(18rem,44svh,26rem)] overflow-hidden">
             {canvas}
           </div>
         )}
@@ -352,7 +352,7 @@ export default function ServicesPage() {
                 transition: reduced ? 'opacity 160ms ease-out' : 'opacity 0.5s ease, transform 0.6s cubic-bezier(0.16,1,0.3,1)',
               }}
             >
-              {mobile && reduced && (
+              {mobile && (
                 <span
                   data-mobile-service-marker
                   aria-hidden="true"

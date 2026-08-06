@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
-import { gsap } from '@/lib/gsap'
+import { gsap, ScrollTrigger } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import MediaLightbox, { type LightboxItem } from './MediaLightbox'
 import KineticLabel from '@/components/motion/KineticLabel'
@@ -10,7 +10,6 @@ import SplitLineReveal from '@/components/motion/SplitLineReveal'
 import Reveal from '@/components/ui/Reveal'
 import { clamp, damp, normalizeAngle } from '@/lib/utils'
 import { useCanRunRichEffects, useIsNarrow, useReducedMotion } from '@/lib/useMediaPreferences'
-import { observeVisibleLayerPromotion } from '@/lib/visibleLayerPromotion'
 
 /**
  * The static-creative installation — a genuine three-dimensional ring of post
@@ -501,14 +500,29 @@ export default function CreativeOrbit({
     }
   }, [N, applyVisuals, scheduleAutoplay, stopIdleTimer])
 
-  useEffect(() => {
-    if (reduced) return
-    return observeVisibleLayerPromotion(
-      cardRefs.current.filter((card): card is HTMLDivElement => card !== null),
-      '30% 0px',
-      'media'
-    )
-  }, [N, reduced])
+  useIsomorphicLayoutEffect(() => {
+    const section = sectionRef.current
+    if (reduced || !section || !stageW) return
+    const setCardPromotion = (active: boolean) => {
+      cardRefs.current.forEach((card) => {
+        if (!card) return
+        if (active) card.dataset.mediaLayerActive = 'true'
+        else delete card.dataset.mediaLayerActive
+      })
+    }
+    const trigger = ScrollTrigger.create({
+      trigger: section,
+      start: 'top 130%',
+      end: 'bottom -30%',
+      onToggle: ({ isActive }) => setCardPromotion(isActive),
+    })
+    setCardPromotion(trigger.isActive)
+
+    return () => {
+      trigger.kill()
+      setCardPromotion(false)
+    }
+  }, [N, reduced, stageW])
 
   // Repaint when reduced-motion/geometry change without the loop running.
   useEffect(() => {
@@ -730,6 +744,7 @@ export default function CreativeOrbit({
   const stageBlock = (
     <div
       ref={stageRef}
+      data-media-installation-stage="orbit"
       className="relative mx-auto select-none touch-pan-y"
       style={{
         height: stageH,

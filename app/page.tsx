@@ -3,7 +3,7 @@ import HeroIntroSequence from '@/components/hero/HeroIntroSequence'
 import ShowreelSection from '@/components/showreel/ShowreelSection'
 import FlowDirector from '@/components/flow/FlowDirector'
 import ClientMarquee from '@/components/home/ClientMarquee'
-import FeaturedWorkJourney from '@/components/home/FeaturedWorkJourney'
+import FeaturedWorkSelected from '@/components/home/FeaturedWorkSelected'
 import HomeCapabilities from '@/components/home/HomeCapabilities'
 import ClientStories from '@/components/home/ClientStories'
 import ClosingScene from '@/components/home/ClosingScene'
@@ -25,7 +25,8 @@ export default function Home() {
       <main id="main-content" tabIndex={-1} className="layer-content scroll-mt-24 outline-none">
         <HeroIntroSequence />
         <ShowreelSection />
-        <FeaturedWorkJourney />
+        {/* Left copy + square scroll-fill CTA. Shape panel / pill kept in FeaturedWorkSelected. */}
+        <FeaturedWorkSelected />
         <ClientMarquee />
         <HomeCapabilities />
         <ClientStories />

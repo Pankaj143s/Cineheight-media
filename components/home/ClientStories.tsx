@@ -193,7 +193,7 @@ export default function ClientStories() {
       >
         <div
           data-story-media
-          className={mobile ? 'absolute inset-x-0 bottom-[5.75rem] top-[4.5rem]' : 'absolute inset-[-2%]'}
+          className={mobile ? 'absolute inset-x-0 bottom-[5.875rem] top-[4.5rem]' : 'absolute inset-[-2%]'}
           data-parallax-y={mobile ? '0.025' : '0.07'}
           data-parallax-scale="0.008"
         >
