@@ -1,12 +1,17 @@
+import dynamic from 'next/dynamic'
 import Navbar from '@/components/Navbar'
 import HeroIntroSequence from '@/components/hero/HeroIntroSequence'
 import ShowreelSection from '@/components/showreel/ShowreelSection'
 import FlowDirector from '@/components/flow/FlowDirector'
 import ClientMarquee from '@/components/home/ClientMarquee'
 import FeaturedWorkSelected from '@/components/home/FeaturedWorkSelected'
-import HomeCapabilities from '@/components/home/HomeCapabilities'
-import ClientStories from '@/components/home/ClientStories'
-import ClosingScene from '@/components/home/ClosingScene'
+
+// Below-the-fold: SSR stays on (identical HTML, no content pop-in / layout
+// shift, no SEO cost) but each gets its own deferred JS chunk instead of
+// inflating the bundle shipped with the hero/showreel.
+const HomeCapabilities = dynamic(() => import('@/components/home/HomeCapabilities'))
+const ClientStories = dynamic(() => import('@/components/home/ClientStories'))
+const ClosingScene = dynamic(() => import('@/components/home/ClosingScene'))
 
 /**
  * Homepage narrative (Hybrid B):

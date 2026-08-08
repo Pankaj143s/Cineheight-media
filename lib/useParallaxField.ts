@@ -5,6 +5,7 @@ import { gsap } from './gsap'
 import { clamp } from './utils'
 import { useReducedMotion } from './useMediaPreferences'
 import { readScrollSignal, subscribeScrollSignal } from './scrollSignal'
+import { subscribeBodyResize } from './bodyResizeSignal'
 
 const BASE_PX = 150
 const SELECTOR =
@@ -208,10 +209,10 @@ export function useParallaxField(): void {
       items = collect()
       schedule()
     })
-    const resizeObserver = new ResizeObserver(() => {
+    const onBodyResize = () => {
       items = collect()
       schedule()
-    })
+    }
     const onVisibility = () => {
       visible = !document.hidden
       if (visible) schedule()
@@ -228,7 +229,7 @@ export function useParallaxField(): void {
     mobileQuery.addEventListener('change', onResize)
     document.addEventListener('visibilitychange', onVisibility)
     observer.observe(document.body, { childList: true, subtree: true })
-    resizeObserver.observe(document.body)
+    const unsubscribeBodyResize = subscribeBodyResize(onBodyResize)
     return () => {
       gsap.ticker.remove(frame)
       unsubscribe()
@@ -236,7 +237,7 @@ export function useParallaxField(): void {
       mobileQuery.removeEventListener('change', onResize)
       document.removeEventListener('visibilitychange', onVisibility)
       observer.disconnect()
-      resizeObserver.disconnect()
+      unsubscribeBodyResize()
       reset(items)
       for (const item of items) {
         if (item.auto) delete item.el.dataset.parallaxAuto

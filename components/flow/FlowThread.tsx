@@ -5,6 +5,7 @@ import { gsap } from '@/lib/gsap'
 import { clamp } from '@/lib/utils'
 import { useIsNarrow, useReducedMotion } from '@/lib/useMediaPreferences'
 import { readScrollSignal, subscribeScrollSignal } from '@/lib/scrollSignal'
+import { subscribeBodyResize } from '@/lib/bodyResizeSignal'
 import { subscribeSignalIntensity } from '@/lib/liquidMedia/signalIntensity'
 import { getHeroProgress } from '@/lib/heroProgress'
 
@@ -556,10 +557,9 @@ export default function FlowThread() {
     syncHeroPortal()
     paint(currentTipY)
 
-    // Fonts and late-loading media change the document height; ResizeObserver
-    // on <body> catches both without polling.
-    const ro = new ResizeObserver(schedule)
-    ro.observe(document.body)
+    // Fonts and late-loading media change the document height; the shared
+    // body-resize signal catches both without polling.
+    const unsubscribeBodyResize = subscribeBodyResize(schedule)
     document.fonts?.ready.then(schedule).catch(() => {})
 
     // Video metadata arriving can change layout after everything else settled.
@@ -593,7 +593,7 @@ export default function FlowThread() {
       )
       cancelAnimationFrame(measureRaf)
       gsap.ticker.remove(frame)
-      ro.disconnect()
+      unsubscribeBodyResize()
       unsubscribe()
       window.removeEventListener('resize', schedule)
       document.removeEventListener('visibilitychange', onVis)
