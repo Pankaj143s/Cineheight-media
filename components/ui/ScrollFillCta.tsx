@@ -13,12 +13,12 @@ import { reportUiClick } from '@/lib/audio/reportUiClick'
 import { useReducedMotion } from '@/lib/useMediaPreferences'
 import './scroll-fill-cta.css'
 
-export type ScrollFillMode = 'inherit' | 'scroll' | 'hover'
+export type ScrollFillMode = 'inherit' | 'scroll' | 'hover' | 'outline'
 
 type BaseProps = {
   children: ReactNode
   className?: string
-  /** inherit = parent --cta-expand; scroll = viewport progress; hover = full at rest */
+  /** inherit = parent --cta-expand; scroll = viewport progress; hover = full at rest; outline = bordered, fills only on real hover/focus */
   fillMode?: ScrollFillMode
   arrow?: boolean
   tabIndex?: number

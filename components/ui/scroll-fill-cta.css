@@ -28,6 +28,20 @@
   --fill: 1;
 }
 
+/* Bordered, translucent at rest — fills only on a real hover/focus, same
+   scaleX transform and glow as every other mode, just not pre-filled. Cuts
+   visual weight where a permanently-solid block reads too heavy next to
+   flat text (the navbar). */
+[data-scroll-fill][data-fill-mode='outline'] {
+  --fill: 0;
+  background: rgba(2, 3, 6, 0.4);
+  border: 1px solid var(--blue-alpha-40);
+}
+[data-scroll-fill][data-fill-mode='outline']:hover,
+[data-scroll-fill][data-fill-mode='outline']:focus-visible {
+  --fill: 1;
+}
+
 [data-scroll-fill]:hover,
 [data-scroll-fill]:focus-visible {
   color: #fff;

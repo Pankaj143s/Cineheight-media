@@ -203,7 +203,7 @@ export default function Navbar() {
           <SoundToggle />
           <ScrollFillCta
             href="/contact"
-            fillMode="hover"
+            fillMode="outline"
             size="sm"
             className="hidden sm:inline-flex"
           >
@@ -272,7 +272,8 @@ export default function Navbar() {
           <ScrollFillCta
             href="/contact"
             fillMode="hover"
-            className="mt-5 justify-center px-5 py-3 text-xs"
+            size="sm"
+            className="mt-5 justify-center"
             tabIndex={menuOpen ? undefined : -1}
             onClick={closeMenu}
           >
