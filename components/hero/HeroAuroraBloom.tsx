@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createManagedFrameLoop, type ManagedFrameLoop } from '@/lib/managedFrame'
 import { useMotionCapabilityProfile } from '@/lib/useMediaPreferences'
 import { subscribeSignalPulse } from '@/lib/heroSignalPulse'
@@ -28,8 +28,11 @@ function smoothstep(edge0: number, edge1: number, x: number) {
  * rasteriser so we do not ask SwiftShader to run fbm at full DPR — are exactly
  * the same problem here. Its `floatFormat` result is simply unused.
  *
- * When no context comes back at all (`path === 'off'`) the component renders
- * nothing and the caller's CSS gradient fallback shows through.
+ * When no context comes back at all (`path === 'off'`), the program fails to
+ * compile, or the GPU context is lost mid-session, the canvas paints nothing
+ * on its own — this component renders its own CSS gradient fallback behind
+ * it in that case (same treatment as the hero's reduced-motion fallback)
+ * rather than leaving the visitor looking at flat black.
  *
  * `scope` picks where this mounts: `'hero'` (default) is the original
  * hero-local placement, absolutely positioned inside the hero's sticky
@@ -40,9 +43,15 @@ function smoothstep(edge0: number, edge1: number, x: number) {
  */
 const PULSE_MS = 900
 
+type BloomState = 'active' | 'unsupported' | 'compile-failed' | 'context-lost'
+
 export default function HeroAuroraBloom({ scope = 'hero' }: { scope?: 'hero' | 'page' }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const profile = useMotionCapabilityProfile()
+  // Optimistic default: the overwhelming majority of visitors get a working
+  // context, and detectCapabilities resolves synchronously in the same
+  // effect tick, so this never visibly flashes the fallback for them.
+  const [state, setState] = useState<BloomState>('active')
 
   useEffect(() => {
     const canvasMaybe = canvasRef.current
@@ -53,6 +62,7 @@ export default function HeroAuroraBloom({ scope = 'hero' }: { scope?: 'hero' | '
     const caps = detectCapabilities(canvas, false)
     if (!caps.ctx) {
       canvas.dataset.bloomState = 'unsupported'
+      setState('unsupported')
       return
     }
     const gl = caps.ctx.gl
@@ -69,6 +79,7 @@ export default function HeroAuroraBloom({ scope = 'hero' }: { scope?: 'hero' | '
     const quad = createQuad(gl)
     if (!program || !quad) {
       canvas.dataset.bloomState = 'compile-failed'
+      setState('compile-failed')
       program?.dispose()
       if (quad) gl.deleteBuffer(quad)
       return
@@ -76,6 +87,7 @@ export default function HeroAuroraBloom({ scope = 'hero' }: { scope?: 'hero' | '
 
     canvas.dataset.bloomState = 'active'
     canvas.dataset.bloomPath = caps.path
+    setState('active')
 
     // Software rasterisers get DPR 1 via caps.dprCeiling; everything else is
     // capped by the shared motion profile.
@@ -117,6 +129,11 @@ export default function HeroAuroraBloom({ scope = 'hero' }: { scope?: 'hero' | '
     }
 
     const onMove = (event: PointerEvent) => {
+      // Mouse-only, matching CursorTrail's convention — a page-wide fixed
+      // canvas is otherwise "intersecting" every touch-scroll gesture, which
+      // would feed coordinates into the shader for no real payoff on a
+      // device with no persistent hover state.
+      if (event.pointerType !== 'mouse') return
       const rect = canvas.getBoundingClientRect()
       if (rect.width <= 0 || rect.height <= 0) return
       targetX = (event.clientX - rect.left) / rect.width
@@ -192,6 +209,7 @@ export default function HeroAuroraBloom({ scope = 'hero' }: { scope?: 'hero' | '
       event.preventDefault()
       animation?.sleep()
       canvas.dataset.bloomState = 'context-lost'
+      setState('context-lost')
     }
 
     window.addEventListener('resize', resize)
@@ -217,18 +235,31 @@ export default function HeroAuroraBloom({ scope = 'hero' }: { scope?: 'hero' | '
     }
   }, [profile.canvasDprCap, profile.level, scope])
 
+  const positionClass =
+    scope === 'page' ? 'pointer-events-none fixed inset-0' : 'pointer-events-none absolute inset-0 z-0'
+
   return (
-    <canvas
-      ref={canvasRef}
-      aria-hidden="true"
-      data-hero-aurora-bloom
-      data-hero-aurora-scope={scope}
-      className={
-        scope === 'page'
-          ? 'pointer-events-none fixed inset-0'
-          : 'pointer-events-none absolute inset-0 z-0'
-      }
-      style={scope === 'page' ? { zIndex: 'var(--z-atmosphere)' } : undefined}
-    />
+    <>
+      {state !== 'active' && (
+        <div
+          aria-hidden="true"
+          data-bloom-fallback={state}
+          className={positionClass}
+          style={{
+            zIndex: scope === 'page' ? 'var(--z-atmosphere)' : undefined,
+            background:
+              'radial-gradient(ellipse 70% 50% at 50% 58%, rgba(0,94,170,0.18), transparent 72%), #000',
+          }}
+        />
+      )}
+      <canvas
+        ref={canvasRef}
+        aria-hidden="true"
+        data-hero-aurora-bloom
+        data-hero-aurora-scope={scope}
+        className={positionClass}
+        style={{ zIndex: scope === 'page' ? 'var(--z-atmosphere)' : undefined }}
+      />
+    </>
   )
 }
