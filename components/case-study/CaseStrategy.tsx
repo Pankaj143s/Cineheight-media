@@ -42,13 +42,18 @@ export default function CaseStrategy({
         // reader reaches them — never a simultaneous three-up animation.
         gsap.fromTo(
           move.querySelectorAll('[data-move-part]'),
-          { autoAlpha: 0, y: 26 },
+          { autoAlpha: mobile ? 0.58 : 0, y: mobile ? 14 : 26 },
           {
             autoAlpha: 1,
             y: 0,
             stagger: 0.09,
             ease: 'none',
-            scrollTrigger: { trigger: move, start: 'top 82%', end: 'top 48%', scrub: SCRUB.text },
+            scrollTrigger: {
+              trigger: move,
+              start: mobile ? 'top 90%' : 'top 82%',
+              end: mobile ? 'top 58%' : 'top 48%',
+              scrub: SCRUB.text,
+            },
           }
         )
         const rule = move.querySelector('[data-move-rule]')
@@ -59,14 +64,19 @@ export default function CaseStrategy({
             {
               scaleX: 1,
               ease: 'none',
-              scrollTrigger: { trigger: move, start: 'top 82%', end: 'top 48%', scrub: SCRUB.text },
+              scrollTrigger: {
+                trigger: move,
+                start: mobile ? 'top 90%' : 'top 82%',
+                end: mobile ? 'top 58%' : 'top 48%',
+                scrub: SCRUB.text,
+              },
             }
           )
         }
       })
     }, rootRef)
     return () => ctx.revert()
-  }, [reduced])
+  }, [reduced, mobile])
 
   return (
     <section

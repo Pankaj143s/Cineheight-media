@@ -46,6 +46,7 @@ const CHAIN = ['Brand', 'Content', 'Distribution', 'Conversion', 'Growth']
 export default function ServicesPage() {
   const rootRef = useRef<HTMLDivElement>(null)
   const entryRefs = useRef<(HTMLElement | null)[]>([])
+  const mobileSignalRef = useRef<HTMLSpanElement>(null)
   const introCopyRef = useRef<HTMLParagraphElement>(null)
   const chainRef = useRef<HTMLOListElement>(null)
   const mobile = useIsMobileTier()
@@ -113,7 +114,20 @@ export default function ServicesPage() {
   }, [reduced])
 
   useIsomorphicLayoutEffect(() => {
-    if (reduced) return
+    const resetRevealTransforms = () => {
+      entryRefs.current.forEach((entry) => {
+        if (!entry) return
+        gsap.set(entry.querySelectorAll('[data-mobile-reveal]'), { x: 0, y: 0, yPercent: 0, clearProps: 'visibility' })
+        if (mobile) {
+          gsap.set(
+            entry.querySelectorAll('[data-service-number], [data-service-title], [data-service-description]'),
+            { clearProps: 'opacity,visibility' }
+          )
+        }
+      })
+    }
+    resetRevealTransforms()
+    if (reduced) return resetRevealTransforms
     const animations: gsap.core.Animation[] = []
     entryRefs.current.forEach((entry) => {
       if (!entry) return
@@ -162,11 +176,47 @@ export default function ServicesPage() {
         .fromTo(rule, { scaleX: 0.12, opacity: 0.24 }, { scaleX: 1, opacity: 0.8, duration: 0.65 }, 0)
       animations.push(timeline)
     })
-    return () => animations.forEach((a) => a.kill())
+    return () => {
+      animations.forEach((animation) => animation.kill())
+      resetRevealTransforms()
+    }
+  }, [mobile, reduced])
+
+  useIsomorphicLayoutEffect(() => {
+    if (!mobile || reduced) return
+    const root = rootRef.current
+    const signal = mobileSignalRef.current
+    if (!root || !signal) return
+    const tween = gsap.fromTo(
+      signal,
+      { scaleY: 0 },
+      {
+        scaleY: 1,
+        ease: 'none',
+        scrollTrigger: { trigger: root, start: 'top 78%', end: 'bottom 72%', scrub: SCRUB.signal },
+      }
+    )
+    return () => {
+      tween.scrollTrigger?.kill()
+      tween.kill()
+    }
   }, [mobile, reduced])
 
   useEffect(() => {
-    if (mobile) return
+    if (mobile) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return
+            const index = entryRefs.current.indexOf(entry.target as HTMLElement)
+            if (index >= 0) setActiveIndex(index)
+          })
+        },
+        { rootMargin: '0px 0px -28% 0px', threshold: 0.08 }
+      )
+      entryRefs.current.forEach((entry) => { if (entry) observer.observe(entry) })
+      return () => observer.disconnect()
+    }
     let ticking = false
     const pick = () => {
       ticking = false
@@ -247,7 +297,7 @@ export default function ServicesPage() {
   )
 
   return (
-    <main className="relative z-10">
+    <main id="main-content" tabIndex={-1} className="relative z-10 scroll-mt-24 outline-none">
       <header className="flow-gutter relative pb-[4vh] pt-32 lg:pt-36">
         <KineticLabel text="WHAT WE DO" />
         <OpticalResolve
@@ -263,21 +313,58 @@ export default function ServicesPage() {
       </header>
 
       <div ref={rootRef} className="flow-gutter relative grid grid-cols-12 lg:gap-x-12">
+        {mobile && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-0 top-10 w-px bg-white/10"
+            style={{ left: 'var(--gutter)' }}
+          >
+            <span
+              ref={mobileSignalRef}
+              data-mobile-service-signal
+              className="absolute inset-0 origin-top bg-[var(--blue-500)]"
+              style={{
+                transform: reduced ? `scaleY(${(active + 1) / services.length})` : 'scaleY(0)',
+                transition: reduced ? 'transform 160ms ease-out' : undefined,
+              }}
+            />
+          </span>
+        )}
+        {mobile && !reduced && (
+          <div data-mobile-service-stage className="col-span-12 sticky top-[10svh] z-20 h-[clamp(18rem,44svh,26rem)] overflow-hidden">
+            {canvas}
+          </div>
+        )}
         {/* the scrolling index */}
-        <div className="col-span-12 lg:col-span-6">
+        <div className="col-span-12 min-w-0 lg:col-span-6">
           {services.map((s, i) => (
             <section
               key={s.id}
+              data-service-entry={i}
               ref={(el) => { entryRefs.current[i] = el }}
               aria-label={s.title}
-              className="relative flex flex-col justify-center"
+              className={`relative flex min-w-0 flex-col justify-center ${mobile ? 'pl-7' : ''}`}
               style={{
-                minHeight: mobile ? 'auto' : 'clamp(16rem, 38vh, 26rem)',
+                minHeight: mobile ? (reduced ? 'auto' : '40svh') : 'clamp(15rem, 34vh, 23rem)',
                 paddingBlock: mobile ? '2.5rem' : 'clamp(1.5rem, 3.2vh, 2.8rem)',
-                opacity: mobile || active === i ? 1 : 0.42,
-                transition: reduced ? 'none' : 'opacity 0.5s ease',
+                opacity: reduced || active === i ? 1 : mobile ? 0.68 : Math.abs(active - i) === 1 ? 0.64 : Math.abs(active - i) === 2 ? 0.38 : 0.24,
+                transform: reduced || mobile || active === i ? 'none' : `translate3d(0,${i < active ? -6 : 6}px,0)`,
+                transition: reduced ? 'opacity 160ms ease-out' : 'opacity 0.5s ease, transform 0.6s cubic-bezier(0.16,1,0.3,1)',
               }}
             >
+              {mobile && (
+                <span
+                  data-mobile-service-marker
+                  aria-hidden="true"
+                  className="absolute left-[-3px] top-[2.65rem] h-[7px] w-[7px] rounded-full border border-[var(--blue-500)]"
+                  style={{
+                    background: active === i ? 'var(--blue-400)' : 'var(--bg-950)',
+                    boxShadow: active === i ? '0 0 14px rgba(0,137,255,0.72)' : 'none',
+                    transform: reduced || active !== i ? 'scale(1)' : 'scale(1.18)',
+                    transition: 'background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease',
+                  }}
+                />
+              )}
               <span
                 data-service-rule
                 data-mobile-reveal
@@ -358,7 +445,16 @@ export default function ServicesPage() {
 
               {/* Mobile / tablet: the artwork simply follows its own service. */}
               {mobile && (
-                <div className="relative mt-6 w-full overflow-hidden" style={{ aspectRatio: '16 / 10' }}>
+                <div
+                  data-mobile-service-art
+                  className="relative mt-6 w-full overflow-hidden"
+                  style={{
+                    aspectRatio: '16 / 10',
+                    opacity: active === i ? 1 : 0.72,
+                    transform: reduced || active === i ? 'none' : 'translate3d(0,8px,0)',
+                    transition: reduced ? 'opacity 160ms ease-out' : 'opacity 280ms ease, transform 280ms cubic-bezier(0.16,1,0.3,1)',
+                  }}
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={s.image} alt="" aria-hidden="true" className="h-full w-full object-cover" loading="lazy" />
                 </div>
@@ -377,7 +473,7 @@ export default function ServicesPage() {
       </div>
 
       {/* how the six add up */}
-      <section aria-label="How the services connect" className="flow-gutter relative" style={{ marginTop: mobile ? '8vh' : '14vh' }}>
+      <section aria-label="How the services connect" className="flow-gutter relative" style={{ marginTop: `calc(${mobile ? '8vh' : '14vh'} * var(--scene-gap))` }}>
         <KineticLabel text="HOW IT CONNECTS" />
         <Reveal as="p" className="font-body measure mt-6 text-[15px] leading-relaxed text-text-300">
           Each discipline feeds the next. That chain is the reason one team is faster than four suppliers.
@@ -413,7 +509,7 @@ export default function ServicesPage() {
         <div data-flow-anchor="center" className="pointer-events-none h-px" aria-hidden="true" />
       </section>
 
-      <section aria-label="Start a project" className="flow-gutter relative" style={{ marginTop: mobile ? '10vh' : '14vh' }}>
+      <section aria-label="Start a project" className="flow-gutter relative" style={{ marginTop: `calc(${mobile ? '10vh' : '14vh'} * var(--scene-gap))` }}>
         <ScrollHeadline
           as="h2"
           text={closing.cta}

@@ -1,14 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
 import { getCaseStudy } from '@/content/caseStudies'
 import { portraitReel } from '@/content/presentationMedia'
 import KineticLabel from '@/components/motion/KineticLabel'
 import SplitLineReveal from '@/components/motion/SplitLineReveal'
+import ScrollFillCta from '@/components/ui/ScrollFillCta'
 import { createManagedFrameLoop } from '@/lib/managedFrame'
 import { clamp, damp } from '@/lib/utils'
 import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { scrollToElementCenter } from '@/lib/scrollTo'
 
 /**
  * What Cineheight sells, as one capability switcher.
@@ -19,9 +20,9 @@ import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/u
  *
  * Now: one editorial index on the left and ONE substantial shared media stage
  * on the right that crossfades between the three pillars. Nothing changes
- * height, so the page never lurches; there is no sticky trap; and on mobile it
- * becomes a plain accordion where the active pillar's media sits directly
- * beneath its own heading.
+ * height, so the page never lurches. Normal mobile uses the same shared stage
+ * in a native-sticky chapter sequence; reduced motion uses a compact static
+ * disclosure without sticky reserve space.
  *
  * The media is real client work, matched by meaning, using the derived 9:16
  * presentation masters. No footage is reused between pillars or borrowed from
@@ -104,13 +105,11 @@ export default function HomeCapabilities() {
     const io = new IntersectionObserver(([e]) => setInView(e.isIntersecting), { threshold: 0 })
     io.observe(root)
 
-    if (mobile) return () => io.disconnect()
-
     let ticking = false
     const pick = () => {
       ticking = false
       if (hoverRef.current !== null) return
-      const mid = window.innerHeight * 0.5
+      const mid = window.innerHeight * (mobile ? 0.68 : 0.5)
       let best = 0
       let bestD = Infinity
       rowRefs.current.forEach((el, i) => {
@@ -129,13 +128,15 @@ export default function HomeCapabilities() {
       ticking = true
       requestAnimationFrame(pick)
     }
-    pick()
+    if (!reduced) pick()
     window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
     return () => {
       io.disconnect()
       window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
     }
-  }, [setActiveIndex, mobile])
+  }, [setActiveIndex, mobile, reduced])
 
   // Only the active pillar's film plays, and only while the band is on screen.
   useEffect(() => {
@@ -167,8 +168,6 @@ export default function HomeCapabilities() {
       const f = damp(0.12, dt)
       c.x += (t.x - c.x) * f
       c.y += (t.y - c.y) * f
-      root.style.setProperty('--sx', `${(c.x * 100).toFixed(1)}%`)
-      root.style.setProperty('--sy', `${(c.y * 100).toFixed(1)}%`)
       root.style.setProperty('--cap-lean-x', `${((c.x - 0.5) * 20).toFixed(2)}px`)
       root.style.setProperty('--cap-lean-y', `${((c.y - 0.5) * 14).toFixed(2)}px`)
       return Math.abs(t.x - c.x) > 0.002 || Math.abs(t.y - c.y) > 0.002
@@ -196,8 +195,8 @@ export default function HomeCapabilities() {
   /** One 16:10 stage; the pillars crossfade through it. */
   const mediaStage = (
     <div
-      className="relative w-full overflow-hidden"
-      style={{ aspectRatio: '16 / 9', background: 'var(--bg-900)' }}
+      className="relative h-full w-full overflow-hidden"
+      style={{ aspectRatio: mobile ? undefined : '16 / 9' }}
     >
       {PILLARS.map((p, i) => (
         <div
@@ -208,8 +207,9 @@ export default function HomeCapabilities() {
             transform:
               active === i
                 ? 'translate3d(var(--cap-lean-x), var(--cap-lean-y), 0) scale(1.02)'
-                : 'translate3d(0, 0, 0) scale(1.05)',
-            transition: reduced ? 'none' : 'opacity 0.7s ease, transform 1.1s cubic-bezier(0.16,1,0.3,1)',
+                : `translate3d(0, ${i < active ? '-4%' : '4%'}, 0) scale(1.055)`,
+            clipPath: active === i ? 'inset(0% 0% 0% 0%)' : i < active ? 'inset(0% 0% 100% 0%)' : 'inset(100% 0% 0% 0%)',
+            transition: reduced ? 'none' : 'opacity 0.55s ease, transform 0.85s cubic-bezier(0.16,1,0.3,1), clip-path 0.65s cubic-bezier(0.16,1,0.3,1)',
           }}
           aria-hidden={active !== i}
         >
@@ -250,17 +250,22 @@ export default function HomeCapabilities() {
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-y-0 left-0 w-20"
-        style={{ background: 'linear-gradient(to right, var(--bg-950), transparent)' }}
+        style={{ background: 'linear-gradient(to right, rgba(2,3,6,0.9), transparent)' }}
       />
     </div>
   )
 
   const index = (
-    <ul className="flex flex-col">
+    <ul className="flex min-w-0 flex-col">
       {PILLARS.map((p, i) => {
         const isActive = active === i
         return (
-          <li key={p.index} className="list-none">
+          <li
+            key={p.index}
+            data-capability-chapter={i}
+            className="min-w-0 list-none"
+            style={{ minHeight: mobile && !reduced ? 'max(30svh, 13rem)' : undefined }}
+          >
             <button
               ref={(el) => { rowRefs.current[i] = el }}
               type="button"
@@ -276,10 +281,16 @@ export default function HomeCapabilities() {
                 hoverRef.current = null
               }}
               onFocus={() => setActiveIndex(i)}
-              onClick={() => setActiveIndex(i)}
-              className="w-full border-0 bg-transparent py-[clamp(1.25rem,2.6vh,2rem)] text-left"
+              onClick={() => {
+                setActiveIndex(i)
+                if (mobile) {
+                  const row = rowRefs.current[i]
+                  if (row) scrollToElementCenter(row, { immediate: reduced, duration: 0.65 })
+                }
+              }}
+              className="min-w-0 w-full border-0 bg-transparent py-[clamp(1.25rem,2.6vh,2rem)] text-left transition-[background-color] duration-200 active:bg-white/[0.025]"
               style={{
-                opacity: mobile || isActive ? 1 : 0.55,
+                opacity: reduced || isActive ? 1 : mobile ? 0.62 : 0.55,
                 transition: reduced ? 'none' : 'opacity 0.5s ease',
               }}
             >
@@ -295,7 +306,7 @@ export default function HomeCapabilities() {
                   transition: reduced ? 'none' : 'transform 0.8s cubic-bezier(0.16,1,0.3,1), opacity 0.5s ease',
                 }}
               />
-              <span className="flex items-baseline gap-5">
+              <span className="grid grid-cols-[2.25rem_minmax(0,1fr)] items-baseline gap-x-2 sm:flex sm:gap-5">
                 <span
                   className="font-display text-[12px] font-medium"
                   style={{ letterSpacing: '0.28em', color: isActive ? 'var(--blue-400)' : 'var(--text-500)' }}
@@ -314,13 +325,17 @@ export default function HomeCapabilities() {
                   {p.title}
                 </span>
               </span>
-              <span className="mt-3 block pl-[calc(12px+1.25rem)]">
+              <span className="mt-3 block pl-0 sm:pl-[calc(12px+1.25rem)]">
                 <span className="font-body block text-[15px] leading-relaxed text-text-200" style={{ maxWidth: '46ch' }}>
                   {p.description}
                 </span>
-                <span className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                <span
+                  data-audit="capability-taxonomy"
+                  className="mt-3 grid gap-x-4 gap-y-1"
+                  style={{ gridTemplateColumns: mobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(8.5rem, 1fr))' }}
+                >
                   {p.includes.map((item) => (
-                    <span key={item} className="font-body text-[12px] text-text-500">
+                    <span key={item} className="font-body min-w-0 text-[12px] leading-relaxed text-text-500">
                       {item}
                     </span>
                   ))}
@@ -328,8 +343,8 @@ export default function HomeCapabilities() {
               </span>
             </button>
 
-            {/* Mobile: the active pillar's media sits directly under its item. */}
-            {mobile && isActive && (
+            {/* Reduced motion has no sticky reserve space. */}
+            {mobile && reduced && isActive && (
               <div className="mt-2" style={{ height: '52svh' }}>
                 <div className="relative h-full w-full overflow-hidden">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -374,23 +389,19 @@ export default function HomeCapabilities() {
     <section
       ref={rootRef}
       id="services"
+      data-audit="home-capabilities"
       aria-label="What Cineheight does"
       className="relative z-10"
       style={{
-        marginTop: 'calc(clamp(3.5rem, 10vh, 8rem) * var(--scene-gap))',
-        ['--sx' as string]: '50%',
-        ['--sy' as string]: '50%',
+        marginTop: mobile ? '-6svh' : 'calc(clamp(3.5rem, 10vh, 8rem) * var(--scene-gap))',
+        paddingTop: mobile ? '10svh' : undefined,
+        background: mobile
+          ? 'linear-gradient(to bottom, rgba(2,3,6,0) 0%, rgba(2,3,6,0.82) 10svh)'
+          : undefined,
         ['--cap-lean-x' as string]: '0px',
         ['--cap-lean-y' as string]: '0px',
       }}
     >
-      {rich && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0"
-          style={{ background: 'radial-gradient(ellipse 34% 44% at var(--sx) var(--sy), rgba(0,137,255,0.07), transparent 70%)' }}
-        />
-      )}
 
       <div className="flow-gutter relative">
         <KineticLabel text="WHAT WE DO" />
@@ -405,26 +416,31 @@ export default function HomeCapabilities() {
         </p>
       </div>
 
-      <div className="flow-gutter relative mt-10 grid grid-cols-12 items-center gap-x-12 sm:mt-14">
-        <div className="col-span-12 lg:col-span-7">{index}</div>
-        {!mobile && (
+      {mobile ? (
+        <div className="flow-gutter relative mt-10">
+          {!reduced && (
+            <div
+              data-capability-stage
+              className="sticky top-[9svh] z-20 h-[clamp(17rem,40svh,23rem)] overflow-hidden"
+            >
+              {mediaStage}
+            </div>
+          )}
+          <div className={reduced ? '' : 'relative z-10 mt-[clamp(7rem,23svh,14rem)]'}>{index}</div>
+        </div>
+      ) : (
+        <div className="flow-gutter relative mt-10 grid grid-cols-12 items-center gap-x-0 sm:mt-14 lg:gap-x-12">
+          <div className="col-span-12 min-w-0 lg:col-span-7">{index}</div>
           <div className="col-span-12 lg:col-span-5" data-parallax-y="0.08" data-parallax-scale="0.012">
             {mediaStage}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="flow-gutter mt-10">
-        <Link
-          href="/services"
-          className="group font-display inline-flex min-h-[48px] items-center gap-3 text-[12px] font-medium uppercase text-text-100 transition-colors duration-300 hover:text-[var(--blue-400)]"
-          style={{ letterSpacing: '0.24em' }}
-        >
+        <ScrollFillCta href="/services" fillMode="scroll" className="text-[12px]">
           Explore all services
-          <svg width="26" height="10" viewBox="0 0 26 10" fill="none" aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1.5">
-            <path d="M0 5h24M20 1l4 4-4 4" stroke="currentColor" strokeWidth="1.3" />
-          </svg>
-        </Link>
+        </ScrollFillCta>
       </div>
 
       <div data-flow-anchor="right" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '46%' }} aria-hidden="true" />

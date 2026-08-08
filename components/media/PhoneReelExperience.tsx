@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { gsap } from '@/lib/gsap'
+import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import PhoneReelShell, { type PhoneReelItem } from './PhoneReelShell'
 import MediaLightbox, { type LightboxItem } from './MediaLightbox'
 import KineticLabel from '@/components/motion/KineticLabel'
@@ -10,6 +12,7 @@ import { clamp, damp } from '@/lib/utils'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
 import { scrollToElementCenter } from '@/lib/scrollTo'
+import { observeVisibleLayerPromotion } from '@/lib/visibleLayerPromotion'
 
 /**
  * The phone-reel installation — the old project's `ReelsCoverflow` concept
@@ -70,6 +73,8 @@ export default function PhoneReelExperience({
   const reduced = useReducedMotion()
 
   const stageRef = useRef<HTMLDivElement>(null)
+  const sectionRef = useRef<HTMLElement>(null)
+  const arrivalTweenRef = useRef<gsap.core.Tween | null>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const cardRefs = useRef<(HTMLDivElement | null)[]>([])
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -116,6 +121,38 @@ export default function PhoneReelExperience({
   const velocity = useRef(0)
 
   const max = reels.length - 1
+
+  useEffect(() => {
+    if (reduced) return
+    return observeVisibleLayerPromotion(
+      cardRefs.current.filter((card): card is HTMLDivElement => card !== null),
+      '30% 0px',
+      'media'
+    )
+  }, [reels.length, reduced])
+
+  useIsomorphicLayoutEffect(() => {
+    if (reduced) return
+    const section = sectionRef.current
+    const stage = stageRef.current
+    if (!section || !stage) return
+    const tween = gsap.fromTo(
+      stage,
+      { autoAlpha: 0.68, y: mobile ? 18 : 26, scale: mobile ? 0.985 : 0.975 },
+      {
+        autoAlpha: 1,
+        y: 0,
+        scale: 1,
+        ease: 'none',
+        scrollTrigger: { trigger: section, start: 'top 92%', end: 'top 54%', scrub: 0.75 },
+      }
+    )
+    arrivalTweenRef.current = tween
+    return () => {
+      arrivalTweenRef.current = null
+      tween.revert()
+    }
+  }, [mobile, reduced])
 
   /**
    * Phone size, derived from the stage but hard-capped.
@@ -255,6 +292,7 @@ export default function PhoneReelExperience({
   // ---- pointer drag -----------------------------------------------------
   const onPointerDown = (e: React.PointerEvent) => {
     if (reduced || max < 1) return
+    arrivalTweenRef.current?.scrollTrigger?.disable(false)
     dragging.current = true
     dragged.current = false
     startX.current = e.clientX
@@ -281,6 +319,8 @@ export default function PhoneReelExperience({
   const endDrag = (e: React.PointerEvent) => {
     if (!dragging.current) return
     dragging.current = false
+    arrivalTweenRef.current?.scrollTrigger?.enable()
+    arrivalTweenRef.current?.scrollTrigger?.update()
     ;(e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId)
     // Carry the fling into the landing slot: velocity is px/ms, so ~150 ms of
     // coast converted into index units, capped at ±1.2 phones.
@@ -429,7 +469,7 @@ export default function PhoneReelExperience({
   /* ---------------------------------------------------------- reduced motion */
   if (reduced) {
     return (
-      <section aria-label={label} className="relative">
+      <section ref={sectionRef} aria-label={label} className="relative">
         <div className="flow-gutter">{headingBlock}</div>
         <ul className="mt-10 flex snap-x snap-mandatory gap-6 overflow-x-auto px-[clamp(1.25rem,4vw,4.5rem)] pb-6">
           {reels.map((r, i) => (
@@ -536,6 +576,7 @@ export default function PhoneReelExperience({
   const stage = (
     <div
       ref={stageRef}
+      data-media-installation-stage="phone"
       role="group"
       aria-roledescription="carousel"
       aria-label={label}
@@ -584,7 +625,7 @@ export default function PhoneReelExperience({
             }}
             data-phone-card
             data-phone-active={i === active}
-            className="absolute left-1/2 top-1/2 will-change-transform"
+            className="absolute left-1/2 top-1/2"
             style={{
               width: 'var(--phone-w, 282px)',
               height: 'var(--phone-h, 462px)',
@@ -621,7 +662,7 @@ export default function PhoneReelExperience({
   )
 
   return (
-    <section aria-label={label} className="relative">
+    <section ref={sectionRef} aria-label={label} className="relative">
       {/*
         Asymmetric editorial split on desktop: the text column carries the
         heading, explanation, active-reel information and controls, and the

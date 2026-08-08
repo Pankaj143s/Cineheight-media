@@ -3,11 +3,10 @@
 import { useRef } from 'react'
 import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
-import { about, services, processSteps, showreel, closing, contact } from '@/content/siteContent'
-import InlineVideo from '@/components/media/InlineVideo'
+import { about, services, processSteps, closing, contact } from '@/content/siteContent'
+import ShowreelSection from '@/components/showreel/ShowreelSection'
 import KineticLabel from '@/components/motion/KineticLabel'
 import OpticalResolve from '@/components/motion/OpticalResolve'
-import EditorialMatteReveal from '@/components/motion/EditorialMatteReveal'
 import ScrollHeadline from '@/components/motion/ScrollHeadline'
 import MagneticLink from '@/components/ui/MagneticLink'
 import Reveal from '@/components/ui/Reveal'
@@ -30,18 +29,43 @@ export default function AboutPage() {
       words.forEach((word, i) => {
         gsap.fromTo(
           word,
-          { xPercent: i % 2 ? 12 : -12, autoAlpha: 0.55 },
           {
-            xPercent: i % 2 ? -8 : 8,
+            xPercent: mobile ? 0 : i % 2 ? 12 : -12,
+            yPercent: mobile ? 5 : 0,
+            scale: mobile ? 0.97 : 1,
+            autoAlpha: mobile ? 0.62 : 0.55,
+          },
+          {
+            xPercent: mobile ? 0 : i % 2 ? -8 : 8,
+            yPercent: mobile ? -4 : 0,
+            scale: mobile ? 1.015 : 1,
             autoAlpha: 1,
             ease: 'none',
-            scrollTrigger: { trigger: word, start: 'top bottom', end: 'bottom top', scrub: 1 + i * 0.35 },
+            scrollTrigger: {
+              trigger: word,
+              start: mobile ? 'top 94%' : 'top bottom',
+              end: mobile ? 'bottom 38%' : 'bottom top',
+              scrub: mobile ? 0.8 : 1 + i * 0.35,
+            },
           }
         )
       })
 
       const rows = self.selector!('[data-row]') as HTMLElement[]
-      if (rows[0]) {
+      if (mobile) {
+        rows.forEach((row) => {
+          gsap.fromTo(
+            row,
+            { autoAlpha: 0.58, y: 14 },
+            {
+              autoAlpha: 1,
+              y: 0,
+              ease: 'none',
+              scrollTrigger: { trigger: row, start: 'top 90%', end: 'top 62%', scrub: SCRUB.text },
+            }
+          )
+        })
+      } else if (rows[0]) {
         gsap.fromTo(
           rows,
           { autoAlpha: 0, y: 22 },
@@ -56,10 +80,10 @@ export default function AboutPage() {
       }
     }, rootRef)
     return () => ctx.revert()
-  }, [reduced])
+  }, [reduced, mobile])
 
   return (
-    <main ref={rootRef} className="relative z-10">
+    <main id="main-content" tabIndex={-1} ref={rootRef} className="relative z-10 scroll-mt-24 outline-none">
       <header className="flow-gutter relative pb-[5vh] pt-32 lg:pt-40">
         <KineticLabel text="WHO WE ARE" />
         <OpticalResolve
@@ -76,11 +100,7 @@ export default function AboutPage() {
         </Reveal>
       </header>
 
-      <EditorialMatteReveal form="film-gate" start="top 92%" className="relative mx-auto w-[96vw] max-w-[1820px]">
-        <div data-film data-depth-layer="back" className="relative overflow-hidden will-change-transform">
-          <InlineVideo src={showreel.src} poster={showreel.poster} label="Cineheight production film" />
-        </div>
-      </EditorialMatteReveal>
+      <ShowreelSection />
 
       <section
         aria-label="What we bring"
@@ -115,13 +135,17 @@ export default function AboutPage() {
         <div data-flow-anchor="edge-right" className="pointer-events-none absolute inset-x-0 h-px" style={{ top: '50%' }} aria-hidden="true" />
       </section>
 
-      <section aria-label="How we work" className="flow-gutter relative" style={{ marginTop: mobile ? '10vh' : '14vh' }}>
+      <section aria-label="How we work" className="flow-gutter relative" style={{ marginTop: `calc(${mobile ? '10vh' : '14vh'} * var(--scene-gap))` }}>
         <ScrollHeadline
           as="h2"
           text={about.journey}
           className="font-display max-w-[18ch] font-bold text-text-100"
           style={{ fontSize: 'clamp(1.8rem, 4.6vw, 4.4rem)', lineHeight: 0.98, letterSpacing: '-0.03em' }}
-          from={0.2}
+          from={0.42}
+          blurFrom={1.25}
+          yFrom={6}
+          start="top 94%"
+          end="top 62%"
         />
         <Reveal as="p" className="font-body measure-wide mt-8 text-base leading-relaxed text-text-300 sm:text-lg">
           When one team owns strategy, design, content and campaigns, nothing gets lost between agencies.
@@ -131,7 +155,7 @@ export default function AboutPage() {
         </Reveal>
       </section>
 
-      <section aria-label="Capabilities and process" className="flow-gutter relative" style={{ marginTop: mobile ? '10vh' : '14vh' }}>
+      <section aria-label="Capabilities and process" className="flow-gutter relative" style={{ marginTop: `calc(${mobile ? '10vh' : '14vh'} * var(--scene-gap))` }}>
         <KineticLabel text="THE DISCIPLINES" />
         <ol className="mt-8">
           {services.map((s) => (
@@ -186,7 +210,7 @@ export default function AboutPage() {
         aria-label="Start a project"
         data-depth-layer="front"
         className="flow-gutter relative"
-        style={{ marginTop: mobile ? '10vh' : '14vh' }}
+        style={{ marginTop: `calc(${mobile ? '10vh' : '14vh'} * var(--scene-gap))` }}
       >
         <ScrollHeadline
           as="h2"
@@ -194,8 +218,11 @@ export default function AboutPage() {
           accent={['RISE']}
           className="font-display max-w-[15ch] font-bold uppercase text-text-100"
           style={{ fontSize: 'clamp(2.2rem, 7.4vw, 7rem)', lineHeight: 0.9, letterSpacing: '-0.035em' }}
-          from={0.2}
-          end="top 38%"
+          from={0.42}
+          blurFrom={1.25}
+          yFrom={6}
+          start="top 94%"
+          end="top 58%"
         />
         <div className="mt-10 flex flex-wrap items-center gap-x-12 gap-y-6">
           <MagneticLink

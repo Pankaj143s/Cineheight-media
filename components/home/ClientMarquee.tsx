@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from 'react'
 import Image from 'next/image'
+import { gsap } from '@/lib/gsap'
+import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import KineticLabel from '@/components/motion/KineticLabel'
 import { trustedClients, logoBox } from '@/content/siteContent'
 import { clamp } from '@/lib/utils'
@@ -86,6 +88,39 @@ export default function ClientMarquee() {
   const mobile = useIsMobileTier()
   const rich = useCanRunRichEffects()
   const tier = mobile ? 0.88 : 1
+
+  useIsomorphicLayoutEffect(() => {
+    if (reduced) return
+    const root = rootRef.current
+    if (!root) return
+    const rule = root.querySelector<HTMLElement>('[data-marquee-entry-rule]')
+    const viewport = root.querySelector<HTMLElement>('[data-client-marquee-viewport]')
+    const timeline = gsap.timeline({
+      defaults: { ease: 'none' },
+      scrollTrigger: { trigger: root, start: 'top 92%', end: 'top 58%', scrub: 0.7 },
+    })
+    timeline.fromTo(
+      root,
+      mobile ? { autoAlpha: 0.7, y: 16, clipPath: 'inset(16% 0% 0% 0%)' } : { autoAlpha: 0.7, y: 16 },
+      mobile ? { autoAlpha: 1, y: 0, clipPath: 'inset(0% 0% 0% 0%)', duration: 1 } : { autoAlpha: 1, y: 0, duration: 1 },
+      0
+    )
+    if (rule) timeline.fromTo(rule, { scaleX: 0.08 }, { scaleX: 1, duration: 0.8 }, 0.05)
+    if (viewport) timeline.fromTo(viewport, { scale: 1.015 }, { scale: 1, duration: 1 }, 0)
+    const exit = mobile && viewport
+      ? gsap.to(viewport, {
+          scale: 0.95,
+          y: '-3svh',
+          autoAlpha: 0.42,
+          ease: 'none',
+          scrollTrigger: { trigger: root, start: 'bottom 72%', end: 'bottom 24%', scrub: 0.75 },
+        })
+      : null
+    return () => {
+      exit?.kill()
+      timeline.revert()
+    }
+  }, [reduced, mobile])
 
   useEffect(() => {
     const root = rootRef.current
@@ -297,17 +332,25 @@ export default function ClientMarquee() {
       aria-label="Brands we have worked with"
       className="relative z-10 overflow-hidden"
       style={{
-        marginTop: 'calc(clamp(2.5rem, 7vh, 6rem) * var(--scene-gap))',
+        marginTop: mobile ? '-7svh' : 'calc(clamp(2.5rem, 7vh, 6rem) * var(--scene-gap))',
+        paddingTop: mobile ? '9svh' : undefined,
+        background: mobile
+          ? 'linear-gradient(to bottom, rgba(2,3,6,0) 0%, rgba(2,3,6,0.82) 9svh)'
+          : undefined,
         ['--depth-x' as string]: '0px',
         ['--depth-y' as string]: '0px',
       }}
     >
       <div className="flow-gutter" data-parallax-y="0.08">
         <KineticLabel text="BRANDS WE HAVE WORKED WITH" />
-        <p className="font-body measure mt-4 text-sm leading-relaxed text-text-300">
-          Trusted across mobility, education, hospitality and public organisations.
-        </p>
+        <span
+          data-marquee-entry-rule
+          aria-hidden="true"
+          className="mt-4 block h-px w-24 origin-left bg-[var(--blue-500)] opacity-55"
+        />
       </div>
+
+      <div data-flow-anchor="center" className="pointer-events-none h-px" aria-hidden="true" />
 
       <div
         className="relative mt-7 overflow-hidden py-4"
@@ -348,7 +391,8 @@ export default function ClientMarquee() {
                   key={copy}
                   ref={copy === 0 ? groupRef : undefined}
                   aria-hidden={copy === 0 ? undefined : true}
-                  className="flex shrink-0 items-center gap-x-10 md:gap-x-12"
+                  /* pr matches gap-x so the seam between copies (VW → Yamaha) equals in-row gaps */
+                  className="flex shrink-0 items-center gap-x-10 pr-10 md:gap-x-12 md:pr-12"
                 >
                   {trustedClients.map((client) => (
                     <LogoMark key={`${copy}-${client.name}`} client={client} tier={tier} />

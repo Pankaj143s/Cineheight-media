@@ -1,10 +1,15 @@
 'use client'
 
+import { useRef } from 'react'
+import { gsap } from '@/lib/gsap'
+import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
+
 import type { CaseStudy } from '@/content/caseStudies'
 import type { CasePresentation } from '@/content/caseStudyPresentation'
 import KineticLabel from '@/components/motion/KineticLabel'
 import Reveal from '@/components/ui/Reveal'
-import { useIsMobileTier } from '@/lib/useMediaPreferences'
+import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { SCRUB } from '@/lib/motionTokens'
 
 /**
  * Act 2 — the starting point.
@@ -29,14 +34,41 @@ export default function CaseStartingPoint({
   presentation: CasePresentation
 }) {
   const mobile = useIsMobileTier()
+  const reduced = useReducedMotion()
+  const rootRef = useRef<HTMLElement>(null)
+
+  useIsomorphicLayoutEffect(() => {
+    if (reduced) return
+    const chapter = rootRef.current?.querySelector<HTMLElement>('[data-starting-chapter]')
+    if (!chapter) return
+    const tween = gsap.fromTo(
+      chapter,
+      { autoAlpha: 0.58, y: mobile ? 16 : 24 },
+      {
+        autoAlpha: 1,
+        y: 0,
+        ease: 'none',
+        scrollTrigger: {
+          trigger: rootRef.current,
+          start: mobile ? 'top 92%' : 'top 86%',
+          end: mobile ? 'top 58%' : 'top 48%',
+          scrub: SCRUB.text,
+        },
+      }
+    )
+    return () => {
+      tween.revert()
+    }
+  }, [mobile, reduced])
 
   return (
     <section
+      ref={rootRef}
       aria-label="The starting point"
       className="relative z-10"
       style={{ marginTop: 'calc(clamp(4rem, 14vh, 11rem) * var(--scene-gap))' }}
     >
-      <div className="flow-gutter relative">
+      <div data-starting-chapter className="flow-gutter relative">
         {/* small editorial marker at the edge, not an object behind the text */}
         <span
           aria-hidden="true"

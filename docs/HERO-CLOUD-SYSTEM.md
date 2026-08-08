@@ -1,5 +1,25 @@
 # HERO-CLOUD-SYSTEM — cineheight-single-flow-v2
 
+> ## RETIRED (feat/hero-handshake)
+>
+> The hero no longer uses Vanta Birds or the cloud plates described below.
+> The background is now `components/hero/HeroSignalGrid.tsx` (a reactive dot
+> field) and the wordmark's two `I` characters converge into a handshake —
+> see `components/hero/HeroIntroSequence.tsx` and
+> `components/hero/HeroHandshake.tsx`. This document is kept for history;
+> `HeroVantaBirds.tsx`, the `/generated/hero-v5/` assets, the `clouds:*` npm
+> scripts and the asset-pipeline scripts below are unused but left on disk.
+
+## Live visual owner
+
+The cloud composition has exactly one live background owner. Vanta is the
+production default. Set `NEXT_PUBLIC_HERO_VISUAL_MODE=ripple` before building
+to load the retained ripple system as an intentional alternate mode; every
+other or missing value resolves to Vanta. The ripple component and shader
+chunk are dynamically isolated and are not requested by the default mode.
+Reduced-motion users receive the static cloud composition in either mode and
+do not initialize the ripple WebGL canvas.
+
 > ## hero-v4 repair — the drifting rectangle + solid occlusion (2026-07-30)
 >
 > Two defects, both fixed by a new post-process pass,

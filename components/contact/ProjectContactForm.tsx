@@ -3,9 +3,11 @@
 import { useRef, useState } from 'react'
 import { contact, services } from '@/content/siteContent'
 import { reportUiClick } from '@/lib/audio/reportUiClick'
+import ScrollFillCta from '@/components/ui/ScrollFillCta'
 
 type FormVariant = 'compact' | 'full'
 type FieldErrors = Record<string, string>
+const requiredFieldOrder = ['name', 'contact', 'company', 'projectDetails'] as const
 
 /**
  * `field-surface` (globals.css) gives every control a near-solid dark-glass
@@ -23,6 +25,26 @@ export default function ProjectContactForm({ variant }: { variant: FormVariant }
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState('')
   const [errors, setErrors] = useState<FieldErrors>({})
+
+  const focusFirstInvalidField = (form: HTMLFormElement, fieldErrors: FieldErrors) => {
+    const firstName = requiredFieldOrder.find((name) => fieldErrors[name])
+    if (!firstName) return
+    const field = form.elements.namedItem(firstName)
+    if (!(field instanceof HTMLElement)) return
+    requestAnimationFrame(() => {
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      field.focus({ preventScroll: true })
+      field.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' })
+      field.animate(
+        [
+          { boxShadow: '0 0 0 0 rgba(239, 68, 68, 0)' },
+          { boxShadow: '0 0 0 3px rgba(239, 68, 68, 0.38)' },
+          { boxShadow: '0 0 0 0 rgba(239, 68, 68, 0)' },
+        ],
+        { duration: reduced ? 1 : 520, easing: 'ease-out' }
+      )
+    })
+  }
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -49,6 +71,7 @@ export default function ProjectContactForm({ variant }: { variant: FormVariant }
       setErrors(nextErrors)
       setStatus('error')
       setMessage('Check the highlighted fields.')
+      focusFirstInvalidField(form, nextErrors)
       return
     }
 
@@ -67,9 +90,11 @@ export default function ProjectContactForm({ variant }: { variant: FormVariant }
         fields?: FieldErrors
       }
       if (!result.ok || !body.ok) {
-        setErrors(body.fields ?? {})
+        const fieldErrors = body.fields ?? {}
+        setErrors(fieldErrors)
         setStatus('error')
         setMessage(body.message || 'The message could not be sent.')
+        focusFirstInvalidField(form, fieldErrors)
         return
       }
       setStatus('success')
@@ -123,16 +148,21 @@ export default function ProjectContactForm({ variant }: { variant: FormVariant }
           {errorFor('name') && <span id={`${variant}-name-error`} className="font-body mt-1 block text-xs text-red-300">{errorFor('name')}</span>}
         </label>
         <label className={labelClass}>
-          Email or phone <span aria-hidden="true">*</span>
+          Contact email or phone <span aria-hidden="true">*</span>
           <input
             name="contact"
-            autoComplete="email"
+            type="text"
+            inputMode="text"
+            autoComplete="off"
             required
             maxLength={160}
             aria-invalid={Boolean(errorFor('contact'))}
-            aria-describedby={errorFor('contact') ? `${variant}-contact-error` : undefined}
+            aria-describedby={`${variant}-contact-hint${errorFor('contact') ? ` ${variant}-contact-error` : ''}`}
             className={fieldClass}
           />
+          <span id={`${variant}-contact-hint`} className="font-body mt-1 block text-xs normal-case text-text-500">
+            Use an email address or a phone number with country code.
+          </span>
           {errorFor('contact') && <span id={`${variant}-contact-error`} className="font-body mt-1 block text-xs text-red-300">{errorFor('contact')}</span>}
         </label>
         <label className={`${labelClass} sm:col-span-2`}>
@@ -201,17 +231,15 @@ export default function ProjectContactForm({ variant }: { variant: FormVariant }
       </label>
 
       <div className="mt-7 flex flex-wrap items-center justify-between gap-5">
-        <button
+        <ScrollFillCta
+          as="button"
           type="submit"
+          fillMode="scroll"
           disabled={status === 'submitting'}
-          className="group font-display inline-flex min-h-[52px] items-center gap-4 rounded-full border px-7 py-3 text-[12px] font-medium uppercase text-text-100 transition-colors hover:border-[var(--blue-400)] disabled:cursor-wait disabled:opacity-60"
-          style={{ letterSpacing: '0.18em', borderColor: 'var(--blue-alpha-40)' }}
+          className="gap-4 text-[12px]"
         >
           {status === 'submitting' ? 'Sending' : 'Send project brief'}
-          <svg width="25" height="10" viewBox="0 0 25 10" fill="none" aria-hidden="true" className="transition-transform group-hover:translate-x-1">
-            <path d="M0 5h23M19 1l4 4-4 4" stroke="currentColor" strokeWidth="1.3" />
-          </svg>
-        </button>
+        </ScrollFillCta>
         <p aria-live="polite" className={`font-body max-w-sm text-xs leading-relaxed ${status === 'error' ? 'text-red-300' : 'text-text-500'}`}>
           {message}
         </p>

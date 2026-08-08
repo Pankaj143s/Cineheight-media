@@ -1,6 +1,7 @@
 'use client'
 
 import { forwardRef } from 'react'
+import Image from 'next/image'
 
 /**
  * Full-bleed media that never crops the client's composition.
@@ -38,6 +39,8 @@ const OrientationMedia = forwardRef<HTMLVideoElement, {
   alt: string
   /** Where to anchor a cover-cropped landscape source. */
   objectPosition?: string
+  /** Preserve the complete authored frame inside a cinematic blurred fill. */
+  preserveFrame?: boolean
   /** Faint wash in the letterbox area, on this project's own page only. */
   accent?: string
   muted?: boolean
@@ -45,23 +48,26 @@ const OrientationMedia = forwardRef<HTMLVideoElement, {
   /** Extra element layered above the media (gradients, labels). */
   children?: React.ReactNode
 }>(function OrientationMedia(
-  { poster, src, orientation, alt, objectPosition = 'center', accent, muted = true, className = '', children },
+  { poster, src, orientation, alt, objectPosition = 'center', preserveFrame = false, accent, muted = true, className = '', children },
   videoRef
 ) {
-  const contain = orientation !== 'landscape'
+  const contain = preserveFrame || orientation !== 'landscape'
 
   return (
     <div className={`relative h-full w-full overflow-hidden ${className}`}>
       {contain && (
         <>
           {/* layer 1 — blurred, darkened fill so the frame is never empty */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src={poster}
             alt=""
             aria-hidden="true"
             draggable={false}
-            className="absolute inset-0 h-full w-full object-cover"
+            fill
+            sizes="160px"
+            quality={38}
+            data-media-backdrop="orientation"
+            className="object-cover"
             style={{ transform: 'scale(1.08)', filter: 'blur(38px) brightness(0.34) saturate(1.15)' }}
           />
           {accent && (

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { closing, contact } from '@/content/siteContent'
@@ -8,7 +8,7 @@ import ScrollHeadline from '@/components/motion/ScrollHeadline'
 import ProjectContactForm from '@/components/contact/ProjectContactForm'
 import AnimatedBrandSignature from '@/components/home/AnimatedBrandSignature'
 import Footer from '@/components/Footer'
-import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import { SCRUB } from '@/lib/motionTokens'
 
 /**
@@ -19,16 +19,16 @@ import { SCRUB } from '@/lib/motionTokens'
  */
 export default function ClosingScene() {
   const rootRef = useRef<HTMLElement>(null)
-  const lightRef = useRef<HTMLDivElement>(null)
   const reduced = useReducedMotion()
   const mobile = useIsMobileTier()
-  const rich = useCanRunRichEffects()
 
   useIsomorphicLayoutEffect(() => {
     if (reduced) return
     const ctx = gsap.context((self) => {
       const cta = self.selector!('[data-cta]')[0]
       const channels = self.selector!('[data-channel]') as HTMLElement[]
+      const form = self.selector!('[data-closing-form]')[0]
+      const footer = self.selector!('[data-closing-footer]')[0]
       if (cta) {
         gsap.fromTo(
           cta,
@@ -54,32 +54,33 @@ export default function ClosingScene() {
           }
         )
       }
+      if (form) {
+        gsap.fromTo(
+          form,
+          { autoAlpha: 0.58, y: 28 },
+          {
+            autoAlpha: 1,
+            y: 0,
+            ease: 'none',
+            scrollTrigger: { trigger: form, start: 'top 88%', end: 'top 56%', scrub: SCRUB.text },
+          }
+        )
+      }
+      if (footer) {
+        gsap.fromTo(
+          footer,
+          { autoAlpha: 0.64, y: 20 },
+          {
+            autoAlpha: 1,
+            y: 0,
+            ease: 'none',
+            scrollTrigger: { trigger: footer, start: 'top 94%', end: 'top 70%', scrub: SCRUB.text },
+          }
+        )
+      }
     }, rootRef)
     return () => ctx.revert()
   }, [reduced])
-
-  // A single soft light that follows the pointer across the closing field.
-  useEffect(() => {
-    if (!rich) return
-    const root = rootRef.current
-    const light = lightRef.current
-    if (!root || !light) return
-    const onMove = (e: PointerEvent) => {
-      const r = root.getBoundingClientRect()
-      light.style.setProperty('--cx', `${e.clientX - r.left}px`)
-      light.style.setProperty('--cy', `${e.clientY - r.top}px`)
-      light.style.opacity = '1'
-    }
-    const onLeave = () => {
-      light.style.opacity = '0'
-    }
-    root.addEventListener('pointermove', onMove)
-    root.addEventListener('pointerleave', onLeave)
-    return () => {
-      root.removeEventListener('pointermove', onMove)
-      root.removeEventListener('pointerleave', onLeave)
-    }
-  }, [rich])
 
   const channels = [
     { label: 'Email', value: contact.email, href: `mailto:${contact.email}` },
@@ -96,24 +97,17 @@ export default function ClosingScene() {
       /*
         Clip horizontally only. `overflow-hidden` also clipped the vertical
         axis, and since the closing headline is parallaxed upward inside this
-        box, its ascenders were being sliced off on shorter viewports. `clip`
-        on one axis still contains the decorative radial without cutting type.
+        box, its ascenders were being sliced off on shorter viewports.
       */
       className="relative z-10 overflow-x-clip"
-      style={{ marginTop: mobile ? '10vh' : 'clamp(8rem, 20vh, 18rem)' }}
+      style={{
+        marginTop: mobile ? '-7svh' : 'clamp(8rem, 20vh, 18rem)',
+        paddingTop: mobile ? '12svh' : undefined,
+        background: mobile
+          ? 'linear-gradient(to bottom, rgba(2,3,6,0) 0%, rgba(2,3,6,0.82) 12svh)'
+          : undefined,
+      }}
     >
-      {rich && (
-        <div
-          ref={lightRef}
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 transition-opacity duration-500"
-          style={{
-            opacity: 0,
-            background: 'radial-gradient(circle 340px at var(--cx, 50%) var(--cy, 50%), rgba(0,137,255,0.09), transparent 70%)',
-          }}
-        />
-      )}
-
       <div className="flow-gutter relative">
         <div data-parallax-y="0.1">
           <ScrollHeadline
@@ -128,13 +122,13 @@ export default function ClosingScene() {
         </div>
 
         <div className="mt-14 grid gap-x-14 gap-y-14 lg:grid-cols-12">
-          <div data-cta data-parallax-y="0.055" className="lg:col-span-5" style={{ opacity: reduced ? 1 : 0 }}>
+          <div data-cta data-parallax-y="0.055" className="lg:col-span-5">
             <p className="font-body max-w-md text-base leading-relaxed text-text-300">
               Share the brief here, or reach us directly. A real person answers every channel.
             </p>
             <ul className="mt-9 flex flex-col items-start gap-5">
               {channels.map((ch, index) => (
-                <li key={ch.label} data-channel className="group list-none" style={{ opacity: reduced ? 1 : 0 }}>
+                <li key={ch.label} data-channel className="group list-none">
                   <p className="font-display text-[10px] font-medium uppercase text-text-500" style={{ letterSpacing: '0.28em' }}>
                     {ch.label}
                   </p>
@@ -157,14 +151,16 @@ export default function ClosingScene() {
             <div data-flow-anchor="left" className="pointer-events-none h-px w-full" aria-hidden="true" />
           </div>
 
-          <div className="lg:col-span-6 lg:col-start-7">
+          <div data-closing-form className="lg:col-span-6 lg:col-start-7">
             <ProjectContactForm variant="compact" />
           </div>
         </div>
       </div>
 
-      <AnimatedBrandSignature />
-      <Footer variant="integrated" />
+      <div data-closing-footer>
+        <AnimatedBrandSignature />
+        <Footer variant="integrated" />
+      </div>
     </section>
   )
 }

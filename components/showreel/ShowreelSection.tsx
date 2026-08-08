@@ -1,19 +1,25 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { gsap } from '@/lib/gsap'
 import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import { useReportVideoAudible } from '@/lib/audio/useReportVideoAudible'
 import { scrollToElementCenter } from '@/lib/scrollTo'
+import { observeVisibleLayerPromotion } from '@/lib/visibleLayerPromotion'
 
-const SRC = '/media/showreel/showreel.mp4'
+const SOURCES = {
+  compact: '/media/showreel/showreel-540.mp4',
+  standard: '/media/showreel/showreel-720.mp4',
+  large: '/media/showreel/showreel-1080.mp4',
+}
 const POSTER = '/media/showreel/showreel-poster.webp'
 
 /**
  * Showreel — the real 32 s CINEHEIGHT film. It follows the brand statement in
- * one continuous flow on the shared #020306 stage: no section container, no
- * hard boundary. As the section scrolls in, the frame expands through an
- * opening mask (scrub, no pin — the hero's sticky has already released).
+ * one continuous flow on the shared #020306 stage: label sits on the film,
+ * FlowThread hugs the left edge through this zone (no horizontal section cut).
+ * As the section scrolls in, the frame scales up (scrub, no pin).
  *
  * ── One interaction, two modes ───────────────────────────────────────────────
  *
@@ -32,7 +38,10 @@ const POSTER = '/media/showreel/showreel-poster.webp'
  * viewport in `featured` mode drops back to `ambient` and re-mutes; returning
  * never restores sound, because only an explicit action may turn it on.
  */
-export default function ShowreelSection() {
+export default function ShowreelSection({ context }: { context?: 'home' | 'about' }) {
+  const pathname = usePathname()
+  const presentation = context ?? (pathname === '/about' ? 'about' : 'home')
+  const aboutPresentation = presentation === 'about'
   const sectionRef = useRef<HTMLElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -61,29 +70,95 @@ export default function ShowreelSection() {
     const ctx = gsap.context(() => {
       const frame = frameRef.current
       const video = videoRef.current
+      const gate = sectionRef.current?.querySelector<HTMLElement>('[data-showreel-gate]')
+      const label = sectionRef.current?.querySelector<HTMLElement>('[data-showreel-label]')
+      const control = sectionRef.current?.querySelector<HTMLElement>('[data-showreel-control-wrap]')
       if (!frame) return
-      // Begins while hero statement still owns the frame — removes empty travel.
+      // Scale + fade only — no clip inset (that cropped top/bottom and
+      // revealed a second “panel” behind the film and label).
       gsap.fromTo(
         frame,
-        { scale: mobile ? 0.94 : 0.82, autoAlpha: 0.4, clipPath: 'inset(10% 0% 10% 0%)' },
+        {
+          scale: mobile ? 0.92 : aboutPresentation ? 0.9 : 0.82,
+          xPercent: aboutPresentation && !mobile ? -3 : 0,
+          autoAlpha: aboutPresentation ? 0.48 : 0.4,
+        },
         {
           scale: 1,
+          xPercent: 0,
           autoAlpha: 1,
-          clipPath: 'inset(0% 0% 0% 0%)',
           ease: 'none',
-          scrollTrigger: { trigger: sectionRef.current, start: 'top 99%', end: mobile ? 'top 52%' : 'top 42%', scrub: 1.05 },
+          scrollTrigger: { trigger: sectionRef.current, start: 'top 99%', end: mobile ? 'top 52%' : 'top 42%', scrub: 0.75 },
         }
       )
-      if (video && !mobile) {
+      if (gate && mobile) {
+        gsap.fromTo(
+          gate,
+          { clipPath: 'inset(12% 0% 12% 0%)' },
+          {
+            clipPath: 'inset(0% 0% 0% 0%)',
+            ease: 'none',
+            scrollTrigger: { trigger: sectionRef.current, start: 'top 96%', end: 'top 55%', scrub: 0.75 },
+          }
+        )
+      }
+      if (video) {
         gsap.fromTo(
           video,
-          { scale: 1.05 },
-          { scale: 1, ease: 'none', scrollTrigger: { trigger: sectionRef.current, start: 'top 90%', end: 'top 38%', scrub: 1 } }
+          { scale: mobile ? 1.055 : 1.05, yPercent: mobile ? -2 : 0 },
+          {
+            scale: 1,
+            yPercent: 0,
+            ease: 'none',
+            scrollTrigger: { trigger: sectionRef.current, start: 'top 92%', end: mobile ? 'top 48%' : 'top 38%', scrub: 0.75 },
+          }
         )
+      }
+      if (mobile && label && control) {
+        gsap.fromTo(
+          label,
+          { autoAlpha: 0, y: 10 },
+          { autoAlpha: 1, y: 0, ease: 'none', scrollTrigger: { trigger: sectionRef.current, start: 'top 76%', end: 'top 55%', scrub: 0.7 } }
+        )
+        gsap.fromTo(
+          control,
+          { autoAlpha: 0, scale: 0.92 },
+          { autoAlpha: 1, scale: 1, ease: 'none', scrollTrigger: { trigger: sectionRef.current, start: 'top 66%', end: 'top 45%', scrub: 0.7 } }
+        )
+      }
+      if (mobile) {
+        gsap.to(frame, {
+          scale: 0.94,
+          y: '-4svh',
+          autoAlpha: 0.64,
+          ease: 'none',
+          scrollTrigger: {
+            trigger: sectionRef.current,
+            start: 'bottom 64%',
+            end: 'bottom 18%',
+            scrub: 0.8,
+          },
+        })
       }
     }, sectionRef)
     return () => ctx.revert()
-  }, [reduced, mobile])
+  }, [reduced, mobile, aboutPresentation])
+
+  useEffect(() => {
+    if (reduced) return
+    const targets = [frameRef.current, videoRef.current].filter(
+      (target): target is HTMLDivElement | HTMLVideoElement => target !== null
+    )
+    return observeVisibleLayerPromotion(targets, '30% 0px', 'media')
+  }, [reduced])
+
+  useLayoutEffect(() => {
+    if (!reduced || !aboutPresentation) return
+    const frame = frameRef.current
+    const caption = sectionRef.current?.querySelector<HTMLElement>('[data-showreel-caption]')
+    frame?.animate([{ opacity: 0.72 }, { opacity: 1 }], { duration: 170, easing: 'ease-out' })
+    caption?.animate([{ opacity: 0.68 }, { opacity: 1 }], { duration: 150, delay: 30, easing: 'ease-out' })
+  }, [reduced, aboutPresentation])
 
   // ---- State derived from the element, never assumed --------------------
   useEffect(() => {
@@ -222,91 +297,144 @@ export default function ShowreelSection() {
     <section
       ref={sectionRef}
       id="showreel"
-      aria-label="Showreel"
+      aria-label={aboutPresentation ? 'Cineheight point of view film' : 'Showreel'}
+      data-showreel-context={presentation}
       className="relative flex flex-col items-center justify-center"
       /*
-       * Height is derived from the frame, not a fixed vh.
-       *
-       * The frame is full-bleed 16:9 capped at the viewport height, so it is
-       * `min(56.25vw, 100dvh)` tall — which is a full screen on a 16:9 desktop
-       * but only about 40% of one on a 4:3 tablet. A single fixed min-height
-       * therefore cannot be right everywhere: the old 150vh reserved most of an
-       * extra blank screen on desktop, and any value tuned for desktop leaves
-       * an even larger hole on tablet. Expressing it as "the frame plus 20vh of
-       * breath" keeps the gap between the hero statement and the film at
-       * roughly a fifth of a viewport on every size tested.
+       * Height tracks the full-bleed 16:9 frame plus a little breath below.
+       * Label sits ON the film — no dark header strip above the picture.
        */
       style={{
-        minHeight: reduced ? 'auto' : 'calc(min(56.25vw, 100dvh) + 20vh)',
-        paddingTop: mobile ? '3vh' : '2vh',
-        paddingBottom: '8vh',
+        minHeight: reduced ? 'auto' : mobile ? '72svh' : 'calc(min(56.25vw, 100dvh) + 8vh)',
+        paddingTop: mobile ? '4svh' : '0',
+        paddingBottom: mobile ? '8svh' : '6vh',
       }}
     >
-      {/* Soft atmospheric light behind the frame — no section container */}
+      {/* Steer FlowThread along the left edge so it doesn’t cut a horizontal
+          divider across the film / label band. */}
       <div
+        data-flow-anchor="edge-left"
+        data-flow-lead="0.12"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px"
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse 60% 42% at 50% 46%, rgba(0,137,255,0.05), transparent 72%)' }}
+      />
+      <div
+        data-flow-anchor="edge-left"
+        data-flow-lead="0.88"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-px"
+        aria-hidden="true"
       />
 
-      {/* Editorial label + microcopy — aligned to the full-bleed frame edge */}
-      <div className="relative z-10 mb-5 flex w-full flex-wrap items-baseline gap-x-4 gap-y-1 px-5 sm:mb-6 sm:px-8 lg:px-10">
-        <span className="font-display text-[11px] font-medium uppercase" style={{ letterSpacing: '0.32em', color: 'var(--blue-400)' }}>
-          Showreel
-        </span>
-        <span className="font-body text-xs text-text-500 sm:text-sm" style={{ letterSpacing: '0.01em' }}>
-          A glimpse of how we turn strategy into stories, content and growth.
-        </span>
-      </div>
+      {/* Soft ambient glow behind the frame — full-bleed edges leave no room
+          for a box-shadow, so this reads as background bloom instead. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -inset-y-16 inset-x-0 z-0 sm:-inset-y-24"
+        style={{
+          background: 'radial-gradient(ellipse 60% 70% at 50% 50%, rgba(0,137,255,0.12), transparent 72%)',
+          filter: 'blur(48px)',
+        }}
+      />
 
-      {/* Frame — full-bleed width, 16:9, capped to the viewport height. Video
-          stays object-cover so it never distorts; ≤16:9 screens fill, ultrawide
-          cover-crops a little, mobile is a natural full-width band.
-          `width: 100%` (not 100vw) — this section is a direct, unconstrained
-          child of <main>, so 100% is visually identical but never overshoots
-          the viewport by the vertical-scrollbar gutter. */}
+      {/* Frame — full-bleed width, 16:9, capped to the viewport height.
+          On very wide viewports, width:100% + aspect-ratio:16/9 would ask for
+          more height than maxHeight allows — max-height wins that conflict on
+          its own, silently widening the effective ratio past 16:9 and making
+          object-cover crop harder than intended. Capping max-width to the
+          height-driven 16:9 size (mirrors the section's own `min(56.25vw,
+          100dvh)` sizing below) keeps the frame genuinely 16:9 at any width. */}
       <div
         ref={frameRef}
-        className="relative z-10 w-full will-change-transform"
-        style={{ aspectRatio: '16 / 9', maxHeight: '100dvh' }}
+        data-showreel-frame
+        className={mobile ? 'relative z-10 w-[94vw]' : 'relative z-10 w-full'}
+        style={{
+          aspectRatio: mobile ? '4 / 5' : '16 / 9',
+          maxHeight: mobile ? '60svh' : '100dvh',
+          maxWidth: mobile ? undefined : 'calc(100dvh * 16 / 9)',
+        }}
       >
         <div className="relative h-full w-full">
-          <video
-            ref={videoRef}
-            className="absolute inset-0 h-full w-full cursor-pointer object-cover will-change-transform"
-            style={{ backgroundColor: 'var(--bg-900)' }}
-            poster={POSTER}
-            muted
-            loop
-            playsInline
-            preload="metadata"
-            aria-label="CINEHEIGHT showreel film"
-            tabIndex={-1}
-            onClick={onVideoClick}
+          {/* Media shell — short edge dissolve into the stage (no heavy black wash). */}
+          <div
+            data-showreel-gate
+            className="absolute inset-0 overflow-hidden"
+            style={{
+              WebkitMaskImage:
+                'linear-gradient(to bottom, transparent 0%, #000 1.5%, #000 98.5%, transparent 100%)',
+              maskImage:
+                'linear-gradient(to bottom, transparent 0%, #000 1.5%, #000 98.5%, transparent 100%)',
+            }}
           >
-            <source src={SRC} type="video/mp4" />
-          </video>
+            <video
+              ref={videoRef}
+              data-showreel-video
+              className="absolute inset-0 h-full w-full cursor-pointer object-cover"
+              style={{ backgroundColor: 'var(--bg-950)', objectPosition: aboutPresentation ? '52% center' : 'center' }}
+              poster={POSTER}
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              aria-label="CINEHEIGHT showreel film"
+              tabIndex={-1}
+              onClick={onVideoClick}
+            >
+              <source
+                src={SOURCES.compact}
+                type="video/mp4"
+                media="(max-width: 639px)"
+                data-showreel-variant="compact"
+              />
+              <source
+                src={SOURCES.standard}
+                type="video/mp4"
+                media="(min-width: 640px) and (max-width: 1279px)"
+                data-showreel-variant="standard"
+              />
+              <source
+                src={SOURCES.large}
+                type="video/mp4"
+                data-showreel-variant="large"
+              />
+            </video>
+          </div>
 
-          {/* Subtle top/bottom feather so any letterbox space blends into black */}
-          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-12" style={{ background: 'linear-gradient(to bottom, var(--bg-950), transparent)' }} />
-          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-14" style={{ background: 'linear-gradient(to top, var(--bg-950), transparent)' }} />
+          {/* Editorial label — on the film, below the sticky nav; shadow for contrast */}
+          <div data-showreel-label className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-baseline gap-x-4 gap-y-1 flow-gutter pt-20 sm:pt-24">
+            <span
+              className="font-display text-[11px] font-medium uppercase"
+              style={{
+                letterSpacing: '0.32em',
+                color: 'var(--blue-400)',
+                textShadow: '0 1px 12px rgba(0,0,0,0.75)',
+              }}
+            >
+              {aboutPresentation ? 'How we see it' : 'Showreel'}
+            </span>
+            <span
+              data-showreel-caption
+              className="font-body text-xs text-text-200 sm:text-sm"
+              style={{
+                letterSpacing: '0.01em',
+                textShadow: '0 1px 12px rgba(0,0,0,0.75)',
+              }}
+            >
+              {aboutPresentation
+                ? 'The shared point of view behind every strategy, frame and campaign.'
+                : 'A glimpse of how we turn strategy into stories, content and growth.'}
+            </span>
+          </div>
 
           {/* ---- The one centre control ---- */}
-          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+          <div data-showreel-control-wrap className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
             <button
               type="button"
               onClick={(event) => {
-                // The video behind this button also handles clicks; without
-                // this the same gesture would be acted on twice.
                 event.stopPropagation()
                 if (featured) togglePlayback()
                 else engage()
               }}
               aria-label={centreAria}
-              /* While the film is genuinely playing with sound the control
-                 recedes to a hint and returns in full on hover or keyboard
-                 focus (see `[data-showreel-control]` in globals.css), so it
-                 never sits on top of the work it is showing. */
               data-showreel-control
               data-recede={showPauseLabel ? 'true' : 'false'}
               className="group pointer-events-auto inline-flex min-h-[52px] items-center gap-3 rounded-full px-6 py-3 backdrop-blur-sm focus-visible:outline-2 focus-visible:outline-offset-4 sm:gap-4 sm:px-7"
@@ -345,8 +473,6 @@ export default function ShowreelSection() {
                 const video = videoRef.current
                 if (!video) return
                 if (video.muted) {
-                  // Turning sound on by hand is just as explicit as the centre
-                  // action, so it enters the same mode.
                   engage()
                 } else {
                   video.muted = true

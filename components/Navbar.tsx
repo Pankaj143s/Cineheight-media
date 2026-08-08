@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { subscribeHeroProgress } from '@/lib/heroProgress'
 import { setLenisStopped } from '@/lib/scrollTo'
-import { useReducedMotion } from '@/lib/useMediaPreferences'
+import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import SoundToggle from '@/components/audio/SoundToggle'
+import ScrollFillCta from '@/components/ui/ScrollFillCta'
 import { navItems } from '@/content/siteContent'
 import { reportUiClick } from '@/lib/audio/reportUiClick'
 
@@ -25,6 +26,7 @@ export default function Navbar() {
   const [visible, setVisible] = useState(!isHome)
   const [menuOpen, setMenuOpen] = useState(false)
   const visibleRef = useRef(!isHome)
+  const mobile = useIsMobileTier()
   const reduced = useReducedMotion()
   const menuId = useId()
   const menuPanelId = `mobile-menu-${menuId}`
@@ -41,14 +43,16 @@ export default function Navbar() {
       return
     }
     return subscribeHeroProgress((p) => {
-      const next = visibleRef.current ? p > 0.58 : p > 0.66
+      const next = visibleRef.current ? p > 0.76 : p > 0.82
       if (next !== visibleRef.current) {
         visibleRef.current = next
         setVisible(next)
-        if (!next) setMenuOpen(false)
+        if (!next && !mobile) setMenuOpen(false)
       }
     })
-  }, [isHome])
+  }, [isHome, mobile])
+
+  const navVisible = mobile || visible
 
   // Close on route change so a client navigation never leaves the panel open.
   useEffect(() => {
@@ -150,19 +154,19 @@ export default function Navbar() {
       className="fixed inset-x-0 top-0"
       style={{
         zIndex: 'var(--z-nav)',
-        opacity: visible ? 1 : 0,
-        transform: reduced ? 'none' : visible ? 'translateY(0)' : 'translateY(-12px)',
+        opacity: navVisible ? 1 : 0,
+        transform: reduced ? 'none' : navVisible ? 'translateY(0)' : 'translateY(-12px)',
         transition: reduced
           ? 'opacity 0.2s linear'
           : 'opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1)',
-        pointerEvents: visible ? 'auto' : 'none',
-        visibility: visible ? 'visible' : 'hidden',
+        pointerEvents: navVisible ? 'auto' : 'none',
+        visibility: navVisible ? 'visible' : 'hidden',
         background:
           'linear-gradient(to bottom, rgba(2,3,6,0.82), rgba(2,3,6,0.6) 80%, rgba(2,3,6,0.2))',
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
       }}
-      aria-hidden={!visible}
+      aria-hidden={!navVisible}
     >
       <div className="flow-gutter flex h-16 w-full items-center justify-between lg:h-[72px]">
         <Link href="/" className="flex flex-col leading-none" aria-label="Cineheight Media — home" onClick={reportUiClick}>
@@ -180,14 +184,14 @@ export default function Navbar() {
           </span>
         </Link>
 
-        <nav aria-label="Primary" className="hidden items-center gap-8 lg:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-5 lg:flex">
           {navItems.map((item) => (
             <Link
               key={item.label}
               href={item.href}
               aria-current={pathname === item.href ? 'page' : undefined}
               onClick={reportUiClick}
-              className="text-[11px] font-medium uppercase text-text-200 transition-colors duration-200 hover:text-[var(--blue-400)] focus-visible:text-[var(--blue-400)]"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center text-[11px] font-medium uppercase text-text-200 transition-colors duration-200 hover:text-[var(--blue-400)] focus-visible:text-[var(--blue-400)]"
               style={{ letterSpacing: '0.24em', color: pathname === item.href ? 'var(--blue-400)' : undefined }}
             >
               {item.label}
@@ -197,17 +201,14 @@ export default function Navbar() {
 
         <div className="flex items-center gap-2 sm:gap-3">
           <SoundToggle />
-          <Link
+          <ScrollFillCta
             href="/contact"
-            onClick={reportUiClick}
-            className="hidden items-center gap-2 rounded-full border px-5 py-2.5 text-[11px] font-medium uppercase text-text-100 transition-colors duration-200 hover:border-[var(--blue-400)] hover:text-[var(--blue-200)] sm:inline-flex"
-            style={{ letterSpacing: '0.2em', borderColor: 'var(--blue-alpha-40)' }}
+            fillMode="outline"
+            size="sm"
+            className="hidden sm:inline-flex"
           >
             Start a Project
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-              <path d="M1.5 8.5 8.5 1.5M3 1.5h5.5V7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
-          </Link>
+          </ScrollFillCta>
 
           <button
             ref={toggleRef}
@@ -268,18 +269,16 @@ export default function Navbar() {
               {item.label}
             </Link>
           ))}
-          <Link
+          <ScrollFillCta
             href="/contact"
-            onClick={() => {
-              reportUiClick()
-              closeMenu()
-            }}
+            fillMode="hover"
+            size="sm"
+            className="mt-5 justify-center"
             tabIndex={menuOpen ? undefined : -1}
-            className="mt-5 inline-flex items-center justify-center gap-2 rounded-full border px-5 py-3 text-xs font-medium uppercase text-text-100"
-            style={{ letterSpacing: '0.2em', borderColor: 'var(--blue-alpha-40)' }}
+            onClick={closeMenu}
           >
             Start a Project
-          </Link>
+          </ScrollFillCta>
         </nav>
       </div>
     </header>

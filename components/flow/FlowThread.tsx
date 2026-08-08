@@ -1,9 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useRef } from 'react'
+import { gsap } from '@/lib/gsap'
 import { clamp } from '@/lib/utils'
 import { useIsNarrow, useReducedMotion } from '@/lib/useMediaPreferences'
 import { readScrollSignal, subscribeScrollSignal } from '@/lib/scrollSignal'
+import { subscribeBodyResize } from '@/lib/bodyResizeSignal'
 import { subscribeSignalIntensity } from '@/lib/liquidMedia/signalIntensity'
 import { getHeroProgress } from '@/lib/heroProgress'
 
@@ -37,7 +39,7 @@ import { getHeroProgress } from '@/lib/heroProgress'
  */
 
 /** Homepage hero scrub progress (0–1) before the thread may draw. */
-const HERO_THREAD_REVEAL = 0.6
+const HERO_THREAD_REVEAL = 0.78
 
 /**
  * True while the sticky hero stage is still pinned.
@@ -88,9 +90,9 @@ type Side = 'edge-left' | 'left' | 'center' | 'right' | 'edge-right'
 
 const SIDE_X: Record<Side, number> = {
   'edge-left': -0.1,
-  left: 0.13,
+  left: 0.1,
   center: 0.5,
-  right: 0.87,
+  right: 0.9,
   'edge-right': 1.1,
 }
 
@@ -120,7 +122,7 @@ interface Sample {
  * offsets are capped relative to the segment's height and vertical controls are
  * clamped inside the segment, so the curve can never double back on itself.
  */
-function buildPath(pts: Pt[], maxDxRatio = 0.6): string {
+function buildPath(pts: Pt[], maxDxRatio = 0.85): string {
   if (pts.length < 2) return ''
   let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`
 
@@ -135,8 +137,11 @@ function buildPath(pts: Pt[], maxDxRatio = 0.6): string {
     // beyond that the curve starts to read as a hook.
     const maxDx = dy * maxDxRatio
 
-    const c1x = p1.x + clamp((p2.x - p0.x) / 6, -maxDx, maxDx)
-    const c2x = p2.x - clamp((p3.x - p1.x) / 6, -maxDx, maxDx)
+    // Looser tension (÷4 rather than the Catmull-Rom-standard ÷6) on the
+    // horizontal terms only — rounder, softer bends without risking the
+    // Y-monotonic guarantee the vertical clamps below provide.
+    const c1x = p1.x + clamp((p2.x - p0.x) / 4, -maxDx, maxDx)
+    const c2x = p2.x - clamp((p3.x - p1.x) / 4, -maxDx, maxDx)
     // Vertical controls stay strictly inside the segment → monotonic descent.
     const c1y = clamp(p1.y + (p2.y - p0.y) / 6, p1.y, p2.y)
     const c2y = clamp(p2.y - (p3.y - p1.y) / 6, p1.y, p2.y)
@@ -172,7 +177,6 @@ export default function FlowThread() {
   const wrapRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const pathRef = useRef<SVGPathElement>(null)
-  const dotRef = useRef<HTMLDivElement>(null)
 
   const reduced = useReducedMotion()
   const narrow = useIsNarrow(767)
@@ -186,7 +190,7 @@ export default function FlowThread() {
       if (!path) return
       const next = base + v * 0.28
       path.style.opacity = String(Math.min(0.72, next))
-      path.style.strokeWidth = String(narrow ? 2 + v * 0.4 : 2.75 + v * 0.55)
+      path.style.strokeWidth = String(narrow ? 8 + v * 1.6 : 11 + v * 2.2)
     })
   }, [reduced, narrow])
 
@@ -248,7 +252,9 @@ export default function FlowThread() {
       const last = anchors[anchors.length - 1]
       const vh = window.innerHeight
       const leadY = heroY
-      const origin: Pt = { x: 2, y: leadY }
+      // x=8 keeps the (now thicker) stroke's edge from clipping off-canvas at
+      // the origin — half the 12px desktop stroke width, roughly.
+      const origin: Pt = { x: 8, y: leadY }
       const center: Pt = { x: vw * 0.5, y: leadY + vh * 0.5 }
       // Continue straight down from center so the join has no hard corner.
       const exit: Pt = {
@@ -258,7 +264,7 @@ export default function FlowThread() {
       // Lead is a dedicated smooth cubic; rest of the route is Catmull-Rom.
       const restPts = [center, exit, ...anchors, { x: last.x + vw * 0.2, y: last.y + 220 }]
       const lead = leadCornerToCenter(origin, center)
-      const rest = buildPath(restPts, 0.5).replace(/^M[^C]+/, '')
+      const rest = buildPath(restPts, 0.85).replace(/^M[^C]+/, '')
       pts = [origin, center, exit, ...anchors, { x: last.x + vw * 0.2, y: last.y + 220 }]
 
       svg.setAttribute('width', String(vw))
@@ -337,11 +343,9 @@ export default function FlowThread() {
     if (!path) return
 
     let measureRaf = 0
-    let motionRaf = 0
     let running = false
     let targetTipY = readScrollSignal().y + window.innerHeight * 0.62
     let currentTipY = targetTipY
-    let lastFrame = performance.now()
 
     /** Natural tip; while parked in the hero slot after reveal, grow corner → center. */
     const resolveTipY = () => {
@@ -428,8 +432,6 @@ export default function FlowThread() {
       if (heroStart && heroProgress < HERO_THREAD_REVEAL) {
         path.style.strokeDashoffset = `${length}`
         path.style.visibility = 'hidden'
-        const dot = dotRef.current
-        if (dot) dot.style.opacity = '0'
         if (wrap) {
           wrap.style.zIndex = 'var(--z-thread)'
           wrap.style.transform = ''
@@ -471,31 +473,19 @@ export default function FlowThread() {
       if (!hit) return
 
       path.style.strokeDashoffset = `${(length - hit.len).toFixed(2)}`
-
-      const dot = dotRef.current
-      if (dot) {
-        const drawn = hit.len / length
-        if (drawn >= 0.998) {
-          dot.style.opacity = '0'
-        } else {
-          // Include the near-zero draw at reveal so the tip sits at top-left.
-          dot.style.transform = `translate3d(${hit.x.toFixed(1)}px, ${hit.y.toFixed(1)}px, 0) translate(-50%, -50%)`
-          dot.style.opacity = '1'
-        }
-      }
     }
 
-    const frame = (now: number) => {
-      const dt = Math.min(50, now - lastFrame || 16.7)
-      lastFrame = now
+    // On the shared gsap.ticker rather than its own requestAnimationFrame, so
+    // the tip settles on exactly the same clock as Lenis/ScrollTrigger.
+    const frame = (_time: number, deltaMs: number) => {
+      const dt = Math.min(50, deltaMs || 16.7)
       // Softer follow (~120ms) so the tip tracks Lenis without jitter.
       currentTipY += (targetTipY - currentTipY) * (1 - Math.exp(-dt / 120))
       paint(currentTipY)
-      if (Math.abs(targetTipY - currentTipY) > 0.08 && !document.hidden) {
-        motionRaf = requestAnimationFrame(frame)
-      } else {
+      if (!(Math.abs(targetTipY - currentTipY) > 0.08 && !document.hidden)) {
         currentTipY = targetTipY
         paint(currentTipY)
+        gsap.ticker.remove(frame)
         running = false
       }
     }
@@ -552,8 +542,7 @@ export default function FlowThread() {
         if (reduced) return
         if (running || document.hidden) return
         running = true
-        lastFrame = performance.now()
-        motionRaf = requestAnimationFrame(frame)
+        gsap.ticker.add(frame)
         return
       }
 
@@ -561,18 +550,16 @@ export default function FlowThread() {
       if (reduced) return
       if (running || document.hidden) return
       running = true
-      lastFrame = performance.now()
-      motionRaf = requestAnimationFrame(frame)
+      gsap.ticker.add(frame)
     }
 
     measure()
     syncHeroPortal()
     paint(currentTipY)
 
-    // Fonts and late-loading media change the document height; ResizeObserver
-    // on <body> catches both without polling.
-    const ro = new ResizeObserver(schedule)
-    ro.observe(document.body)
+    // Fonts and late-loading media change the document height; the shared
+    // body-resize signal catches both without polling.
+    const unsubscribeBodyResize = subscribeBodyResize(schedule)
     document.fonts?.ready.then(schedule).catch(() => {})
 
     // Video metadata arriving can change layout after everything else settled.
@@ -589,7 +576,7 @@ export default function FlowThread() {
     window.addEventListener('orientationchange', schedule)
     const onVis = () => {
       if (document.hidden) {
-        cancelAnimationFrame(motionRaf)
+        gsap.ticker.remove(frame)
         running = false
       } else {
         wake()
@@ -605,8 +592,8 @@ export default function FlowThread() {
         v.removeEventListener('loadedmetadata', onMediaSettled)
       )
       cancelAnimationFrame(measureRaf)
-      cancelAnimationFrame(motionRaf)
-      ro.disconnect()
+      gsap.ticker.remove(frame)
+      unsubscribeBodyResize()
       unsubscribe()
       window.removeEventListener('resize', schedule)
       document.removeEventListener('visibilitychange', onVis)
@@ -623,7 +610,6 @@ export default function FlowThread() {
         wrapRef={wrapRef as React.RefObject<HTMLDivElement>}
         svgRef={svgRef as React.RefObject<SVGSVGElement>}
         pathRef={pathRef as React.RefObject<SVGPathElement>}
-        dotRef={dotRef as React.RefObject<HTMLDivElement>}
         narrow={narrow}
         reduced={reduced}
       />
@@ -635,7 +621,6 @@ function ThreadChrome({
   wrapRef,
   svgRef,
   pathRef,
-  dotRef,
   narrow,
   reduced,
 }: {
@@ -644,7 +629,6 @@ function ThreadChrome({
   wrapRef: React.RefObject<HTMLDivElement>
   svgRef: React.RefObject<SVGSVGElement>
   pathRef: React.RefObject<SVGPathElement>
-  dotRef: React.RefObject<HTMLDivElement>
   narrow: boolean
   reduced: boolean
 }) {
@@ -666,12 +650,12 @@ function ThreadChrome({
           data-flow-thread-path
           d=""
           stroke="#0089FF"
-          strokeWidth={narrow ? 2.25 : 3}
+          strokeWidth={narrow ? 9 : 12}
           strokeLinecap="round"
           fill="none"
           style={{
             opacity: reduced ? 0.2 : 0.55,
-            filter: 'drop-shadow(0 0 6px rgba(0,137,255,0.65))',
+            filter: 'drop-shadow(0 0 14px rgba(0,137,255,0.65))',
             strokeDasharray: 4000,
             strokeDashoffset: 4000,
             ['--signal-cue' as string]: '0',
@@ -679,21 +663,6 @@ function ThreadChrome({
           data-signal-path
         />
       </svg>
-
-      {!reduced && (
-        <div
-          ref={dotRef}
-          className="absolute left-0 top-0 will-change-transform"
-          style={{
-            width: narrow ? 3.5 : 4.5,
-            height: narrow ? 3.5 : 4.5,
-            borderRadius: '9999px',
-            background: '#DCEEFF',
-            boxShadow: '0 0 6px 2px rgba(0,137,255,0.85), 0 0 18px 7px rgba(0,137,255,0.4)',
-            opacity: 0,
-          }}
-        />
-      )}
     </div>
   )
 }

@@ -52,8 +52,9 @@
      content without any negative z-index anywhere.
 
        0  atmosphere (fixed gradient field)
-       1  flow thread + cursor trail canvas   <- decorative background
+       1  flow thread                         <- decorative background
       10  route content (isolated)            <- text, media, forms, controls
+      45  cursor trail canvas                  <- above media, under navbar
       50  navbar
       60  film grain
       70  cursor glyph
@@ -63,6 +64,7 @@
   --z-atmosphere: 0;
   --z-thread: 1;
   --z-content: 10;
+  --z-trail: 45;
   --z-nav: 50;
   --z-grain: 60;
   --z-cursor: 70;
@@ -158,12 +160,8 @@ html[data-signal-cursor='true'] select {
   scale: 1;
 }
 
-/* Fixed background texture. Nothing hides or animates it — the pointer-driven
-   contour field that used to fade it out has been removed. */
-.static-contour-field {
-  opacity: 0.24;
-}
-[data-text-layer-active='true'] {
+[data-text-layer-active='true'],
+[data-media-layer-active='true'] {
   will-change: transform;
 }
 /* Inside the hero's water surface the native cursor takes over.
@@ -172,7 +170,8 @@ html[data-signal-cursor='true'] select {
    a pointer. `HeroRippleBackground` sets the attribute while the pointer is
    within the canvas; everywhere else on the site the custom cursor is
    unchanged. */
-html[data-hero-surface='true'] [data-signal-cursor] {
+html[data-hero-surface='true'] [data-signal-cursor],
+html[data-hero-surface='true'] [data-cursor-trail] {
   opacity: 0 !important;
 }
 html[data-hero-surface='true'][data-signal-cursor='true'] body,
@@ -186,7 +185,8 @@ html[data-hero-surface='true'][data-signal-cursor='true'] [role='button'] {
    z-cursor 70). Without a native-cursor handoff the pointer disappears —
    `cursor: none` stays on, and the custom glyph is painted under the dialog.
    `MediaLightbox` sets this attribute for the open duration. */
-html[data-modal-surface='true'] [data-signal-cursor] {
+html[data-modal-surface='true'] [data-signal-cursor],
+html[data-modal-surface='true'] [data-cursor-trail] {
   opacity: 0 !important;
 }
 html[data-modal-surface='true'][data-signal-cursor='true'] body,
@@ -209,21 +209,50 @@ html[data-modal-surface='true'][data-signal-cursor='true'] [role='button'] {
 }
 
 /* ============================================================
-   Hero title — live HTML, Bebas Neue, vertical tone transition
-   (spec §6: 400 weight, ~82–92vw, lh 0.78–0.84, no chrome/bevel)
+   Hero title — live HTML, Satoshi 700
+
+   Satoshi, not Bebas: the wordmark is "Cineheight", and the bundled
+   Bebas Neue has no true lowercase (i/I are the same glyph, same advance,
+   same ascent — measured, not assumed). The lowercase `i` matters because
+   its tittle-over-stem is what lets the two `i`s read as two figures for
+   the handshake. Satoshi is also the site's `font-display`, so the hero
+   now shares the display face rather than standing apart from it.
+
+   ── DO NOT reintroduce the gradient / background-clip: text ──
+   The wordmark used to be painted by a clipped linear-gradient. That
+   mechanism broke glyph rendering TWICE:
+
+     1. It sheared the bottom off the `g`. With `background-clip: text` and
+        `color: transparent` the glyphs are painted BY the background, and
+        the background positioning area is the element's box — so any ink
+        outside that box has nothing to paint with and vanishes. At 147.2px
+        Satoshi needs 184px of ink height; the box was 140px.
+     2. It dropped the left `i`'s tittle during the scroll. Both chars were
+        measured as identical in the DOM — same rect, opacity, visibility,
+        transform, origin — so it was a paint failure, not a state one. A
+        small detached mark is exactly what this mechanism loses.
+
+   A solid colour has neither failure mode, and the gradient it replaces was
+   a ~12% tonal shift that the animated bloom behind largely swamped anyway.
+
+   `text-rendering: optimizeSpeed` went with it: it only ever existed to
+   speed up an all-caps Bebas wordmark, and it disables subpixel glyph
+   positioning — actively harmful for a lowercase face scaled to ~2.4x, and
+   the likeliest reason the tittle survived at one sub-pixel offset and not
+   the other.
+
+   `line-height: 1.32` is no longer a correctness constraint (nothing is
+   clipped to the box now), but every runtime measurement derives from it
+   via `baselineFromCharTop`, so it stays.
    ============================================================ */
 .hero-title {
-  font-family: var(--font-bebas), 'League Gothic', 'Arial Narrow', sans-serif;
-  font-weight: 400;
-  line-height: 0.8;
-  letter-spacing: 0.012em;
-  background-image: linear-gradient(to bottom, #f5f7fa 42%, #dde2e8 74%, #b8bfc9 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-family: var(--font-satoshi), system-ui, sans-serif;
+  font-weight: 700;
+  line-height: 1.32;
+  letter-spacing: -0.02em;
+  color: var(--text-100);
   user-select: none;
   font-kerning: none;
-  text-rendering: optimizeSpeed;
   /* Hidden until GSAP Domino Fall; inline autoAlpha then owns visibility */
   opacity: 0;
 }
@@ -234,107 +263,26 @@ html[data-modal-surface='true'][data-signal-cursor='true'] [role='button'] {
   font: inherit;
   letter-spacing: inherit;
   line-height: inherit;
-  background-image: linear-gradient(to bottom, #f5f7fa 42%, #dde2e8 74%, #b8bfc9 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: inherit;
 }
 
-/* NOTE: the hero-v2 cloud compositing helpers (.cloud-screen mix-blend + the
-   .mask-group-* / .mask-center-soft / .mask-haze radial masks) were removed in
-   the hero-v3 pass. v3/v4 clouds carry true baked alpha (see HERO-CLOUD-SYSTEM.md),
-   so they composite normally with no screen-blend and no radial masks — which
-   is exactly what eliminated the visible plate/pedestal look.
-
-   That "no straight edges" guarantee is a property of the ASSETS, not of any CSS
-   here, so nothing in this file can enforce it — and hero-v4 did regress: a
-   `trim()` in the asset pipeline cropped cloud-haze-band straight through the
-   wisp, leaving a hard edge that drifted across the hero. It is enforced at
-   build time now: scripts/lib/cloud-alpha.mjs ramps every border to alpha 0 and
-   both asset scripts ASSERT it. Do not add a CSS mask to compensate for an
-   asset-level edge — fixing it in the pipeline is what keeps the clouds
-   compositing normally. */
-
-/* Cinematic hero-v5 recomposition — four depth planes:
-   far accent (center asset, small/high/dim) → mid side streaks → title → foreground bank.
-   Depth rule: far = smaller, dimmer, more blur; near = larger, brighter, sharper. */
-.hero-cloud-stage {
+/* Hero stage — the sticky viewport-height stack (Vanta birds / cloud plates
+   have both been retired; see docs/HERO-CLOUD-SYSTEM.md). Kept as its own
+   rule because it still needs its own stacking context for the signal grid,
+   wordmark and handshake layers to composite against. */
+.hero-stage {
   isolation: isolate;
 }
 
-.hero-cloud-plate {
-  pointer-events: none;
-  user-select: none;
-  position: absolute;
-  opacity: 0.8;
-}
-
-.hero-cloud-plate img {
+/* Handshake hands — geometric rounded-rect shapes, same gradient fill as
+   .hero-title so they read as the same material as the letters. --hand-rim
+   (0 → 1, set by HeroIntroSequence's timeline at contact) drives a blue
+   bloom timed with the grid's contact pulse (lib/heroSignalPulse.ts). */
+.hero-hand-svg {
   display: block;
-  width: 100%;
-  height: auto;
-  object-fit: contain;
-  transform-origin: center;
-}
-
-/* Far accent — distant cloud high in the frame, offset right of center */
-.hero-cloud-center {
-  left: 73%;
-  top: 32%;
-  width: clamp(343px, 31.2vw, 593px);
-  transform: translate(-50%, -50%);
-  opacity: 0.6;
-}
-
-/* Mid plane, left edge — shifted +10vw right, +20% down from prior spot */
-.hero-cloud-left {
-  left: 6vw;
-  top: 60%;
-  width: clamp(468px, 39vw, 728px);
-  transform: translateY(-50%) rotate(-2deg);
-}
-
-/* Mid plane, right edge — shifted 15vw left, 3% down from prior spot */
-.hero-cloud-right {
-  right: 17vw;
-  top: 62%;
-  width: clamp(520px, 42.9vw, 806px);
-  transform: translateY(-50%) rotate(1.5deg) scale(0.97);
-}
-
-/* Tablet — far accent and right streak off; left streak carries the mood */
-@media (max-width: 1023px) {
-  .hero-cloud-center,
-  .hero-cloud-right {
-    display: none;
-  }
-
-  .hero-cloud-left {
-    top: 62%;
-    width: clamp(390px, 41.6vw, 624px);
-  }
-}
-
-/* Mobile — faint far accent only; sides off */
-@media (max-width: 767px) {
-  .hero-cloud-left,
-  .hero-cloud-right {
-    display: none !important;
-  }
-
-  .hero-cloud-center {
-    display: block;
-    left: 60%;
-    top: 24%;
-    width: clamp(265px, 65.5vw, 468px);
-  }
-}
-
-/* Short laptops */
-@media (min-width: 1280px) and (max-width: 1439px) {
-  .hero-cloud-center {
-    width: clamp(312px, 28.1vw, 499px);
-  }
+  filter: drop-shadow(
+    0 0 calc(var(--hand-rim, 0) * 10px) rgba(0, 137, 255, calc(var(--hand-rim, 0) * 0.5))
+  );
 }
 
 /* Film grain — inline SVG turbulence, extremely low opacity */
@@ -645,6 +593,86 @@ html[data-modal-surface='true'][data-signal-cursor='true'] [role='button'] {
   }
 }
 
+/* ============================================================
+   Home "Selected Work" — supercharged inline CTA
+
+   No side panel — this button carries all the emphasis itself. The ambient
+   pulse above ([data-work-cta]) is reused as-is; this adds a self-targeting
+   hover/focus pause+glow (the /work version only handles the ancestor
+   `.group` case, but here [data-work-cta] IS the interactive element) plus a
+   radial fill that grows from wherever the pointer entered — [data-cta-fill]
+   is clipped to a circle whose center tracks --mx/--my, written straight to
+   the DOM on pointermove (see CaseStudyCtaPanel.tsx).
+   ============================================================ */
+[data-work-cta]:hover,
+[data-work-cta]:focus-visible {
+  animation-play-state: paused;
+  box-shadow: 0 0 22px -6px rgba(0, 137, 255, 0.55);
+}
+[data-cta-fill] {
+  background: var(--blue-500);
+  clip-path: circle(0% at var(--mx, 50%) var(--my, 50%));
+  transition: clip-path 550ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+[data-work-cta]:hover [data-cta-fill],
+[data-work-cta]:focus-visible [data-cta-fill] {
+  clip-path: circle(140% at var(--mx, 50%) var(--my, 50%));
+}
+[data-cta-label] {
+  transition: color 300ms ease;
+}
+[data-work-cta]:hover [data-cta-label],
+[data-work-cta]:focus-visible [data-cta-label] {
+  color: var(--bg-950);
+}
+
+/* This is the only highlight mechanism on the page now (no side panel), so
+   it needs to read as more urgent than /work's calmer 7s pulse — faster
+   cycle, a scale "breath" alongside the glow, and a light sweep across the
+   surface. Scoped to #work so /work's own rhythm stays untouched. */
+#work [data-work-cta] {
+  animation: cta-pulse-strong 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+#work [data-work-cta-arrow] {
+  animation: cta-arrow-strong 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+[data-cta-shimmer] {
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.4) 50%, transparent 65%);
+  transform: translateX(-140%);
+  animation: cta-shimmer-sweep 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+#work [data-work-cta]:hover [data-cta-shimmer],
+#work [data-work-cta]:focus-visible [data-cta-shimmer] {
+  animation-play-state: paused;
+  opacity: 0;
+}
+
+@keyframes cta-pulse-strong {
+  0%, 68%, 100% { box-shadow: 0 0 0 0 rgba(0, 137, 255, 0); transform: scale(1); }
+  78% { box-shadow: 0 0 26px -4px rgba(0, 137, 255, 0.65); transform: scale(1.035); }
+  90% { box-shadow: 0 0 0 0 rgba(0, 137, 255, 0); transform: scale(1); }
+}
+@keyframes cta-arrow-strong {
+  0%, 68%, 100% { transform: translateX(0); }
+  78% { transform: translateX(6px); }
+  90% { transform: translateX(0); }
+}
+@keyframes cta-shimmer-sweep {
+  0%, 68% { transform: translateX(-140%); }
+  82%, 100% { transform: translateX(140%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-cta-shimmer] {
+    animation: none !important;
+    opacity: 0;
+  }
+  [data-cta-fill] {
+    transition-duration: 160ms;
+  }
+}
+
 /* The showreel's single centre control. It recedes once the film is genuinely
    playing with sound, and comes back in full whenever the pointer or the
    keyboard reaches it — so pausing is always one obvious gesture away. */
@@ -798,6 +826,14 @@ html[data-modal-surface='true'][data-signal-cursor='true'] [role='button'] {
   :root {
     --display-scale: 1;
     --scene-gap: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --scene-gap: 0.78;
+    --motion-state-duration: 160ms;
+    --motion-focus-duration: 180ms;
+    --motion-max-travel: 4px;
   }
 }
 

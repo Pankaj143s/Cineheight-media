@@ -14,10 +14,9 @@ export type RippleTier = 'high' | 'balanced' | 'compact'
  * The hero ripple's own capability gate.
  *
  * It cannot reuse `useCanRunRichEffects()`: that is driven by
- * `useMotionCapabilityProfile()`, which reports `'static'` for any coarse
- * pointer or viewport under 1024px — correct for a mouse-follower, wrong here,
- * because the water surface is meant to run on phones too (with automatic and
- * touch-triggered ripples rather than pointer-tracked ones).
+ * `useMotionCapabilityProfile()` now reports rendering cost only. Layout,
+ * pointer capability and reduced motion remain separate decisions so phones
+ * can retain compact touch-triggered ripples and scroll choreography.
  *
  * Returns `null` until it is BOTH safe and worthwhile to fetch the WebGL chunk:
  *
@@ -53,7 +52,5 @@ export function useRippleTier(): RippleTier | null {
 
   if (!ready || reduced) return null
   if (mobile || narrow) return 'compact'
-  // On a wide, fine-pointer viewport a 'static' profile means low cores/memory
-  // or save-data — not touch — so it maps to the cheapest live tier.
   return profile.level === 'high' ? 'high' : profile.level === 'balanced' ? 'balanced' : 'compact'
 }

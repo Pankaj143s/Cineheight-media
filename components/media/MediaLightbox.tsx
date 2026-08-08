@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { gsap } from '@/lib/gsap'
 import { GSAP_EASE } from '@/lib/motionTokens'
@@ -27,6 +27,10 @@ type MorphOrigin = {
 const CARD_RADIUS = 18
 const SHADOW_CARD = '0 22px 48px -12px rgba(0,0,0,0.55)'
 const SHADOW_STUDIO = '0 40px 90px -20px rgba(0,0,0,0.78), 0 0 80px -30px rgba(0,137,255,0.18)'
+
+const subscribeClientBody = () => () => {}
+const getClientBody = () => document.body
+const getServerBody = () => null
 
 /** FLIP origin from the clicked card to the expected full-size media box. */
 function originFromRect(rect: DOMRect): MorphOrigin {
@@ -93,20 +97,14 @@ export default function MediaLightbox({
   const [muted, setMuted] = useState(true)
   useReportVideoAudible(!muted, 'lightbox')
 
-  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null)
+  const portalHost = useSyncExternalStore<HTMLElement | null>(
+    subscribeClientBody,
+    getClientBody,
+    getServerBody
+  )
 
   const open = index !== null || exiting
-  const lastItemRef = useRef<LightboxItem | null>(null)
-  if (index !== null && items[index]) lastItemRef.current = items[index]
-  const displayItem = index !== null ? items[index] : lastItemRef.current
-
-  if (index !== null && sourceRect && !reduced && !exiting) {
-    morphOriginRef.current = originFromRect(sourceRect)
-  }
-
-  useEffect(() => {
-    setPortalHost(document.body)
-  }, [])
+  const displayItem = index !== null ? items[index] : null
 
   // Hand the pointer back to the native cursor while the dialog covers the
   // signal-cursor layer (see `data-modal-surface` in globals.css).
@@ -126,6 +124,8 @@ export default function MediaLightbox({
       return
     }
     if (exiting || bloomedOpenRef.current) return
+
+    morphOriginRef.current = sourceRect && !reduced ? originFromRect(sourceRect) : null
 
     let cancelled = false
     bloomedOpenRef.current = true
@@ -214,6 +214,12 @@ export default function MediaLightbox({
     }
   }, [])
 
+  const finishClose = useCallback(() => {
+    setPlaying(true)
+    setMuted(true)
+    onClose()
+  }, [onClose])
+
   const requestClose = useCallback(() => {
     const shell = mediaShellRef.current
     const backdrop = backdropRef.current
@@ -225,7 +231,7 @@ export default function MediaLightbox({
       bloomTlRef.current?.kill()
       morphOriginRef.current = null
       setExiting(false)
-      onClose()
+      finishClose()
       return
     }
 
@@ -237,7 +243,7 @@ export default function MediaLightbox({
       onComplete: () => {
         morphOriginRef.current = null
         setExiting(false)
-        onClose()
+        finishClose()
       },
     })
     bloomTlRef.current = tl
@@ -260,7 +266,7 @@ export default function MediaLightbox({
       0.08
     )
     tl.to(backdrop, { opacity: 0, duration: 0.38, ease: 'power2.in' }, 0.22)
-  }, [onClose, reduced])
+  }, [finishClose, reduced])
 
   const move = useCallback(
     (dir: 1 | -1) => {
@@ -271,8 +277,17 @@ export default function MediaLightbox({
   )
 
   useEffect(() => {
-    if (index !== null) restoreRef.current = document.activeElement as HTMLElement
-    else if (!exiting) restoreRef.current?.focus?.()
+    if (index !== null) {
+      if (!exiting && !restoreRef.current) {
+        restoreRef.current = document.activeElement as HTMLElement
+      }
+      return
+    }
+    if (!exiting) {
+      const restoreTarget = restoreRef.current
+      restoreRef.current = null
+      restoreTarget?.focus?.()
+    }
   }, [index, exiting])
 
   useEffect(() => {
@@ -302,6 +317,7 @@ export default function MediaLightbox({
     if (index === null && !exiting) return
     closeRef.current?.focus()
     const onKey = (e: KeyboardEvent) => {
+      if (exiting) return
       if (e.key === 'Escape') {
         e.preventDefault()
         requestClose()
@@ -338,13 +354,6 @@ export default function MediaLightbox({
     if (playing) v.play().catch(() => {})
     else v.pause()
   }, [displayItem, playing, muted])
-
-  useEffect(() => {
-    if (index === null && !exiting) {
-      setPlaying(true)
-      setMuted(true)
-    }
-  }, [index, exiting])
 
   if (!portalHost) return null
 

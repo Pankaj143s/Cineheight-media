@@ -1,6 +1,7 @@
 'use client'
 
 import { forwardRef, useMemo } from 'react'
+import Image from 'next/image'
 import { formatCount, socialMetrics } from '@/lib/utils'
 
 /**
@@ -165,15 +166,17 @@ const PhoneReelShell = forwardRef<HTMLVideoElement, {
           <>
             {/* Square-source fallback: blurred fill so nothing is cropped and
                 no band is empty. Used when no portrait master exists. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src={item.poster}
               alt=""
               aria-hidden="true"
               draggable={false}
-              className="absolute inset-0 h-full w-full object-cover"
+              fill
+              sizes="96px"
+              quality={35}
+              data-media-backdrop="phone"
+              className="object-cover"
               style={{ transform: 'scale(1.08)', filter: 'blur(26px) brightness(0.45) saturate(1.1)' }}
-              loading="lazy"
             />
 
             {/* the sharp 1:1 client footage, uncropped and centred. Poster and

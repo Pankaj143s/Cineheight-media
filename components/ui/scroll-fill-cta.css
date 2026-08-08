@@ -1,0 +1,92 @@
+/* Scroll fills blue; hover = soft glow. No gradient. */
+
+[data-scroll-fill] {
+  --fill: var(--cta-expand, var(--local-fill, 0));
+  border-radius: 2px;
+  border: none;
+  background: rgba(2, 3, 6, 0.35);
+  color: #fff;
+  overflow: hidden;
+  isolation: isolate;
+  transition: box-shadow 380ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-scroll-fill-bg] {
+  z-index: 0;
+  background: var(--blue-500, #0089ff);
+  transform: scaleX(var(--fill));
+  transform-origin: left center;
+  will-change: transform;
+}
+
+[data-scroll-fill-arrow] {
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Nav CTAs: full blue at rest (no section scrub) */
+[data-scroll-fill][data-fill-mode='hover'] {
+  --fill: 1;
+}
+
+/* Bordered, translucent at rest — fills only on a real hover/focus, same
+   scaleX transform and glow as every other mode, just not pre-filled. Cuts
+   visual weight where a permanently-solid block reads too heavy next to
+   flat text (the navbar). */
+[data-scroll-fill][data-fill-mode='outline'] {
+  --fill: 0;
+  background: rgba(2, 3, 6, 0.4);
+  border: 1px solid var(--blue-alpha-40);
+}
+[data-scroll-fill][data-fill-mode='outline']:hover,
+[data-scroll-fill][data-fill-mode='outline']:focus-visible {
+  --fill: 1;
+}
+
+[data-scroll-fill]:hover,
+[data-scroll-fill]:focus-visible {
+  color: #fff;
+  box-shadow:
+    0 0 0 1px rgba(0, 137, 255, 0.35),
+    0 0 22px 2px rgba(0, 137, 255, 0.45),
+    0 0 48px -4px rgba(0, 137, 255, 0.35);
+}
+
+[data-scroll-fill]:hover [data-scroll-fill-arrow],
+[data-scroll-fill]:focus-visible [data-scroll-fill-arrow] {
+  transform: translateX(5px);
+}
+
+[data-scroll-fill]:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 4px;
+}
+
+[data-scroll-fill]:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+[data-scroll-fill]:disabled:hover,
+[data-scroll-fill]:disabled:focus-visible {
+  box-shadow: none;
+}
+
+[data-scroll-fill]:disabled:hover [data-scroll-fill-arrow],
+[data-scroll-fill]:disabled:focus-visible [data-scroll-fill-arrow] {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-scroll-fill] {
+    --fill: 1;
+    color: #fff;
+    transition: none !important;
+  }
+  [data-scroll-fill-bg] {
+    transform: scaleX(1) !important;
+  }
+  [data-scroll-fill-arrow] {
+    transition: none !important;
+    transform: none !important;
+  }
+}

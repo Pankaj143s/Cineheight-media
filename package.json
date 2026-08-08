@@ -2,11 +2,15 @@
   "name": "cineheight-single-flow-v2",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "next build",
     "start": "next start -p 3100",
     "lint": "eslint .",
+    "media:featured": "node scripts/build-featured-responsive-assets.mjs",
+    "clouds:responsive": "node scripts/build-hero-cloud-responsive.mjs",
+    "showreel:variants": "node scripts/build-showreel-variants.mjs",
     "clouds:repair": "node scripts/repair-hero-clouds.mjs",
     "clouds:v5": "node scripts/process-hero-clouds-v5.mjs"
   },

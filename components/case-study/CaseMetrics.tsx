@@ -112,16 +112,25 @@ export default function CaseMetrics({
     if (reduced) return
     const ctx = gsap.context((self) => {
       const dominant = self.selector!('[data-dominant]')[0]
-      if (dominant && !mobile) {
+      if (dominant) {
         gsap.fromTo(
           dominant,
-          { scale: 0.86, yPercent: 10, autoAlpha: 0.4 },
+          {
+            scale: mobile ? 0.94 : 0.86,
+            yPercent: mobile ? 4 : 10,
+            autoAlpha: mobile ? 0.68 : 0.4,
+          },
           {
             scale: 1,
-            yPercent: -4,
+            yPercent: mobile ? -1 : -4,
             autoAlpha: 1,
             ease: 'none',
-            scrollTrigger: { trigger: dominant, start: 'top 92%', end: 'bottom 40%', scrub: 0.7 },
+            scrollTrigger: {
+              trigger: dominant,
+              start: 'top 92%',
+              end: mobile ? 'bottom 58%' : 'bottom 40%',
+              scrub: 0.7,
+            },
           }
         )
       }
@@ -141,7 +150,7 @@ export default function CaseMetrics({
       if (supporting.length) {
         gsap.fromTo(
           supporting,
-          { autoAlpha: 0, y: 24 },
+          { autoAlpha: mobile ? 0.62 : 0, y: mobile ? 14 : 24 },
           {
             autoAlpha: 1,
             y: 0,

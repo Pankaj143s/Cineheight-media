@@ -1,13 +1,15 @@
 'use client'
 
 import { useEffect } from 'react'
+import { gsap } from './gsap'
 import { clamp } from './utils'
 import { useReducedMotion } from './useMediaPreferences'
 import { readScrollSignal, subscribeScrollSignal } from './scrollSignal'
+import { subscribeBodyResize } from './bodyResizeSignal'
 
 const BASE_PX = 150
 const SELECTOR =
-  '[data-parallax-y], [data-parallax-x], [data-parallax-scale], [data-depth-layer]'
+  '[data-parallax-y], [data-parallax-x], [data-parallax-scale], [data-parallax-mobile-y], [data-parallax-mobile-x], [data-parallax-mobile-scale], [data-depth-layer]'
 const AUTO_SELECTOR = 'main h1, main h2, main figure, main [data-scene-media], main [data-open-media]'
 
 /**
@@ -36,6 +38,10 @@ interface ParallaxItem {
   y: number
   x: number
   scale: number
+  mobileY: number
+  mobileX: number
+  mobileScale: number
+  mobileDisable: boolean
   auto: boolean
   centerY: number
   currentX: number
@@ -76,6 +82,10 @@ export function useParallaxField(): void {
         y,
         x,
         scale,
+        mobileY: Number(el.dataset.parallaxMobileY ?? y * 0.6),
+        mobileX: Number(el.dataset.parallaxMobileX ?? 0),
+        mobileScale: Number(el.dataset.parallaxMobileScale ?? scale * 0.65),
+        mobileDisable: el.hasAttribute('data-parallax-mobile-disable'),
         auto,
         centerY: rect.top + readScrollSignal().y + rect.height / 2,
         currentX: 0,
@@ -132,30 +142,38 @@ export function useParallaxField(): void {
       }
     }
 
-    let raf = 0
     let running = false
     let visible = !document.hidden
-    let last = performance.now()
-    const mobileQuery = window.matchMedia('(max-width: 767px), (pointer: coarse)')
+    const mobileQuery = window.matchMedia('(max-width: 767px)')
 
     const updateTargets = () => {
       const vh = window.innerHeight || 1
       const mobile = mobileQuery.matches
-      const amplitude = mobile ? 0.4 : 1
       const scrollY = readScrollSignal().y
 
       for (const item of items) {
         const progress =
           clamp((vh - (item.centerY - scrollY)) / vh - 0.5, -0.75, 0.75) * 1.33
-        item.targetX = mobile ? 0 : progress * item.x * BASE_PX
-        item.targetY = progress * item.y * BASE_PX * amplitude
-        item.targetScale = mobile ? 1 : 1 + progress * item.scale
+        if (mobile && item.mobileDisable) {
+          item.targetX = 0
+          item.targetY = 0
+          item.targetScale = 1
+          continue
+        }
+        const x = mobile ? item.mobileX : item.x
+        const y = mobile ? item.mobileY : item.y
+        const scale = mobile ? item.mobileScale : item.scale
+        item.targetX = progress * x * BASE_PX
+        item.targetY = progress * y * BASE_PX
+        item.targetScale = 1 + progress * scale
       }
     }
 
-    const frame = (now: number) => {
-      const dt = Math.min(50, now - last || 16.7)
-      last = now
+    // On the shared gsap.ticker rather than its own requestAnimationFrame, so
+    // this settles on exactly the same clock as Lenis/ScrollTrigger instead of
+    // stacking a second, independently-timed rAF loop on top.
+    const frame = (_time: number, deltaMs: number) => {
+      const dt = Math.min(50, deltaMs || 16.7)
       const factor = 1 - Math.exp(-dt / 105)
       let unsettled = false
       for (const item of items) {
@@ -165,18 +183,22 @@ export function useParallaxField(): void {
         item.el.style.setProperty('--parallax-x', `${item.currentX.toFixed(2)}px`)
         item.el.style.setProperty('--parallax-y', `${item.currentY.toFixed(2)}px`)
         item.el.style.setProperty('--parallax-scale', item.currentScale.toFixed(4))
-        unsettled ||= Math.abs(item.targetY - item.currentY) > 0.03
+        unsettled ||=
+          Math.abs(item.targetX - item.currentX) > 0.03 ||
+          Math.abs(item.targetY - item.currentY) > 0.03 ||
+          Math.abs(item.targetScale - item.currentScale) > 0.0001
       }
-      if (unsettled && visible) raf = requestAnimationFrame(frame)
-      else running = false
+      if (!(unsettled && visible)) {
+        gsap.ticker.remove(frame)
+        running = false
+      }
     }
 
     const schedule = () => {
       updateTargets()
       if (running || !visible) return
       running = true
-      last = performance.now()
-      raf = requestAnimationFrame(frame)
+      gsap.ticker.add(frame)
     }
 
     const onResize = () => {
@@ -187,15 +209,15 @@ export function useParallaxField(): void {
       items = collect()
       schedule()
     })
-    const resizeObserver = new ResizeObserver(() => {
+    const onBodyResize = () => {
       items = collect()
       schedule()
-    })
+    }
     const onVisibility = () => {
       visible = !document.hidden
       if (visible) schedule()
       else {
-        cancelAnimationFrame(raf)
+        gsap.ticker.remove(frame)
         running = false
       }
     }
@@ -207,15 +229,15 @@ export function useParallaxField(): void {
     mobileQuery.addEventListener('change', onResize)
     document.addEventListener('visibilitychange', onVisibility)
     observer.observe(document.body, { childList: true, subtree: true })
-    resizeObserver.observe(document.body)
+    const unsubscribeBodyResize = subscribeBodyResize(onBodyResize)
     return () => {
-      cancelAnimationFrame(raf)
+      gsap.ticker.remove(frame)
       unsubscribe()
       window.removeEventListener('resize', onResize)
       mobileQuery.removeEventListener('change', onResize)
       document.removeEventListener('visibilitychange', onVisibility)
       observer.disconnect()
-      resizeObserver.disconnect()
+      unsubscribeBodyResize()
       reset(items)
       for (const item of items) {
         if (item.auto) delete item.el.dataset.parallaxAuto

@@ -41,21 +41,38 @@ export default function NextProject({ next }: { next: CaseStudy }) {
     if (reduced) return
     const ctx = gsap.context((self) => {
       const inner = self.selector!('[data-next-inner]')[0]
+      const accent = self.selector!('[data-next-accent]')[0]
+      const copy = self.selector!('[data-next-copy]')[0]
       if (inner) {
         gsap.fromTo(
           inner,
-          { yPercent: -9, scale: 1.1 },
+          { yPercent: mobile ? -4 : -9, scale: mobile ? 1.055 : 1.1 },
           {
-            yPercent: 6,
+            yPercent: mobile ? 3 : 6,
             scale: 1,
             ease: 'none',
             scrollTrigger: { trigger: rootRef.current, start: 'top bottom', end: 'bottom bottom', scrub: 1 },
           }
         )
       }
+      if (accent && mobile) {
+        gsap.fromTo(accent, { autoAlpha: 0 }, {
+          autoAlpha: 0.72,
+          ease: 'none',
+          scrollTrigger: { trigger: rootRef.current, start: 'top 92%', end: 'top 38%', scrub: 0.8 },
+        })
+      }
+      if (copy && mobile) {
+        gsap.fromTo(copy, { autoAlpha: 0.62, y: 18 }, {
+          autoAlpha: 1,
+          y: 0,
+          ease: 'none',
+          scrollTrigger: { trigger: rootRef.current, start: 'top 82%', end: 'top 42%', scrub: 0.8 },
+        })
+      }
     }, rootRef)
     return () => ctx.revert()
-  }, [reduced])
+  }, [reduced, mobile])
 
   useEffect(() => {
     if (!rich) return
@@ -156,13 +173,14 @@ export default function NextProject({ next }: { next: CaseStudy }) {
           />
           {/* the next project's accent, warming toward the pointer */}
           <div
+            data-next-accent
             aria-hidden="true"
             className="absolute inset-0 opacity-0 transition-opacity duration-700 group-hover:opacity-100"
             style={{ background: `radial-gradient(ellipse 40% 60% at var(--mx) 50%, ${next.accentColor}33, transparent 70%)` }}
           />
         </div>
 
-        <div data-depth-layer="front" className="flow-gutter absolute inset-x-0 bottom-0 pb-[7vh]">
+        <div data-next-copy data-depth-layer="front" className="flow-gutter absolute inset-x-0 bottom-0 pb-[7vh]">
           <KineticLabel text="NEXT PROJECT" color="var(--text-500)" />
           {/* Bounded so a long client name wraps inside the darkened column
               instead of running across the artwork to the right edge. */}
@@ -187,6 +205,12 @@ export default function NextProject({ next }: { next: CaseStudy }) {
               className="h-px transition-all duration-500 group-hover:w-28"
               style={{ width: 56, background: next.accentColor }}
             />
+            <span
+              className="font-display inline-flex min-h-11 items-center text-[11px] font-medium uppercase text-text-100"
+              style={{ letterSpacing: '0.22em' }}
+            >
+              View case study
+            </span>
           </div>
         </div>
       </Link>

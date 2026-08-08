@@ -289,7 +289,7 @@ export default function CursorTrail() {
         data-cursor-trail
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 max-w-full"
-        style={{ zIndex: 'var(--z-thread)' }}
+        style={{ zIndex: 'var(--z-trail)' }}
       />
       {/*
         The cursor's parts are centred on a zero-size origin box placed exactly

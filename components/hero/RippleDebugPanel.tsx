@@ -82,6 +82,7 @@ export default function RippleDebugPanel() {
         zIndex: 'var(--z-modal)',
         background: 'rgba(4,6,10,0.92)',
         border: '1px solid rgba(255,255,255,0.16)',
+        WebkitBackdropFilter: 'blur(6px)',
         backdropFilter: 'blur(6px)',
       }}
     >

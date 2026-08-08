@@ -1,19 +1,20 @@
 'use client'
 
 import { useLayoutEffect, useRef } from 'react'
-import { gsap } from '@/lib/gsap'
+import { gsap, ScrollTrigger } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { useReducedMotionState } from '@/lib/useMediaPreferences'
-import { SCRUB, TRIGGER } from '@/lib/motionTokens'
 
 /**
- * Counts to a verified figure scrubbed to scroll (or driven by `active`).
+ * Counts to a verified figure in a bounded viewport-triggered interval (or
+ * driven by `active`).
  *
  * Screen readers get the final value immediately via the `sr-only` span.
  * Reduced-motion users see the authored figure with no animation.
  *
  * Two modes:
- *  - **Self-scrubbing** (default). ScrollTrigger maps viewport travel → value.
+ *  - **Self-triggered** (default). A short count begins once the metric is
+ *    readable and never rewinds to a contradictory zero.
  *  - **Externally driven** (`active` supplied). Rising edge counts 0 → value;
  *    deactivating holds the final figure (never rewinds to 0) so Featured Work
  *    handoffs don't flash a zero result on the outgoing scene.
@@ -41,7 +42,7 @@ export default function CountUp({
    * supply a boolean to drive count-up on activate / hold on deactivate.
    */
   active?: boolean
-  /** Kept for API compatibility — scrub always rewinds with scroll. */
+  /** Kept for API compatibility. */
   once?: boolean
   playKey?: string | number
 }) {
@@ -51,7 +52,7 @@ export default function CountUp({
   const numeric = Number(value)
   const animatable = Number.isFinite(numeric) && value.trim() !== ''
   const willAnimate = motionReady && animatable && !reduced
-  const externallyTriggered = useRef(active !== undefined).current
+  const externallyTriggered = active !== undefined
   const wasActiveRef = useRef(false)
   const proxyRef = useRef({ n: 0 })
 
@@ -66,8 +67,8 @@ export default function CountUp({
       if (ref.current) ref.current.textContent = value
       return
     }
-    // External mode starts at 0 until the first activate; self-scrub zeros
-    // only when still showing the authored SSR string.
+    // External mode starts at 0 until the first activate. Self-triggered
+    // metrics use a meaningful baseline so a readable card never says `0+`.
     if (externallyTriggered) {
       if (!wasActiveRef.current && !active && ref.current) {
         const decimals = (value.split('.')[1] ?? '').length
@@ -78,7 +79,10 @@ export default function CountUp({
     }
     if (ref.current && ref.current.textContent === value) {
       const decimals = (value.split('.')[1] ?? '').length
-      ref.current.textContent = (0).toFixed(decimals)
+      const minimum = decimals ? 1 / (10 ** decimals) : 1
+      const baseline = Math.min(numeric, Math.max(minimum, numeric * 0.18))
+      proxyRef.current.n = baseline
+      ref.current.textContent = baseline.toFixed(decimals)
     }
   }, [animatable, motionReady, reduced, value, externallyTriggered, active, numeric])
 
@@ -121,30 +125,31 @@ export default function CountUp({
       }
     }
 
-    proxy.n = 0
-    apply()
-
-    const tween = gsap.to(proxy, {
-      n: numeric,
-      ease: 'none',
-      scrollTrigger: {
-        trigger: root,
-        start: TRIGGER.headlineStart,
-        end: 'top 48%',
-        scrub: SCRUB.text,
+    const trigger = ScrollTrigger.create({
+      trigger: root,
+      start: 'top 82%',
+      once: true,
+      onEnter: () => {
+        gsap.killTweensOf(proxy)
+        gsap.to(proxy, {
+          n: numeric,
+          duration: Math.min(0.7, Math.max(0.45, duration / 1000)),
+          ease: 'power3.out',
+          onUpdate: apply,
+          onComplete: writeFinal,
+        })
       },
-      onUpdate: apply,
-      onComplete: writeFinal,
     })
 
     return () => {
-      tween.scrollTrigger?.kill()
-      tween.kill()
+      trigger.kill()
+      gsap.killTweensOf(proxy)
+      writeFinal()
     }
   }, [willAnimate, value, numeric, externallyTriggered, active, playKey, duration])
 
   return (
-    <span ref={rootRef} className={className} style={style}>
+    <span ref={rootRef} data-count-up={value} className={className} style={style}>
       <span className="sr-only">
         {prefix}
         {value}
