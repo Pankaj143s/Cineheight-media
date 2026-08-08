@@ -86,7 +86,7 @@ export default function ClientStories() {
             scale: 1,
             yPercent: mobile ? -1 : -1.5,
             ease: 'none',
-            scrollTrigger: { trigger: canvas, start: 'top 96%', end: 'bottom 28%', scrub: 0.9 },
+            scrollTrigger: { trigger: canvas, start: 'top 96%', end: 'bottom 28%', scrub: 0.8 },
           }
         )
       }
@@ -167,7 +167,7 @@ export default function ClientStories() {
         marginTop: mobile ? '-6svh' : 'calc(clamp(3.5rem, 10vh, 8rem) * var(--scene-gap))',
         paddingTop: mobile ? '10svh' : undefined,
         background: mobile
-          ? 'linear-gradient(to bottom, rgba(2,3,6,0) 0%, var(--bg-950) 10svh)'
+          ? 'linear-gradient(to bottom, rgba(2,3,6,0) 0%, rgba(2,3,6,0.82) 10svh)'
           : undefined,
       }}
     >
@@ -226,7 +226,6 @@ export default function ClientStories() {
             <div
               data-story-attribution
               className="flow-gutter pointer-events-none absolute inset-x-0 top-0 z-20 flex h-[4.5rem] flex-col justify-center"
-              style={{ background: 'var(--bg-950)' }}
             >
               <p
                 className="font-display text-[12px] font-medium uppercase text-text-100"

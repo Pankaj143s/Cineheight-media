@@ -38,15 +38,16 @@ export default function SmoothScrollProvider({ children }: { children: React.Rea
     }
 
     const lenis = new Lenis({
-      duration: 1.3,
-      // Gentle exponential ease-out — no overshoot, no rubber band.
-      easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      // Lerp mode rather than duration/easing — the scroll position chases the
+      // input every frame instead of running a fixed-length glide tween, so it
+      // tracks the wheel closely while still smoothing out the step.
+      lerp: 0.09,
+      smoothWheel: true,
       // Touch devices keep their native momentum; hijacking it feels wrong and
       // breaks pull-to-refresh.
-      smoothWheel: true,
       syncTouch: false,
       touchMultiplier: 1,
-      wheelMultiplier: 0.88,
+      wheelMultiplier: 1,
     })
 
     const onScroll = (state: Lenis) => {

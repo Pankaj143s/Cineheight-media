@@ -3,10 +3,11 @@
 import dynamic from 'next/dynamic'
 import { useEffect } from 'react'
 import { ScrollTrigger } from '@/lib/gsap'
-import { useCursorTrailEnabled } from '@/lib/useMediaPreferences'
+import { useCursorTrailEnabled, useReducedMotionState } from '@/lib/useMediaPreferences'
 import { useParallaxField } from '@/lib/useParallaxField'
 import AtmosphereLayer from './AtmosphereLayer'
 import FlowThread from './FlowThread'
+import HeroAuroraBloom from '@/components/hero/HeroAuroraBloom'
 
 // The cursor is desktop-only and purely decorative — keep it out of the initial
 // bundle and off the server render entirely. The capability gate is checked
@@ -22,9 +23,23 @@ const CursorTrail = dynamic(() => import('./CursorTrail'), { ssr: false })
  * Every component's own ScrollTriggers would otherwise each schedule their own
  * refresh after fonts and media load; centralising it here means one refresh
  * pass instead of a dozen competing ones.
+ *
+ * `background` picks the page-wide background layer: `'atmosphere'` (default)
+ * is the static gradient field every route already used. `'bloom'` swaps in
+ * the hero's interactive WebGL aurora, scoped page-wide (see
+ * HeroAuroraBloom's `scope` prop) — currently opted into by the homepage
+ * only. Reduced motion always falls back to the static atmosphere, since the
+ * bloom is never shown to those users regardless of route.
  */
-export default function FlowDirector({ accent }: { accent?: string }) {
+export default function FlowDirector({
+  accent,
+  background = 'atmosphere',
+}: {
+  accent?: string
+  background?: 'atmosphere' | 'bloom'
+}) {
   const cursor = useCursorTrailEnabled()
+  const { reduced, ready: reducedReady } = useReducedMotionState()
 
   useParallaxField()
 
@@ -104,7 +119,11 @@ export default function FlowDirector({ accent }: { accent?: string }) {
 
   return (
     <>
-      <AtmosphereLayer accent={accent} />
+      {background === 'bloom' && reducedReady && !reduced ? (
+        <HeroAuroraBloom scope="page" />
+      ) : (
+        <AtmosphereLayer accent={accent} />
+      )}
       {cursor && <CursorTrail />}
       <FlowThread />
     </>

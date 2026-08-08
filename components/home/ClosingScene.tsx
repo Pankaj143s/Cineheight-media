@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import { gsap } from '@/lib/gsap'
 import { useIsomorphicLayoutEffect } from '@/lib/useIsomorphicLayoutEffect'
 import { closing, contact } from '@/content/siteContent'
@@ -8,7 +8,7 @@ import ScrollHeadline from '@/components/motion/ScrollHeadline'
 import ProjectContactForm from '@/components/contact/ProjectContactForm'
 import AnimatedBrandSignature from '@/components/home/AnimatedBrandSignature'
 import Footer from '@/components/Footer'
-import { useCanRunRichEffects, useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
+import { useIsMobileTier, useReducedMotion } from '@/lib/useMediaPreferences'
 import { SCRUB } from '@/lib/motionTokens'
 
 /**
@@ -19,10 +19,8 @@ import { SCRUB } from '@/lib/motionTokens'
  */
 export default function ClosingScene() {
   const rootRef = useRef<HTMLElement>(null)
-  const lightRef = useRef<HTMLDivElement>(null)
   const reduced = useReducedMotion()
   const mobile = useIsMobileTier()
-  const rich = useCanRunRichEffects()
 
   useIsomorphicLayoutEffect(() => {
     if (reduced) return
@@ -84,29 +82,6 @@ export default function ClosingScene() {
     return () => ctx.revert()
   }, [reduced])
 
-  // A single soft light that follows the pointer across the closing field.
-  useEffect(() => {
-    if (!rich) return
-    const root = rootRef.current
-    const light = lightRef.current
-    if (!root || !light) return
-    const onMove = (e: PointerEvent) => {
-      const r = root.getBoundingClientRect()
-      light.style.setProperty('--cx', `${e.clientX - r.left}px`)
-      light.style.setProperty('--cy', `${e.clientY - r.top}px`)
-      light.style.opacity = '1'
-    }
-    const onLeave = () => {
-      light.style.opacity = '0'
-    }
-    root.addEventListener('pointermove', onMove)
-    root.addEventListener('pointerleave', onLeave)
-    return () => {
-      root.removeEventListener('pointermove', onMove)
-      root.removeEventListener('pointerleave', onLeave)
-    }
-  }, [rich])
-
   const channels = [
     { label: 'Email', value: contact.email, href: `mailto:${contact.email}` },
     { label: 'Phone', value: contact.phone, href: contact.phoneHref },
@@ -122,30 +97,17 @@ export default function ClosingScene() {
       /*
         Clip horizontally only. `overflow-hidden` also clipped the vertical
         axis, and since the closing headline is parallaxed upward inside this
-        box, its ascenders were being sliced off on shorter viewports. `clip`
-        on one axis still contains the decorative radial without cutting type.
+        box, its ascenders were being sliced off on shorter viewports.
       */
       className="relative z-10 overflow-x-clip"
       style={{
         marginTop: mobile ? '-7svh' : 'clamp(8rem, 20vh, 18rem)',
         paddingTop: mobile ? '12svh' : undefined,
         background: mobile
-          ? 'linear-gradient(to bottom, rgba(2,3,6,0) 0%, var(--bg-950) 12svh)'
+          ? 'linear-gradient(to bottom, rgba(2,3,6,0) 0%, rgba(2,3,6,0.82) 12svh)'
           : undefined,
       }}
     >
-      {rich && (
-        <div
-          ref={lightRef}
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 transition-opacity duration-500"
-          style={{
-            opacity: 0,
-            background: 'radial-gradient(circle 340px at var(--cx, 50%) var(--cy, 50%), rgba(0,137,255,0.09), transparent 70%)',
-          }}
-        />
-      )}
-
       <div className="flow-gutter relative">
         <div data-parallax-y="0.1">
           <ScrollHeadline

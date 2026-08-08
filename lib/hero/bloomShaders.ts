@@ -66,6 +66,10 @@ uniform float uPointerStrength;
 uniform float uProgress;
 /** Handshake contact ring, 1 -> 0 over its lifetime. */
 uniform float uPulse;
+/** Page-wide recede: 0 over the hero, ramping to 1 once the hero has
+    scrolled past — the single authority for dimming the field below the
+    hero (see main()). */
+uniform float uDim;
 
 // Brand blues. sRGB 0-1, composited without linearisation to match CSS.
 const vec3 BLUE_500 = vec3(0.0, 0.5372549, 1.0);       // #0089ff
@@ -159,9 +163,12 @@ void main() {
   }
 
   // Energy: the warped field carves the darker bands out of the bloom.
-  float energy = mask * (0.35 + 0.85 * f) + ptrFall * 0.28 + pulseRing;
-  // Hero exit — the bloom recedes as the statement takes over.
-  energy *= mix(1.0, 0.55, smoothstep(0.72, 1.0, uProgress));
+  // Page-wide recede once past the hero — the ambient field dims harder than
+  // the pointer response, so the mouse interaction stays visible against the
+  // darker field even deep into the page (net ≈35% overall at uDim = 1).
+  float dimBase = mix(1.0, 0.30, uDim);
+  float dimPtr  = mix(1.0, 0.55, uDim);
+  float energy = mask * (0.35 + 0.85 * f) * dimBase + ptrFall * 0.28 * dimPtr + pulseRing * dimBase;
   energy = max(energy, 0.0);
 
   vec3 col = mix(BLUE_700, BLUE_500, smoothstep(0.10, 0.55, energy));

@@ -6,8 +6,15 @@ import { useMotionCapabilityProfile } from '@/lib/useMediaPreferences'
 import { subscribeSignalPulse } from '@/lib/heroSignalPulse'
 import { subscribeHeroProgress } from '@/lib/heroProgress'
 import { DAMP } from '@/lib/motionTokens'
+import { clamp } from '@/lib/utils'
 import { detectCapabilities, createProgram, createQuad, type Program } from '@/lib/ripple/gl'
 import { BLOOM_VERT, BLOOM_FRAG } from '@/lib/hero/bloomShaders'
+
+/** GLSL-equivalent smoothstep, used to derive the page-wide dim from hero progress. */
+function smoothstep(edge0: number, edge1: number, x: number) {
+  const t = clamp((x - edge0) / (edge1 - edge0), 0, 1)
+  return t * t * (3 - 2 * t)
+}
 
 /**
  * The hero background — a large soft blue plasma on black with slow swirling
@@ -23,10 +30,17 @@ import { BLOOM_VERT, BLOOM_FRAG } from '@/lib/hero/bloomShaders'
  *
  * When no context comes back at all (`path === 'off'`) the component renders
  * nothing and the caller's CSS gradient fallback shows through.
+ *
+ * `scope` picks where this mounts: `'hero'` (default) is the original
+ * hero-local placement, absolutely positioned inside the hero's sticky
+ * stage. `'page'` mounts it as a page-wide fixed layer (see FlowDirector) —
+ * same shader, same pointer response, but sized to the viewport rather than
+ * its parent, and dimmed once hero scroll progress passes a threshold via
+ * the uDim uniform.
  */
 const PULSE_MS = 900
 
-export default function HeroAuroraBloom() {
+export default function HeroAuroraBloom({ scope = 'hero' }: { scope?: 'hero' | 'page' }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const profile = useMotionCapabilityProfile()
 
@@ -50,6 +64,7 @@ export default function HeroAuroraBloom() {
       'uPointerStrength',
       'uProgress',
       'uPulse',
+      'uDim',
     ])
     const quad = createQuad(gl)
     if (!program || !quad) {
@@ -81,9 +96,18 @@ export default function HeroAuroraBloom() {
     const start = performance.now()
 
     const resize = () => {
-      const parent = canvas.parentElement
-      width = parent?.clientWidth || window.innerWidth
-      height = parent?.clientHeight || window.innerHeight
+      // A page-scoped canvas is `position: fixed`, so its offsetParent is the
+      // viewport, not a sized ancestor — its actual DOM parent may be <body>,
+      // whose clientHeight is the FULL DOCUMENT height. Measuring that would
+      // stretch the canvas to the entire scroll length instead of one screen.
+      if (scope === 'page') {
+        width = window.innerWidth
+        height = window.innerHeight
+      } else {
+        const parent = canvas.parentElement
+        width = parent?.clientWidth || window.innerWidth
+        height = parent?.clientHeight || window.innerHeight
+      }
       const dpr = Math.min(window.devicePixelRatio || 1, dprCap)
       canvas.width = Math.max(1, Math.floor(width * dpr))
       canvas.height = Math.max(1, Math.floor(height * dpr))
@@ -137,6 +161,7 @@ export default function HeroAuroraBloom() {
       gl.uniform1f(program!.uniforms.uPointerStrength, pointerStrength)
       gl.uniform1f(program!.uniforms.uProgress, progress)
       gl.uniform1f(program!.uniforms.uPulse, pulse)
+      gl.uniform1f(program!.uniforms.uDim, scope === 'page' ? smoothstep(0.55, 0.95, progress) : 0)
       gl.drawArrays(gl.TRIANGLES, 0, 3)
 
       return true
@@ -190,14 +215,20 @@ export default function HeroAuroraBloom() {
       program.dispose()
       gl.deleteBuffer(quad)
     }
-  }, [profile.canvasDprCap, profile.level])
+  }, [profile.canvasDprCap, profile.level, scope])
 
   return (
     <canvas
       ref={canvasRef}
       aria-hidden="true"
       data-hero-aurora-bloom
-      className="pointer-events-none absolute inset-0 z-0"
+      data-hero-aurora-scope={scope}
+      className={
+        scope === 'page'
+          ? 'pointer-events-none fixed inset-0'
+          : 'pointer-events-none absolute inset-0 z-0'
+      }
+      style={scope === 'page' ? { zIndex: 'var(--z-atmosphere)' } : undefined}
     />
   )
 }

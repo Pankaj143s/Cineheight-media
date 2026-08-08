@@ -20,7 +20,7 @@ export default function Home() {
   return (
     <>
       <span id="top" />
-      <FlowDirector />
+      <FlowDirector background="bloom" />
       <Navbar />
       <main id="main-content" tabIndex={-1} className="layer-content scroll-mt-24 outline-none">
         <HeroIntroSequence />

@@ -168,8 +168,6 @@ export default function HomeCapabilities() {
       const f = damp(0.12, dt)
       c.x += (t.x - c.x) * f
       c.y += (t.y - c.y) * f
-      root.style.setProperty('--sx', `${(c.x * 100).toFixed(1)}%`)
-      root.style.setProperty('--sy', `${(c.y * 100).toFixed(1)}%`)
       root.style.setProperty('--cap-lean-x', `${((c.x - 0.5) * 20).toFixed(2)}px`)
       root.style.setProperty('--cap-lean-y', `${((c.y - 0.5) * 14).toFixed(2)}px`)
       return Math.abs(t.x - c.x) > 0.002 || Math.abs(t.y - c.y) > 0.002
@@ -198,7 +196,7 @@ export default function HomeCapabilities() {
   const mediaStage = (
     <div
       className="relative h-full w-full overflow-hidden"
-      style={{ aspectRatio: mobile ? undefined : '16 / 9', background: 'var(--bg-900)' }}
+      style={{ aspectRatio: mobile ? undefined : '16 / 9' }}
     >
       {PILLARS.map((p, i) => (
         <div
@@ -252,7 +250,7 @@ export default function HomeCapabilities() {
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-y-0 left-0 w-20"
-        style={{ background: 'linear-gradient(to right, var(--bg-950), transparent)' }}
+        style={{ background: 'linear-gradient(to right, rgba(2,3,6,0.9), transparent)' }}
       />
     </div>
   )
@@ -398,21 +396,12 @@ export default function HomeCapabilities() {
         marginTop: mobile ? '-6svh' : 'calc(clamp(3.5rem, 10vh, 8rem) * var(--scene-gap))',
         paddingTop: mobile ? '10svh' : undefined,
         background: mobile
-          ? 'linear-gradient(to bottom, rgba(2,3,6,0) 0%, var(--bg-950) 10svh)'
+          ? 'linear-gradient(to bottom, rgba(2,3,6,0) 0%, rgba(2,3,6,0.82) 10svh)'
           : undefined,
-        ['--sx' as string]: '50%',
-        ['--sy' as string]: '50%',
         ['--cap-lean-x' as string]: '0px',
         ['--cap-lean-y' as string]: '0px',
       }}
     >
-      {rich && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0"
-          style={{ background: 'radial-gradient(ellipse 34% 44% at var(--sx) var(--sy), rgba(0,137,255,0.07), transparent 70%)' }}
-        />
-      )}
 
       <div className="flow-gutter relative">
         <KineticLabel text="WHAT WE DO" />

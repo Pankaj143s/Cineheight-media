@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { gsap } from './gsap'
 import { clamp } from './utils'
 import { useReducedMotion } from './useMediaPreferences'
 import { readScrollSignal, subscribeScrollSignal } from './scrollSignal'
@@ -140,10 +141,8 @@ export function useParallaxField(): void {
       }
     }
 
-    let raf = 0
     let running = false
     let visible = !document.hidden
-    let last = performance.now()
     const mobileQuery = window.matchMedia('(max-width: 767px)')
 
     const updateTargets = () => {
@@ -169,9 +168,11 @@ export function useParallaxField(): void {
       }
     }
 
-    const frame = (now: number) => {
-      const dt = Math.min(50, now - last || 16.7)
-      last = now
+    // On the shared gsap.ticker rather than its own requestAnimationFrame, so
+    // this settles on exactly the same clock as Lenis/ScrollTrigger instead of
+    // stacking a second, independently-timed rAF loop on top.
+    const frame = (_time: number, deltaMs: number) => {
+      const dt = Math.min(50, deltaMs || 16.7)
       const factor = 1 - Math.exp(-dt / 105)
       let unsettled = false
       for (const item of items) {
@@ -186,16 +187,17 @@ export function useParallaxField(): void {
           Math.abs(item.targetY - item.currentY) > 0.03 ||
           Math.abs(item.targetScale - item.currentScale) > 0.0001
       }
-      if (unsettled && visible) raf = requestAnimationFrame(frame)
-      else running = false
+      if (!(unsettled && visible)) {
+        gsap.ticker.remove(frame)
+        running = false
+      }
     }
 
     const schedule = () => {
       updateTargets()
       if (running || !visible) return
       running = true
-      last = performance.now()
-      raf = requestAnimationFrame(frame)
+      gsap.ticker.add(frame)
     }
 
     const onResize = () => {
@@ -214,7 +216,7 @@ export function useParallaxField(): void {
       visible = !document.hidden
       if (visible) schedule()
       else {
-        cancelAnimationFrame(raf)
+        gsap.ticker.remove(frame)
         running = false
       }
     }
@@ -228,7 +230,7 @@ export function useParallaxField(): void {
     observer.observe(document.body, { childList: true, subtree: true })
     resizeObserver.observe(document.body)
     return () => {
-      cancelAnimationFrame(raf)
+      gsap.ticker.remove(frame)
       unsubscribe()
       window.removeEventListener('resize', onResize)
       mobileQuery.removeEventListener('change', onResize)

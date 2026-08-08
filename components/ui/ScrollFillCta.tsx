@@ -22,6 +22,8 @@ type BaseProps = {
   fillMode?: ScrollFillMode
   arrow?: boolean
   tabIndex?: number
+  /** md (default) is the original dominant size; sm fits inline with nav-scale text. */
+  size?: 'sm' | 'md'
 }
 
 type AsLink = BaseProps & {
@@ -39,7 +41,17 @@ type AsButton = BaseProps & {
 }
 
 const baseClass =
-  'font-display relative inline-flex min-h-[52px] items-center gap-3 overflow-hidden px-7 py-3.5 text-sm font-medium uppercase'
+  'font-display relative inline-flex items-center overflow-hidden font-medium uppercase'
+
+const SIZE_CLASS: Record<'sm' | 'md', string> = {
+  md: 'min-h-[52px] gap-3 px-7 py-3.5 text-sm',
+  sm: 'min-h-11 gap-2 px-4 py-2.5 text-[11px]',
+}
+
+const SIZE_LETTER_SPACING: Record<'sm' | 'md', string> = {
+  md: '0.18em',
+  sm: '0.22em',
+}
 
 function FillLayers({ children, arrow }: { children: ReactNode; arrow?: boolean }) {
   return (
@@ -108,12 +120,13 @@ export default function ScrollFillCta(props: AsLink | AsButton) {
   const arrow = props.arrow !== false
   const className = props.className ?? ''
   const tabIndex = props.tabIndex
+  const size = props.size ?? 'md'
   const reduced = useReducedMotion()
   const ref = useRef<HTMLElement | null>(null)
   useLocalScrollFill(ref, fillMode === 'scroll', reduced)
 
-  const classes = `${baseClass} ${className}`.trim()
-  const style = { letterSpacing: '0.18em' as const }
+  const classes = `${baseClass} ${SIZE_CLASS[size]} ${className}`.trim()
+  const style = { letterSpacing: SIZE_LETTER_SPACING[size] }
 
   if (props.as === 'button') {
     return (

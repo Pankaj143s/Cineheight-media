@@ -6,7 +6,6 @@ import { gsap, ScrollTrigger, SplitText } from '@/lib/gsap'
 import { setHeroProgress } from '@/lib/heroProgress'
 import { emitSignalPulse } from '@/lib/heroSignalPulse'
 import { useIsMobileTier, useReducedMotionState } from '@/lib/useMediaPreferences'
-import HeroAuroraBloom from './HeroAuroraBloom'
 import HeroHandshake, { VIEW_W, VIEW_H, NODE_R } from './HeroHandshake'
 import { LIQUID_MEDIA_PROTO } from '@/lib/liquidMedia/config'
 import { setSignalIntensity } from '@/lib/liquidMedia/signalIntensity'
@@ -24,7 +23,7 @@ const HERO_VISUAL_MODE = process.env.NEXT_PUBLIC_HERO_VISUAL_MODE === 'ripple' ?
  * line-art arms then draw out from their stems, clasp, shake, and fade with
  * them. The statement ("WE TURN BUSINESSES INTO BRANDS.") enters over the tail
  * of that fade. Everything is driven by one scrubbed ScrollTrigger timeline;
- * the background is HeroAuroraBloom.
+ * the background is the page-wide HeroAuroraBloom mounted by FlowDirector.
  */
 export default function HeroIntroSequence() {
   const rootRef = useRef<HTMLElement>(null)
@@ -87,6 +86,16 @@ export default function HeroIntroSequence() {
         ease: 'power3.out',
         delay: 0.12,
       })
+
+      // If the visitor is already scrolled into the hero when this runs (a
+      // reload mid-scroll, or an effect rebuild triggered by `mobile`/
+      // `prefsReady` flipping while scrolled in), the scrubbed timeline below
+      // will immediately sweep its playhead past the dissolve tweens at
+      // progress 0.08/0.74 — while these chars are still sitting at their
+      // `from` state (opacity: 0). Those tweens then capture "invisible" as
+      // their permanent start value and the letters never come back. Skipping
+      // straight to the entrance's end state removes that race entirely.
+      if (window.scrollY > 1) entranceTween.progress(1)
 
       // Content-based, not index-based, so `smartWrap` reordering can't break
       // it. "Cineheight" has exactly two lowercase `i`s.
@@ -254,7 +263,7 @@ export default function HeroIntroSequence() {
             trigger: rootRef.current,
             start: 'top top',
             end: 'bottom bottom',
-            scrub: mobile ? 1.6 : 2,
+            scrub: mobile ? 0.9 : 1,
             invalidateOnRefresh: true,
             onUpdate: (st) => {
               setHeroProgress(st.progress)
@@ -304,14 +313,26 @@ export default function HeroIntroSequence() {
 
         // The eight non-`i` letters dissolve outward, edges first, leaving the
         // two `i`s last standing.
+        //
+        // fromTo with a literal, immediateRender:false start state — NOT a
+        // plain .to() — is deliberate. A .to() lazily captures its start value
+        // from the live DOM the first time the scrubbed playhead reaches it;
+        // if that happens while the entrance tween above is still holding
+        // these chars at opacity:0 (see the `entranceTween.progress(1)` guard
+        // above — it only covers the *build* moment, not every possible
+        // scroll timing), the tween would become a 0→0 no-op and the letters
+        // would never come back, since autoAlpha also sets visibility:hidden.
+        // A literal start value can never be corrupted this way.
         if (has(otherChars)) {
-          tl.to(
+          tl.fromTo(
             otherChars,
+            { autoAlpha: 1, y: 0, filter: 'blur(0px)' },
             {
               autoAlpha: 0,
               y: mobile ? -14 : -22,
               filter: 'blur(6px)',
               stagger: { each: 0.016, from: 'edges' },
+              immediateRender: false,
               ...spanDur(0.08, 0.3),
             },
             0.08
@@ -414,10 +435,16 @@ export default function HeroIntroSequence() {
           )
         }
 
-        // The `i`s and the arms exit together.
+        // The `i`s and the arms exit together. fromTo with a literal start —
+        // same reasoning as the otherChars dissolve above.
         const fadeOutTargets = [...iChars, ...(has(handshakeRoot) ? handshakeRoot : [])]
         if (fadeOutTargets.length) {
-          tl.to(fadeOutTargets, { autoAlpha: 0, ...spanDur(0.74, 0.82) }, 0.74)
+          tl.fromTo(
+            fadeOutTargets,
+            { autoAlpha: 1 },
+            { autoAlpha: 0, immediateRender: false, ...spanDur(0.74, 0.82) },
+            0.74
+          )
         }
 
         if (has(blue)) {
@@ -505,10 +532,18 @@ export default function HeroIntroSequence() {
     const fontsReady =
       typeof document !== 'undefined' && document.fonts?.ready ? document.fonts.ready : Promise.resolve()
 
-    fontsReady.then(run).catch(run)
+    // document.fonts.ready waits for EVERY font on the page with no built-in
+    // timeout — a stalled font request would otherwise leave the hero blank
+    // (.hero-title ships at opacity: 0 until `run()` sets it visible).
+    let fontsTimeout = 0
+    const fontsTimeoutPromise = new Promise<void>((resolve) => {
+      fontsTimeout = window.setTimeout(resolve, 600)
+    })
+    Promise.race([fontsReady, fontsTimeoutPromise]).then(run).catch(run)
 
     return () => {
       cancelled = true
+      window.clearTimeout(fontsTimeout)
       entranceTween?.kill()
       ctx?.revert()
       split?.revert()
@@ -543,7 +578,10 @@ export default function HeroIntroSequence() {
       >
         {/*
           Stack:
-            z-0   Aurora bloom
+            z-0   Aurora bloom — now a page-wide fixed layer (FlowDirector),
+                  showing straight through since .hero-stage paints no
+                  background of its own. Only the reduced-motion / not-yet-
+                  resolved fallback below still renders locally.
             z-1   composition (title + handshake), shifted 12%
             z-11  thread (post-reveal only; under statement)
             z-12  transition light
@@ -551,9 +589,7 @@ export default function HeroIntroSequence() {
         */}
         {HERO_VISUAL_MODE === 'ripple' ? (
           <HeroRippleMode />
-        ) : prefsReady && !reduced ? (
-          <HeroAuroraBloom />
-        ) : (
+        ) : prefsReady && !reduced ? null : (
           <div
             ref={fallbackRef}
             data-bloom-fallback={prefsReady ? 'reduced' : 'preference-pending'}

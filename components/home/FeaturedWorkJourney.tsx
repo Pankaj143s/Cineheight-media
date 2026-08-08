@@ -706,7 +706,7 @@ export default function FeaturedWorkJourney({
             >
               <div
                 data-mobile-stage
-                className="sticky top-[11svh] h-[78svh] overflow-hidden bg-[var(--bg-950)] will-change-transform"
+                className="sticky top-[11svh] h-[78svh] overflow-hidden will-change-transform"
               >
                 <Link
                   href={caseStudyHref(cs.id)}
@@ -782,9 +782,9 @@ export default function FeaturedWorkJourney({
       className="relative z-10"
       style={{ height: extendCtaHold ? '420vh' : '270vh' }}
     >
-      <div className="sticky top-0 h-[100svh] w-full overflow-hidden" style={{ background: 'var(--bg-950)' }}>
+      <div className="sticky top-0 h-[100svh] w-full overflow-hidden">
         {/* full-viewport-width media stage */}
-        <div ref={stageRef} className="absolute inset-0" style={{ ['--media-x' as string]: '0px', ['--media-y' as string]: '0px', background: 'var(--bg-950)' }}>
+        <div ref={stageRef} className="absolute inset-0" style={{ ['--media-x' as string]: '0px', ['--media-y' as string]: '0px' }}>
           {PROJECTS.map((cs, i) => (
             <div
               key={cs.id}
@@ -815,7 +815,7 @@ export default function FeaturedWorkJourney({
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-x-0 bottom-0 h-40"
-                style={{ background: 'linear-gradient(to top, var(--bg-950), transparent)' }}
+                style={{ background: 'linear-gradient(to top, rgba(2,3,6,0.9), transparent)' }}
               />
             </div>
           ))}

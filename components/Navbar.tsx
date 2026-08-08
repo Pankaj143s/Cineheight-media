@@ -204,7 +204,8 @@ export default function Navbar() {
           <ScrollFillCta
             href="/contact"
             fillMode="hover"
-            className="hidden min-h-11 px-5 py-2.5 text-[11px] sm:inline-flex"
+            size="sm"
+            className="hidden sm:inline-flex"
           >
             Start a Project
           </ScrollFillCta>

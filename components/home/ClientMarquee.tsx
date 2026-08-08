@@ -101,8 +101,8 @@ export default function ClientMarquee() {
     })
     timeline.fromTo(
       root,
-      { autoAlpha: 0.7, y: 16, clipPath: mobile ? 'inset(16% 0% 0% 0%)' : 'inset(0% 0% 0% 0%)' },
-      { autoAlpha: 1, y: 0, clipPath: 'inset(0% 0% 0% 0%)', duration: 1 },
+      mobile ? { autoAlpha: 0.7, y: 16, clipPath: 'inset(16% 0% 0% 0%)' } : { autoAlpha: 0.7, y: 16 },
+      mobile ? { autoAlpha: 1, y: 0, clipPath: 'inset(0% 0% 0% 0%)', duration: 1 } : { autoAlpha: 1, y: 0, duration: 1 },
       0
     )
     if (rule) timeline.fromTo(rule, { scaleX: 0.08 }, { scaleX: 1, duration: 0.8 }, 0.05)
@@ -335,7 +335,7 @@ export default function ClientMarquee() {
         marginTop: mobile ? '-7svh' : 'calc(clamp(2.5rem, 7vh, 6rem) * var(--scene-gap))',
         paddingTop: mobile ? '9svh' : undefined,
         background: mobile
-          ? 'linear-gradient(to bottom, rgba(2,3,6,0) 0%, var(--bg-950) 9svh)'
+          ? 'linear-gradient(to bottom, rgba(2,3,6,0) 0%, rgba(2,3,6,0.82) 9svh)'
           : undefined,
         ['--depth-x' as string]: '0px',
         ['--depth-y' as string]: '0px',
@@ -348,9 +348,6 @@ export default function ClientMarquee() {
           aria-hidden="true"
           className="mt-4 block h-px w-24 origin-left bg-[var(--blue-500)] opacity-55"
         />
-        <p className="font-body measure mt-4 text-sm leading-relaxed text-text-300">
-          Trusted across mobility, education, hospitality and public organisations.
-        </p>
       </div>
 
       <div data-flow-anchor="center" className="pointer-events-none h-px" aria-hidden="true" />

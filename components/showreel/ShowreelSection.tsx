@@ -88,7 +88,7 @@ export default function ShowreelSection({ context }: { context?: 'home' | 'about
           xPercent: 0,
           autoAlpha: 1,
           ease: 'none',
-          scrollTrigger: { trigger: sectionRef.current, start: 'top 99%', end: mobile ? 'top 52%' : 'top 42%', scrub: 1.05 },
+          scrollTrigger: { trigger: sectionRef.current, start: 'top 99%', end: mobile ? 'top 52%' : 'top 42%', scrub: 0.75 },
         }
       )
       if (gate && mobile) {
@@ -98,7 +98,7 @@ export default function ShowreelSection({ context }: { context?: 'home' | 'about
           {
             clipPath: 'inset(0% 0% 0% 0%)',
             ease: 'none',
-            scrollTrigger: { trigger: sectionRef.current, start: 'top 96%', end: 'top 55%', scrub: 0.82 },
+            scrollTrigger: { trigger: sectionRef.current, start: 'top 96%', end: 'top 55%', scrub: 0.75 },
           }
         )
       }
@@ -110,7 +110,7 @@ export default function ShowreelSection({ context }: { context?: 'home' | 'about
             scale: 1,
             yPercent: 0,
             ease: 'none',
-            scrollTrigger: { trigger: sectionRef.current, start: 'top 92%', end: mobile ? 'top 48%' : 'top 38%', scrub: 1 },
+            scrollTrigger: { trigger: sectionRef.current, start: 'top 92%', end: mobile ? 'top 48%' : 'top 38%', scrub: 0.75 },
           }
         )
       }
@@ -325,6 +325,17 @@ export default function ShowreelSection({ context }: { context?: 'home' | 'about
         aria-hidden="true"
       />
 
+      {/* Soft ambient glow behind the frame — full-bleed edges leave no room
+          for a box-shadow, so this reads as background bloom instead. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -inset-y-16 inset-x-0 z-0 sm:-inset-y-24"
+        style={{
+          background: 'radial-gradient(ellipse 60% 70% at 50% 50%, rgba(0,137,255,0.12), transparent 72%)',
+          filter: 'blur(48px)',
+        }}
+      />
+
       {/* Frame — full-bleed width, 16:9, capped to the viewport height. */}
       <div
         ref={frameRef}
@@ -342,9 +353,9 @@ export default function ShowreelSection({ context }: { context?: 'home' | 'about
             className="absolute inset-0 overflow-hidden"
             style={{
               WebkitMaskImage:
-                'linear-gradient(to bottom, transparent 0%, #000 4%, #000 94%, transparent 100%)',
+                'linear-gradient(to bottom, transparent 0%, #000 1.5%, #000 98.5%, transparent 100%)',
               maskImage:
-                'linear-gradient(to bottom, transparent 0%, #000 4%, #000 94%, transparent 100%)',
+                'linear-gradient(to bottom, transparent 0%, #000 1.5%, #000 98.5%, transparent 100%)',
             }}
           >
             <video
