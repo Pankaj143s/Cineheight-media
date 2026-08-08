@@ -337,20 +337,31 @@ export default function ShowreelSection({ context }: { context?: 'home' | 'about
       />
 
       {/* Frame — full-bleed width, 16:9, capped to the viewport height.
-          On very wide viewports, width:100% + aspect-ratio:16/9 would ask for
+          On very wide MONITORS, width:100% + aspect-ratio:16/9 would ask for
           more height than maxHeight allows — max-height wins that conflict on
           its own, silently widening the effective ratio past 16:9 and making
           object-cover crop harder than intended. Capping max-width to the
           height-driven 16:9 size (mirrors the section's own `min(56.25vw,
-          100dvh)` sizing below) keeps the frame genuinely 16:9 at any width. */}
+          100dvh)` sizing below) keeps the frame genuinely 16:9 there.
+
+          That cap must stay gated behind a large min-width, not applied
+          unconditionally: on an ordinary ~1920px window, browser chrome
+          (tabs/address bar) already eats into `dvh`, which alone can push the
+          window's effective ratio past 16:9 — capping by that ratio with no
+          width floor clipped the video on completely normal desktops, not
+          just true ultrawide monitors. 2048px matches the site's existing
+          --content-max breakpoint for "this is a large/ultrawide viewport". */}
       <div
         ref={frameRef}
         data-showreel-frame
-        className={mobile ? 'relative z-10 w-[94vw]' : 'relative z-10 w-full'}
+        className={
+          mobile
+            ? 'relative z-10 w-[94vw]'
+            : 'relative z-10 w-full min-[2048px]:max-w-[calc(100dvh*16/9)]'
+        }
         style={{
           aspectRatio: mobile ? '4 / 5' : '16 / 9',
           maxHeight: mobile ? '60svh' : '100dvh',
-          maxWidth: mobile ? undefined : 'calc(100dvh * 16 / 9)',
         }}
       >
         <div className="relative h-full w-full">
