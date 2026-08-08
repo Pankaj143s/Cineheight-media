@@ -336,7 +336,13 @@ export default function ShowreelSection({ context }: { context?: 'home' | 'about
         }}
       />
 
-      {/* Frame — full-bleed width, 16:9, capped to the viewport height. */}
+      {/* Frame — full-bleed width, 16:9, capped to the viewport height.
+          On very wide viewports, width:100% + aspect-ratio:16/9 would ask for
+          more height than maxHeight allows — max-height wins that conflict on
+          its own, silently widening the effective ratio past 16:9 and making
+          object-cover crop harder than intended. Capping max-width to the
+          height-driven 16:9 size (mirrors the section's own `min(56.25vw,
+          100dvh)` sizing below) keeps the frame genuinely 16:9 at any width. */}
       <div
         ref={frameRef}
         data-showreel-frame
@@ -344,6 +350,7 @@ export default function ShowreelSection({ context }: { context?: 'home' | 'about
         style={{
           aspectRatio: mobile ? '4 / 5' : '16 / 9',
           maxHeight: mobile ? '60svh' : '100dvh',
+          maxWidth: mobile ? undefined : 'calc(100dvh * 16 / 9)',
         }}
       >
         <div className="relative h-full w-full">
